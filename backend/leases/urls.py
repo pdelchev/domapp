@@ -1,3 +1,10 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views import LeaseViewSet
 
-urlpatterns = []
+router = DefaultRouter()
+router.register(r'leases', LeaseViewSet, basename='lease')
+
+urlpatterns = [
+    path('', include(router.urls)),
+]
