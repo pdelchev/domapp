@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { login } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
+import { Button, Input, Alert } from '../components/ui';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,75 +30,52 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 relative">
-      {/* Language Toggle */}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 relative">
+      {/* Language */}
       <div className="absolute top-4 right-4">
         <button
           onClick={() => setLocale(locale === 'en' ? 'bg' : 'en')}
-          className="bg-white/20 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-sm font-medium hover:bg-white/30 transition"
+          className="h-8 px-3 text-xs font-medium text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 rounded-lg transition-colors"
         >
-          {locale === 'en' ? '🇧🇬 BG' : '🇬🇧 EN'}
+          {locale === 'en' ? 'BG' : 'EN'}
         </button>
       </div>
 
-      <div className="w-full max-w-md px-4">
-        {/* Logo / Brand */}
+      <div className="w-full max-w-sm px-4">
+        {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-lg mb-4">
-            <span className="text-3xl">🏠</span>
-          </div>
-          <h1 className="text-3xl font-bold text-white">DomApp</h1>
-          <p className="text-white/80 mt-1">{t('login.subtitle', locale)}</p>
+          <h1 className="text-2xl font-semibold text-gray-900">DomApp</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('login.subtitle', locale)}</p>
         </div>
 
-        {/* Login Card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">{t('login.title', locale)}</h2>
+        {/* Card */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-5">{t('login.title', locale)}</h2>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm">
-              {error}
-            </div>
-          )}
+          <Alert type="error" message={error} />
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('login.username', locale)}
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-gray-50"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                {t('login.password', locale)}
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition bg-gray-50"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-600 hover:to-purple-700 transition shadow-lg shadow-indigo-500/30 disabled:opacity-50"
-            >
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <Input
+              label={t('login.username', locale)}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+            <Input
+              label={t('login.password', locale)}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <Button type="submit" disabled={loading} className="w-full">
               {loading ? '...' : t('login.submit', locale)}
-            </button>
+            </Button>
           </form>
 
-          <p className="text-center text-sm text-gray-500 mt-6">
-            <a href="/register" className="text-indigo-500 hover:text-indigo-600 font-medium">
+          <p className="text-center text-sm text-gray-500 mt-5">
+            <a href="/register" className="text-indigo-600 hover:text-indigo-700 font-medium">
               {t('login.register', locale)}
             </a>
           </p>

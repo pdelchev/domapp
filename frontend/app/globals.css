@@ -1,23 +1,6 @@
 @import "tailwindcss";
 
-/* Force dark text on all inputs */
+/* Force dark text on form controls */
 input, textarea, select {
-  color: #1f2937 !important;
-}
-
-/* Smooth gradient backgrounds */
-.gradient-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.gradient-success {
-  background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-}
-
-.gradient-warning {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.gradient-info {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: #111827 !important;
 }
