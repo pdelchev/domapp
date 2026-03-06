@@ -539,6 +539,8 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
                           <span className="truncate">{payment.property_name}</span>
                           <span>&middot;</span>
+                          <span className="whitespace-nowrap">{payment.due_date}</span>
+                          <span>&middot;</span>
                           {isOverdue ? (
                             <span className="text-red-500 font-medium whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
                           ) : isDueToday ? (
