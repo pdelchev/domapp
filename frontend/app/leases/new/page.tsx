@@ -2,14 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createLease, getProperties, getTenants } from '../../lib/api';
+import { createLease, getProperties, getTenants, getUnits } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, FormSection } from '../../components/ui';
 
-interface Property { id: number; name: string; }
+interface Property { id: number; name: string; units?: { id: number; unit_number: string }[] }
 interface Tenant { id: number; full_name: string; }
+interface UnitItem { id: number; unit_number: string; }
 
 export default function NewLeasePage() {
   const router = useRouter();
@@ -18,8 +19,10 @@ export default function NewLeasePage() {
   const [error, setError] = useState('');
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [propertyUnits, setPropertyUnits] = useState<UnitItem[]>([]);
   const [form, setForm] = useState({
     property: '',
+    unit: '',
     tenant: '',
     start_date: '',
     end_date: '',
@@ -40,6 +43,15 @@ export default function NewLeasePage() {
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    if (form.property) {
+      getUnits(Number(form.property)).then(setPropertyUnits).catch(() => setPropertyUnits([]));
+    } else {
+      setPropertyUnits([]);
+    }
+    set('unit', '');
+  }, [form.property]);
+
   const set = (field: string, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -48,8 +60,9 @@ export default function NewLeasePage() {
     setSaving(true);
     setError('');
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         property: Number(form.property),
+        unit: form.unit ? Number(form.unit) : null,
         tenant: Number(form.tenant),
         start_date: form.start_date,
         end_date: form.end_date,
@@ -95,6 +108,14 @@ export default function NewLeasePage() {
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </Select>
+              {propertyUnits.length > 0 && (
+                <Select label={t('leases.unit', locale)} value={form.unit} onChange={(e) => set('unit', e.target.value)}>
+                  <option value="">{t('leases.no_unit', locale)}</option>
+                  {propertyUnits.map((u) => (
+                    <option key={u.id} value={u.id}>{u.unit_number}</option>
+                  ))}
+                </Select>
+              )}
               <Select label={t('leases.tenant', locale)} value={form.tenant} onChange={(e) => set('tenant', e.target.value)} required>
                 <option value="">{t('common.select', locale)}</option>
                 {tenants.map((t) => (

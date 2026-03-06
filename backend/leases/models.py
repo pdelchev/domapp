@@ -1,5 +1,5 @@
 from django.db import models
-from properties.models import Property
+from properties.models import Property, Unit
 from tenants.models import Tenant
 
 
@@ -33,6 +33,11 @@ class Lease(models.Model):
 
     property = models.ForeignKey(
         Property, on_delete=models.CASCADE, related_name='leases'
+    )
+    unit = models.ForeignKey(
+        Unit, on_delete=models.SET_NULL, related_name='leases',
+        blank=True, null=True,
+        help_text='Optional — which unit within the property this lease is for'
     )
     tenant = models.ForeignKey(
         Tenant, on_delete=models.CASCADE, related_name='leases'

@@ -12,6 +12,7 @@ interface Lease {
   id: number;
   tenant_name: string;
   property_name: string;
+  unit_name: string | null;
   start_date: string;
   end_date: string;
   monthly_rent: string;
@@ -128,9 +129,13 @@ export default function LeasesPage() {
                   >
                     <td className="px-5 py-3">
                       <span className="text-sm font-medium text-gray-900">{lease.tenant_name}</span>
-                      <p className="text-xs text-gray-500 md:hidden">{lease.property_name}</p>
+                      <p className="text-xs text-gray-500 md:hidden">
+                        {lease.property_name}{lease.unit_name ? ` — ${lease.unit_name}` : ''}
+                      </p>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{lease.property_name}</td>
+                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">
+                      {lease.property_name}{lease.unit_name ? <span className="text-gray-400"> — {lease.unit_name}</span> : ''}
+                    </td>
                     <td className="px-5 py-3">
                       <span className="text-sm font-medium text-gray-900">{fmt(lease.monthly_rent)}</span>
                       {lease.overdue_count > 0 && (

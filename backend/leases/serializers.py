@@ -6,6 +6,7 @@ from finance.models import RentPayment
 class LeaseSerializer(serializers.ModelSerializer):
     tenant_name = serializers.CharField(source='tenant.full_name', read_only=True)
     property_name = serializers.CharField(source='property.name', read_only=True)
+    unit_name = serializers.CharField(source='unit.unit_number', read_only=True, default=None)
 
     # Computed fields — payment stats for the lease
     total_paid = serializers.SerializerMethodField()

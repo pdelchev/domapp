@@ -175,6 +175,37 @@ export async function deleteProperty(id: number) {
   if (!res.ok) throw new Error('Failed to delete property');
 }
 
+// --- Units ---
+export async function getUnits(propertyId?: number) {
+  const query = propertyId ? `?property=${propertyId}` : '';
+  const res = await apiFetch(`/api/units/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch units');
+  return res.json();
+}
+
+export async function createUnit(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/units/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create unit');
+  return res.json();
+}
+
+export async function updateUnit(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/units/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update unit');
+  return res.json();
+}
+
+export async function deleteUnit(id: number) {
+  const res = await apiFetch(`/api/units/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete unit');
+}
+
 // --- Tenants ---
 export async function getTenants(propertyId?: number) {
   const query = propertyId ? `?property=${propertyId}` : '';

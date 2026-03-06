@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getLease, updateLease, getProperties, getTenants, getRentPayments, generateLeasePayments, updateRentPayment } from '../../lib/api';
+import { getLease, updateLease, getProperties, getTenants, getRentPayments, generateLeasePayments, updateRentPayment, getUnits } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -10,6 +10,7 @@ import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textar
 
 interface Property { id: number; name: string; }
 interface Tenant { id: number; full_name: string; }
+interface UnitItem { id: number; unit_number: string; }
 interface Payment {
   id: number;
   due_date: string;
@@ -30,12 +31,14 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
   const [success, setSuccess] = useState('');
   const [properties, setProperties] = useState<Property[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [propertyUnits, setPropertyUnits] = useState<UnitItem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [markMethod, setMarkMethod] = useState('bank');
   const [markDate, setMarkDate] = useState('');
   const [form, setForm] = useState({
     property: '',
+    unit: '',
     tenant: '',
     start_date: '',
     end_date: '',
@@ -64,6 +67,7 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
       .then(([data, props, allTenants, pmts]) => {
         setForm({
           property: String(data.property),
+          unit: data.unit ? String(data.unit) : '',
           tenant: String(data.tenant),
           start_date: data.start_date || '',
           end_date: data.end_date || '',
@@ -89,6 +93,14 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
       .finally(() => setLoading(false));
   }, [id, router]);
 
+  useEffect(() => {
+    if (form.property) {
+      getUnits(Number(form.property)).then(setPropertyUnits).catch(() => setPropertyUnits([]));
+    } else {
+      setPropertyUnits([]);
+    }
+  }, [form.property]);
+
   const set = (field: string, value: string | boolean) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -100,8 +112,9 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
     setError('');
     setSuccess('');
     try {
-      const payload = {
+      const payload: Record<string, unknown> = {
         property: Number(form.property),
+        unit: form.unit ? Number(form.unit) : null,
         tenant: Number(form.tenant),
         start_date: form.start_date,
         end_date: form.end_date,
@@ -200,6 +213,14 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </Select>
+              {propertyUnits.length > 0 && (
+                <Select label={t('leases.unit', locale)} value={form.unit} onChange={(e) => set('unit', e.target.value)}>
+                  <option value="">{t('leases.no_unit', locale)}</option>
+                  {propertyUnits.map((u) => (
+                    <option key={u.id} value={u.id}>{u.unit_number}</option>
+                  ))}
+                </Select>
+              )}
               <Select label={t('leases.tenant', locale)} value={form.tenant} onChange={(e) => set('tenant', e.target.value)} required>
                 <option value="">{t('common.select', locale)}</option>
                 {filteredTenants.map((tn) => (

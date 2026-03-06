@@ -126,6 +126,17 @@ const translations: Record<string, Record<Locale, string>> = {
   'type.studio': { en: 'Studio', bg: 'Студио' },
   'type.commercial': { en: 'Commercial', bg: 'Търговски обект' },
 
+  // Units
+  'units.title': { en: 'Units', bg: 'Обекти' },
+  'units.add': { en: 'Add Unit', bg: 'Добави обект' },
+  'units.edit': { en: 'Edit Unit', bg: 'Редактирай обект' },
+  'units.unit_number': { en: 'Unit Number', bg: 'Номер на обект' },
+  'units.floor': { en: 'Floor', bg: 'Етаж' },
+  'units.sqm': { en: 'Square Meters', bg: 'Квадратура' },
+  'units.notes': { en: 'Notes', bg: 'Бележки' },
+  'units.no_units': { en: 'No units yet', bg: 'Няма обекти все още' },
+  'units.delete_confirm': { en: 'Are you sure you want to delete this unit?', bg: 'Сигурни ли сте, че искате да изтриете този обект?' },
+
   // Tenants
   'tenants.title': { en: 'Tenants', bg: 'Наематели' },
   'tenants.add': { en: 'Add Tenant', bg: 'Добави наемател' },
@@ -150,6 +161,8 @@ const translations: Record<string, Record<Locale, string>> = {
   'leases.edit': { en: 'Edit Lease', bg: 'Редактирай договор' },
   'leases.tenant': { en: 'Tenant', bg: 'Наемател' },
   'leases.property': { en: 'Property', bg: 'Имот' },
+  'leases.unit': { en: 'Unit', bg: 'Обект' },
+  'leases.no_unit': { en: 'Whole property', bg: 'Целият имот' },
   'leases.start_date': { en: 'Start Date', bg: 'Начална дата' },
   'leases.end_date': { en: 'End Date', bg: 'Крайна дата' },
   'leases.rent_amount': { en: 'Rent Amount', bg: 'Сума на наема' },

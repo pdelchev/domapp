@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProperty, updateProperty, getOwners, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems } from '../../lib/api';
+import { getProperty, updateProperty, getOwners, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems, getUnits, createUnit, updateUnit, deleteUnit } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -54,6 +54,7 @@ interface OwnerItem { id: number; full_name: string; }
 interface Lease {
   id: number;
   tenant_name: string;
+  unit_name: string | null;
   start_date: string;
   end_date: string;
   monthly_rent: string;
@@ -90,6 +91,15 @@ interface ProblemRecord {
   status: string;
   assigned_to: string;
   created_at: string;
+}
+
+interface UnitRecord {
+  id: number;
+  property: number;
+  unit_number: string;
+  floor: number | null;
+  square_meters: number | null;
+  notes: string | null;
 }
 
 const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
@@ -172,6 +182,11 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [smartFolders, setSmartFolders] = useState<SmartFolder[]>([]);
   const [problems, setProblems] = useState<ProblemRecord[]>([]);
+  const [units, setUnits] = useState<UnitRecord[]>([]);
+  const [unitForm, setUnitForm] = useState({ unit_number: '', floor: '', square_meters: '', notes: '' });
+  const [editingUnitId, setEditingUnitId] = useState<number | null>(null);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [unitSaving, setUnitSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true, land: true,
@@ -197,14 +212,16 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
       getDocuments(Number(id)),
       getSmartFolders(Number(id)),
       getProblems(Number(id)),
+      getUnits(Number(id)),
     ])
-      .then(([propData, ownersData, leasesData, docsData, foldersData, problemsData]) => {
+      .then(([propData, ownersData, leasesData, docsData, foldersData, problemsData, unitsData]) => {
         setProp(propData);
         setOwners(ownersData);
         setLeases(leasesData);
         setDocs(docsData);
         setSmartFolders(foldersData);
         setProblems(problemsData);
+        setUnits(unitsData);
       })
       .catch(() => router.push('/properties'))
       .finally(() => setLoading(false));
@@ -299,6 +316,59 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
     setEditForm((prev) => ({ ...prev, [field]: value }));
 
   // --- Document logic (unchanged) ---
+  // --- Unit management ---
+  const resetUnitForm = () => {
+    setUnitForm({ unit_number: '', floor: '', square_meters: '', notes: '' });
+    setEditingUnitId(null);
+    setShowAddUnit(false);
+  };
+
+  const startEditUnit = (u: UnitRecord) => {
+    setUnitForm({
+      unit_number: u.unit_number,
+      floor: u.floor != null ? String(u.floor) : '',
+      square_meters: u.square_meters != null ? String(u.square_meters) : '',
+      notes: u.notes || '',
+    });
+    setEditingUnitId(u.id);
+    setShowAddUnit(false);
+  };
+
+  const handleSaveUnit = async () => {
+    setUnitSaving(true);
+    try {
+      const payload = {
+        property: Number(id),
+        unit_number: unitForm.unit_number,
+        floor: unitForm.floor ? Number(unitForm.floor) : null,
+        square_meters: unitForm.square_meters ? Number(unitForm.square_meters) : null,
+        notes: unitForm.notes || null,
+      };
+      if (editingUnitId) {
+        const updated = await updateUnit(editingUnitId, payload);
+        setUnits((prev) => prev.map((u) => u.id === editingUnitId ? updated : u));
+      } else {
+        const created = await createUnit(payload);
+        setUnits((prev) => [...prev, created]);
+      }
+      resetUnitForm();
+    } catch {
+      // silently fail
+    } finally {
+      setUnitSaving(false);
+    }
+  };
+
+  const handleDeleteUnit = async (unitId: number) => {
+    if (!confirm(t('units.delete_confirm', locale))) return;
+    try {
+      await deleteUnit(unitId);
+      setUnits((prev) => prev.filter((u) => u.id !== unitId));
+    } catch {
+      // silently fail
+    }
+  };
+
   const docsByType = ALL_DOC_TYPES.reduce((acc, type) => {
     acc[type] = docs.filter((d) => d.document_type === type);
     return acc;
@@ -658,6 +728,97 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
           )}
         </FormSection>
 
+        {/* ====== Units ====== */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">{t('units.title', locale)}</h2>
+            <Button variant="secondary" size="sm" onClick={() => { resetUnitForm(); setShowAddUnit(true); }}>
+              + {t('units.add', locale)}
+            </Button>
+          </div>
+
+          {(showAddUnit || editingUnitId) && (
+            <Card className="mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                {editingUnitId ? t('units.edit', locale) : t('units.add', locale)}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <Input
+                  label={t('units.unit_number', locale)}
+                  value={unitForm.unit_number}
+                  onChange={(e) => setUnitForm((prev) => ({ ...prev, unit_number: e.target.value }))}
+                  required
+                />
+                <Input
+                  label={t('units.floor', locale)}
+                  type="number"
+                  value={unitForm.floor}
+                  onChange={(e) => setUnitForm((prev) => ({ ...prev, floor: e.target.value }))}
+                />
+                <Input
+                  label={t('units.sqm', locale)}
+                  type="number"
+                  value={unitForm.square_meters}
+                  onChange={(e) => setUnitForm((prev) => ({ ...prev, square_meters: e.target.value }))}
+                />
+                <Input
+                  label={t('units.notes', locale)}
+                  value={unitForm.notes}
+                  onChange={(e) => setUnitForm((prev) => ({ ...prev, notes: e.target.value }))}
+                />
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" onClick={handleSaveUnit} disabled={unitSaving || !unitForm.unit_number}>
+                  {unitSaving ? '...' : t('common.save', locale)}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={resetUnitForm}>
+                  {t('common.cancel', locale)}
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {units.length === 0 && !showAddUnit ? (
+            <Card className="py-6 text-center">
+              <p className="text-sm text-gray-500">{t('units.no_units', locale)}</p>
+            </Card>
+          ) : units.length > 0 && (
+            <Card padding={false}>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('units.unit_number', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('units.floor', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('units.sqm', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('units.notes', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {units.map((u) => (
+                    <tr key={u.id} className="hover:bg-gray-50">
+                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{u.unit_number}</td>
+                      <td className="px-5 py-3 text-sm text-gray-500">{u.floor ?? '—'}</td>
+                      <td className="px-5 py-3 text-sm text-gray-500">{u.square_meters ?? '—'}</td>
+                      <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{u.notes || '—'}</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="flex gap-1 justify-end">
+                          <Button variant="ghost" size="sm" onClick={() => startEditUnit(u)}>
+                            {t('common.edit', locale)}
+                          </Button>
+                          <Button variant="danger" size="sm" onClick={() => handleDeleteUnit(u.id)}>
+                            {t('common.delete', locale)}
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+
         {/* ====== Leases ====== */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
@@ -676,6 +837,9 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
                 <thead>
                   <tr className="border-b border-gray-200 text-left">
                     <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leases.tenant', locale)}</th>
+                    {units.length > 0 && (
+                      <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leases.unit', locale)}</th>
+                    )}
                     <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leases.rent_amount', locale)}</th>
                     <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leases.rent_frequency', locale)}</th>
                     <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leases.end_date', locale)}</th>
@@ -690,6 +854,9 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
                       className="hover:bg-gray-50 cursor-pointer transition-colors"
                     >
                       <td className="px-5 py-3 text-sm text-gray-900">{lease.tenant_name}</td>
+                      {units.length > 0 && (
+                        <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{lease.unit_name || '—'}</td>
+                      )}
                       <td className="px-5 py-3 text-sm text-gray-900 font-medium">{fmt(lease.monthly_rent)}</td>
                       <td className="px-5 py-3 hidden md:table-cell">
                         <Badge color="indigo">{t(`freq.${lease.rent_frequency}`, locale)}</Badge>
