@@ -71,6 +71,32 @@ class Lease(models.Model):
         help_text='Next date a payment record will be generated for'
     )
 
+    # Utility meter readings — recorded at move-in and move-out
+    electricity_meter_in = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Electricity meter reading at move-in'
+    )
+    electricity_meter_out = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Electricity meter reading at move-out'
+    )
+    water_meter_in = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Water meter reading at move-in'
+    )
+    water_meter_out = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Water meter reading at move-out'
+    )
+    gas_meter_in = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Gas meter reading at move-in'
+    )
+    gas_meter_out = models.DecimalField(
+        max_digits=12, decimal_places=2, blank=True, null=True,
+        help_text='Gas meter reading at move-out'
+    )
+
     notes = models.TextField(blank=True, null=True)
 
     class Meta:

@@ -2,14 +2,15 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProperty, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders } from '../../lib/api';
+import { getProperty, updateProperty, getOwners, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Input, Select, FormSection, Spinner, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Badge, Input, Select, Textarea, FormSection, Spinner, Alert } from '../../components/ui';
 
 interface PropertyData {
   id: number;
+  owner: number;
   name: string;
   owner_name: string;
   address: string;
@@ -48,6 +49,8 @@ interface PropertyData {
   notes: string | null;
 }
 
+interface OwnerItem { id: number; full_name: string; }
+
 interface Lease {
   id: number;
   tenant_name: string;
@@ -79,6 +82,16 @@ interface SmartFolder {
   expiry_warnings: number;
 }
 
+interface ProblemRecord {
+  id: number;
+  title: string;
+  category: string;
+  priority: string;
+  status: string;
+  assigned_to: string;
+  created_at: string;
+}
+
 const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
   apartment: 'blue',
   house: 'green',
@@ -86,7 +99,6 @@ const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
   commercial: 'purple',
 };
 
-// All possible document types — smart folders may override this order
 const ALL_DOC_TYPES = [
   'insurance', 'mortgage', 'lease', 'deed', 'tax',
   'utility_electricity', 'utility_water', 'utility_gas', 'utility_heating', 'utility_internet',
@@ -94,6 +106,7 @@ const ALL_DOC_TYPES = [
   'maintenance', 'receipt', 'photo', 'other',
 ] as const;
 
+// --- Read-only field display helpers ---
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   if (value == null || value === '') return null;
   return (
@@ -115,8 +128,38 @@ function CurrencyField({ label, value }: { label: string; value: number | null |
   );
 }
 
-function hasAny(...values: (string | number | null | undefined)[]): boolean {
-  return values.some((v) => v != null && v !== '');
+// Pencil icon button for section headers
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+      title="Edit"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+      </svg>
+    </button>
+  );
+}
+
+// Save / Cancel row at bottom of an editing section
+function EditActions({ onSave, onCancel, saving }: { onSave: () => void; onCancel: () => void; saving: boolean }) {
+  return (
+    <div className="flex gap-2 pt-2 border-t border-gray-100 mt-2">
+      <Button size="sm" onClick={onSave} disabled={saving}>
+        {saving ? '...' : 'Save'}
+      </Button>
+      <Button size="sm" variant="secondary" onClick={onCancel}>Cancel</Button>
+    </div>
+  );
+}
+
+// --- Helpers to convert prop data to/from edit form strings ---
+function val(v: string | number | null | undefined): string {
+  if (v == null) return '';
+  return String(v);
 }
 
 export default function PropertyViewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -124,9 +167,11 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   const router = useRouter();
   const { locale } = useLanguage();
   const [prop, setProp] = useState<PropertyData | null>(null);
+  const [owners, setOwners] = useState<OwnerItem[]>([]);
   const [leases, setLeases] = useState<Lease[]>([]);
   const [docs, setDocs] = useState<DocRecord[]>([]);
   const [smartFolders, setSmartFolders] = useState<SmartFolder[]>([]);
+  const [problems, setProblems] = useState<ProblemRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true, land: true,
@@ -138,18 +183,28 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   const [docError, setDocError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Inline editing state
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+
   useEffect(() => {
     Promise.all([
       getProperty(Number(id)),
+      getOwners(),
       getLeases(Number(id)),
       getDocuments(Number(id)),
       getSmartFolders(Number(id)),
+      getProblems(Number(id)),
     ])
-      .then(([propData, leasesData, docsData, foldersData]) => {
+      .then(([propData, ownersData, leasesData, docsData, foldersData, problemsData]) => {
         setProp(propData);
+        setOwners(ownersData);
         setLeases(leasesData);
         setDocs(docsData);
         setSmartFolders(foldersData);
+        setProblems(problemsData);
       })
       .catch(() => router.push('/properties'))
       .finally(() => setLoading(false));
@@ -170,18 +225,89 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
     return 'yellow' as const;
   };
 
-  // Group docs by type — use smart folders order, then any remaining types
+  // --- Section editing logic ---
+  // Maps section name to the property fields it contains
+  const SECTION_FIELDS: Record<string, string[]> = {
+    basic: ['name', 'owner', 'address', 'city', 'country', 'property_type'],
+    land: ['cadastral_number', 'square_meters', 'purchase_price', 'purchase_date', 'current_value'],
+    mortgage: ['mortgage_provider', 'mortgage_account_number', 'mortgage_monthly_payment'],
+    utilities: [
+      'electricity_provider', 'electricity_account_number',
+      'water_provider', 'water_account_number',
+      'gas_provider', 'gas_account_number',
+      'heating_provider', 'heating_account_number',
+      'internet_provider', 'internet_account_number',
+    ],
+    insurance: ['insurance_provider', 'insurance_policy_number', 'annual_insurance_cost'],
+    building: ['building_management_provider', 'building_management_account_number', 'building_management_monthly_fee'],
+    security: ['security_provider', 'security_account_number'],
+    access: ['front_door_code', 'lock_box_code'],
+    notes: ['notes'],
+  };
+
+  const startEditing = (section: string) => {
+    if (!prop) return;
+    const fields = SECTION_FIELDS[section] || [];
+    const formData: Record<string, string> = {};
+    for (const f of fields) {
+      formData[f] = val((prop as unknown as Record<string, unknown>)[f] as string | number | null);
+    }
+    setEditForm(formData);
+    setEditingSection(section);
+    setSaveMsg('');
+    // Ensure the section is open
+    setOpenSections((prev) => ({ ...prev, [section]: true }));
+  };
+
+  const cancelEditing = () => {
+    setEditingSection(null);
+    setEditForm({});
+    setSaveMsg('');
+  };
+
+  const saveSection = async () => {
+    if (!prop) return;
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      // Build payload — send ALL property fields (PUT requires full object)
+      const payload: Record<string, unknown> = {};
+      const allFields = Object.keys(SECTION_FIELDS).flatMap((s) => SECTION_FIELDS[s]);
+      for (const key of allFields) {
+        const current = (prop as unknown as Record<string, unknown>)[key];
+        payload[key] = current === null ? null : current;
+      }
+      // Override with edited fields
+      for (const [key, value] of Object.entries(editForm)) {
+        payload[key] = value === '' ? null : value;
+      }
+      const updated = await updateProperty(Number(id), payload);
+      setProp(updated);
+      setEditingSection(null);
+      setEditForm({});
+      setSaveMsg(t('common.saved', locale));
+      setTimeout(() => setSaveMsg(''), 2000);
+    } catch {
+      setSaveMsg(t('common.error', locale));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const ef = (field: string) => editForm[field] ?? '';
+  const setEf = (field: string, value: string) =>
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+
+  // --- Document logic (unchanged) ---
   const docsByType = ALL_DOC_TYPES.reduce((acc, type) => {
     acc[type] = docs.filter((d) => d.document_type === type);
     return acc;
   }, {} as Record<string, DocRecord[]>);
 
-  // Smart folder types (from property metadata) + types that have docs
   const folderTypes = smartFolders.length > 0
     ? smartFolders.map((f) => f.type)
-    : ALL_DOC_TYPES.filter((t) => (docsByType[t]?.length ?? 0) > 0);
+    : ALL_DOC_TYPES.filter((t2) => (docsByType[t2]?.length ?? 0) > 0);
 
-  // Expiry status badge colors
   const expiryColor = (status: string | null) => {
     if (status === 'expired') return 'red' as const;
     if (status === 'expiring_soon') return 'yellow' as const;
@@ -240,6 +366,8 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
     return <PageShell><NavBar /><Spinner message={t('common.loading', locale)} /></PageShell>;
   }
 
+  const isEditing = (section: string) => editingSection === section;
+
   return (
     <PageShell>
       <NavBar />
@@ -248,35 +376,81 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
           title={prop.name}
           backLabel={t('common.back', locale)}
           onBack={() => router.push('/properties')}
-          action={
-            <Button onClick={() => router.push(`/properties/${id}/edit`)}>
-              {t('common.edit', locale)}
-            </Button>
-          }
         />
 
-        {/* Basic Info */}
-        <FormSection title={t('properties.section.basic', locale)} icon="🏢" open={!!openSections.basic} onToggle={() => toggle('basic')}>
-          <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-            <Field label={t('properties.name', locale)} value={prop.name} />
-            <Field label={t('properties.owner', locale)} value={prop.owner_name} />
-            <Field label={t('properties.address', locale)} value={prop.address} />
-            <Field label={t('properties.city', locale)} value={prop.city} />
-            <Field label={t('properties.country', locale)} value={prop.country} />
-            <div>
-              <dt className="text-[13px] font-medium text-gray-500">{t('properties.type', locale)}</dt>
-              <dd className="mt-0.5">
-                <Badge color={TYPE_BADGE[prop.property_type] || 'gray'}>
-                  {t(`type.${prop.property_type}`, locale)}
-                </Badge>
-              </dd>
+        {saveMsg && (
+          <Alert type={saveMsg === t('common.saved', locale) ? 'success' : 'error'} message={saveMsg} />
+        )}
+
+        {/* ====== Basic Info ====== */}
+        <FormSection
+          title={t('properties.section.basic', locale)}
+          icon="🏢"
+          open={!!openSections.basic}
+          onToggle={() => toggle('basic')}
+          action={!isEditing('basic') ? <EditButton onClick={() => startEditing('basic')} /> : undefined}
+        >
+          {isEditing('basic') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.name', locale)} value={ef('name')} onChange={(e) => setEf('name', e.target.value)} required />
+                <Select label={t('properties.owner', locale)} value={ef('owner')} onChange={(e) => setEf('owner', e.target.value)} required>
+                  <option value="">{t('common.select', locale)}</option>
+                  {owners.map((o) => <option key={o.id} value={o.id}>{o.full_name}</option>)}
+                </Select>
+              </div>
+              <Input label={t('properties.address', locale)} value={ef('address')} onChange={(e) => setEf('address', e.target.value)} required />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label={t('properties.city', locale)} value={ef('city')} onChange={(e) => setEf('city', e.target.value)} required />
+                <Input label={t('properties.country', locale)} value={ef('country')} onChange={(e) => setEf('country', e.target.value)} />
+                <Select label={t('properties.type', locale)} value={ef('property_type')} onChange={(e) => setEf('property_type', e.target.value)}>
+                  <option value="apartment">{t('type.apartment', locale)}</option>
+                  <option value="house">{t('type.house', locale)}</option>
+                  <option value="studio">{t('type.studio', locale)}</option>
+                  <option value="commercial">{t('type.commercial', locale)}</option>
+                </Select>
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
             </div>
-          </dl>
+          ) : (
+            <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+              <Field label={t('properties.name', locale)} value={prop.name} />
+              <Field label={t('properties.owner', locale)} value={prop.owner_name} />
+              <Field label={t('properties.address', locale)} value={prop.address} />
+              <Field label={t('properties.city', locale)} value={prop.city} />
+              <Field label={t('properties.country', locale)} value={prop.country} />
+              <div>
+                <dt className="text-[13px] font-medium text-gray-500">{t('properties.type', locale)}</dt>
+                <dd className="mt-0.5">
+                  <Badge color={TYPE_BADGE[prop.property_type] || 'gray'}>
+                    {t(`type.${prop.property_type}`, locale)}
+                  </Badge>
+                </dd>
+              </div>
+            </dl>
+          )}
         </FormSection>
 
-        {/* Land & Acquisition */}
-        {hasAny(prop.cadastral_number, prop.square_meters, prop.purchase_price, prop.purchase_date, prop.current_value, prop.price_per_sqm) && (
-          <FormSection title={t('properties.section.land', locale)} icon="📐" open={!!openSections.land} onToggle={() => toggle('land')}>
+        {/* ====== Land & Acquisition ====== */}
+        <FormSection
+          title={t('properties.section.land', locale)}
+          icon="📐"
+          open={!!openSections.land}
+          onToggle={() => toggle('land')}
+          action={!isEditing('land') ? <EditButton onClick={() => startEditing('land')} /> : undefined}
+        >
+          {isEditing('land') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.cadastral', locale)} value={ef('cadastral_number')} onChange={(e) => setEf('cadastral_number', e.target.value)} />
+                <Input label={t('properties.sqm', locale)} type="number" value={ef('square_meters')} onChange={(e) => setEf('square_meters', e.target.value)} />
+                <Input label={t('properties.purchase_price', locale)} type="number" value={ef('purchase_price')} onChange={(e) => setEf('purchase_price', e.target.value)} />
+                <Input label={t('properties.purchase_date', locale)} type="date" value={ef('purchase_date')} onChange={(e) => setEf('purchase_date', e.target.value)} />
+                <Input label={t('properties.current_value', locale)} type="number" value={ef('current_value')} onChange={(e) => setEf('current_value', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
               <Field label={t('properties.cadastral', locale)} value={prop.cadastral_number} />
               <Field label={t('properties.sqm', locale)} value={prop.square_meters} />
@@ -285,23 +459,68 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
               <CurrencyField label={t('properties.current_value', locale)} value={prop.current_value} />
               <CurrencyField label={t('properties.price_per_sqm', locale)} value={prop.price_per_sqm} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Mortgage */}
-        {hasAny(prop.mortgage_provider, prop.mortgage_account_number, prop.mortgage_monthly_payment) && (
-          <FormSection title={t('properties.section.mortgage', locale)} icon="🏦" open={!!openSections.mortgage} onToggle={() => toggle('mortgage')}>
+        {/* ====== Mortgage ====== */}
+        <FormSection
+          title={t('properties.section.mortgage', locale)}
+          icon="🏦"
+          open={!!openSections.mortgage}
+          onToggle={() => toggle('mortgage')}
+          action={!isEditing('mortgage') ? <EditButton onClick={() => startEditing('mortgage')} /> : undefined}
+        >
+          {isEditing('mortgage') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label={t('properties.mortgage_provider', locale)} value={ef('mortgage_provider')} onChange={(e) => setEf('mortgage_provider', e.target.value)} />
+                <Input label={t('properties.mortgage_account', locale)} value={ef('mortgage_account_number')} onChange={(e) => setEf('mortgage_account_number', e.target.value)} />
+                <Input label={t('properties.mortgage_payment', locale)} type="number" value={ef('mortgage_monthly_payment')} onChange={(e) => setEf('mortgage_monthly_payment', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
               <Field label={t('properties.mortgage_provider', locale)} value={prop.mortgage_provider} />
               <Field label={t('properties.mortgage_account', locale)} value={prop.mortgage_account_number} />
               <CurrencyField label={t('properties.mortgage_payment', locale)} value={prop.mortgage_monthly_payment} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Utilities */}
-        {hasAny(prop.electricity_provider, prop.electricity_account_number, prop.water_provider, prop.water_account_number, prop.gas_provider, prop.gas_account_number, prop.heating_provider, prop.heating_account_number, prop.internet_provider, prop.internet_account_number) && (
-          <FormSection title={t('properties.section.utilities', locale)} icon="⚡" open={!!openSections.utilities} onToggle={() => toggle('utilities')}>
+        {/* ====== Utilities ====== */}
+        <FormSection
+          title={t('properties.section.utilities', locale)}
+          icon="⚡"
+          open={!!openSections.utilities}
+          onToggle={() => toggle('utilities')}
+          action={!isEditing('utilities') ? <EditButton onClick={() => startEditing('utilities')} /> : undefined}
+        >
+          {isEditing('utilities') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.electricity_provider', locale)} value={ef('electricity_provider')} onChange={(e) => setEf('electricity_provider', e.target.value)} />
+                <Input label={t('properties.electricity_account', locale)} value={ef('electricity_account_number')} onChange={(e) => setEf('electricity_account_number', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.water_provider', locale)} value={ef('water_provider')} onChange={(e) => setEf('water_provider', e.target.value)} />
+                <Input label={t('properties.water_account', locale)} value={ef('water_account_number')} onChange={(e) => setEf('water_account_number', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.gas_provider', locale)} value={ef('gas_provider')} onChange={(e) => setEf('gas_provider', e.target.value)} />
+                <Input label={t('properties.gas_account', locale)} value={ef('gas_account_number')} onChange={(e) => setEf('gas_account_number', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.heating_provider', locale)} value={ef('heating_provider')} onChange={(e) => setEf('heating_provider', e.target.value)} />
+                <Input label={t('properties.heating_account', locale)} value={ef('heating_account_number')} onChange={(e) => setEf('heating_account_number', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.internet_provider', locale)} value={ef('internet_provider')} onChange={(e) => setEf('internet_provider', e.target.value)} />
+                <Input label={t('properties.internet_account', locale)} value={ef('internet_account_number')} onChange={(e) => setEf('internet_account_number', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
               <Field label={t('properties.electricity_provider', locale)} value={prop.electricity_provider} />
               <Field label={t('properties.electricity_account', locale)} value={prop.electricity_account_number} />
@@ -314,59 +533,132 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
               <Field label={t('properties.internet_provider', locale)} value={prop.internet_provider} />
               <Field label={t('properties.internet_account', locale)} value={prop.internet_account_number} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Insurance */}
-        {hasAny(prop.insurance_provider, prop.insurance_policy_number, prop.annual_insurance_cost) && (
-          <FormSection title={t('properties.section.insurance', locale)} icon="🛡️" open={!!openSections.insurance} onToggle={() => toggle('insurance')}>
+        {/* ====== Insurance ====== */}
+        <FormSection
+          title={t('properties.section.insurance', locale)}
+          icon="🛡️"
+          open={!!openSections.insurance}
+          onToggle={() => toggle('insurance')}
+          action={!isEditing('insurance') ? <EditButton onClick={() => startEditing('insurance')} /> : undefined}
+        >
+          {isEditing('insurance') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label={t('properties.insurance_provider', locale)} value={ef('insurance_provider')} onChange={(e) => setEf('insurance_provider', e.target.value)} />
+                <Input label={t('properties.insurance_policy', locale)} value={ef('insurance_policy_number')} onChange={(e) => setEf('insurance_policy_number', e.target.value)} />
+                <Input label={t('properties.insurance_cost', locale)} type="number" value={ef('annual_insurance_cost')} onChange={(e) => setEf('annual_insurance_cost', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
               <Field label={t('properties.insurance_provider', locale)} value={prop.insurance_provider} />
               <Field label={t('properties.insurance_policy', locale)} value={prop.insurance_policy_number} />
               <CurrencyField label={t('properties.insurance_cost', locale)} value={prop.annual_insurance_cost} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Building Management */}
-        {hasAny(prop.building_management_provider, prop.building_management_account_number, prop.building_management_monthly_fee) && (
-          <FormSection title={t('properties.section.building', locale)} icon="🏗️" open={!!openSections.building} onToggle={() => toggle('building')}>
+        {/* ====== Building Management ====== */}
+        <FormSection
+          title={t('properties.section.building', locale)}
+          icon="🏗️"
+          open={!!openSections.building}
+          onToggle={() => toggle('building')}
+          action={!isEditing('building') ? <EditButton onClick={() => startEditing('building')} /> : undefined}
+        >
+          {isEditing('building') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input label={t('properties.building_provider', locale)} value={ef('building_management_provider')} onChange={(e) => setEf('building_management_provider', e.target.value)} />
+                <Input label={t('properties.building_account', locale)} value={ef('building_management_account_number')} onChange={(e) => setEf('building_management_account_number', e.target.value)} />
+                <Input label={t('properties.building_fee', locale)} type="number" value={ef('building_management_monthly_fee')} onChange={(e) => setEf('building_management_monthly_fee', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
               <Field label={t('properties.building_provider', locale)} value={prop.building_management_provider} />
               <Field label={t('properties.building_account', locale)} value={prop.building_management_account_number} />
               <CurrencyField label={t('properties.building_fee', locale)} value={prop.building_management_monthly_fee} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Security */}
-        {hasAny(prop.security_provider, prop.security_account_number) && (
-          <FormSection title={t('properties.section.security', locale)} icon="🔒" open={!!openSections.security} onToggle={() => toggle('security')}>
+        {/* ====== Security ====== */}
+        <FormSection
+          title={t('properties.section.security', locale)}
+          icon="🔒"
+          open={!!openSections.security}
+          onToggle={() => toggle('security')}
+          action={!isEditing('security') ? <EditButton onClick={() => startEditing('security')} /> : undefined}
+        >
+          {isEditing('security') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.security_provider', locale)} value={ef('security_provider')} onChange={(e) => setEf('security_provider', e.target.value)} />
+                <Input label={t('properties.security_account', locale)} value={ef('security_account_number')} onChange={(e) => setEf('security_account_number', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
               <Field label={t('properties.security_provider', locale)} value={prop.security_provider} />
               <Field label={t('properties.security_account', locale)} value={prop.security_account_number} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Access Codes */}
-        {hasAny(prop.front_door_code, prop.lock_box_code) && (
-          <FormSection title={t('properties.section.access', locale)} icon="🔑" open={!!openSections.access} onToggle={() => toggle('access')}>
+        {/* ====== Access Codes ====== */}
+        <FormSection
+          title={t('properties.section.access', locale)}
+          icon="🔑"
+          open={!!openSections.access}
+          onToggle={() => toggle('access')}
+          action={!isEditing('access') ? <EditButton onClick={() => startEditing('access')} /> : undefined}
+        >
+          {isEditing('access') ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input label={t('properties.front_door_code', locale)} value={ef('front_door_code')} onChange={(e) => setEf('front_door_code', e.target.value)} />
+                <Input label={t('properties.lock_box_code', locale)} value={ef('lock_box_code')} onChange={(e) => setEf('lock_box_code', e.target.value)} />
+              </div>
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
               <Field label={t('properties.front_door_code', locale)} value={prop.front_door_code} />
               <Field label={t('properties.lock_box_code', locale)} value={prop.lock_box_code} />
             </dl>
-          </FormSection>
-        )}
+          )}
+        </FormSection>
 
-        {/* Notes */}
-        {hasAny(prop.notes) && (
-          <FormSection title={t('properties.section.notes', locale)} icon="📝" open={!!openSections.notes} onToggle={() => toggle('notes')}>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{prop.notes}</p>
-          </FormSection>
-        )}
+        {/* ====== Notes ====== */}
+        <FormSection
+          title={t('properties.section.notes', locale)}
+          icon="📝"
+          open={!!openSections.notes}
+          onToggle={() => toggle('notes')}
+          action={!isEditing('notes') ? <EditButton onClick={() => startEditing('notes')} /> : undefined}
+        >
+          {isEditing('notes') ? (
+            <div className="space-y-4">
+              <Textarea value={ef('notes')} onChange={(e) => setEf('notes', e.target.value)} rows={4} />
+              <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
+            </div>
+          ) : (
+            prop.notes ? (
+              <p className="text-sm text-gray-700 whitespace-pre-wrap">{prop.notes}</p>
+            ) : (
+              <p className="text-sm text-gray-400 italic">{t('common.no_data', locale)}</p>
+            )
+          )}
+        </FormSection>
 
-        {/* Leases */}
+        {/* ====== Leases ====== */}
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">{t('properties.leases', locale)}</h2>
@@ -416,7 +708,59 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
           )}
         </div>
 
-        {/* Documents — Smart Folder View */}
+        {/* ====== Problems ====== */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">{t('problems.title', locale)}</h2>
+            <Button variant="secondary" size="sm" onClick={() => router.push('/problems/new')}>
+              + {t('problems.add', locale)}
+            </Button>
+          </div>
+          {problems.length === 0 ? (
+            <Card className="py-8 text-center">
+              <p className="text-sm text-gray-500">{t('problems.no_problems', locale)}</p>
+            </Card>
+          ) : (
+            <Card padding={false}>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('problems.problem_title', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('problems.category', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('problems.priority', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('problems.status', locale)}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {problems.map((problem) => (
+                    <tr
+                      key={problem.id}
+                      onClick={() => router.push(`/problems/${problem.id}`)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-5 py-3 text-sm text-gray-900">{problem.title}</td>
+                      <td className="px-5 py-3 hidden md:table-cell">
+                        <Badge color="gray">{t(`problems.${problem.category === 'security' ? 'security_cat' : problem.category === 'tenant' ? 'tenant_issue' : problem.category}`, locale)}</Badge>
+                      </td>
+                      <td className="px-5 py-3">
+                        <Badge color={problem.priority === 'emergency' ? 'red' : problem.priority === 'high' ? 'yellow' : problem.priority === 'medium' ? 'blue' : 'gray'}>
+                          {t(`problems.${problem.priority}`, locale)}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3">
+                        <Badge color={problem.status === 'open' ? 'red' : problem.status === 'in_progress' ? 'yellow' : problem.status === 'resolved' ? 'green' : 'gray'}>
+                          {t(`problems.${problem.status}`, locale)}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+
+        {/* ====== Documents — Smart Folder View ====== */}
         <div className="mt-8 mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-gray-900">{t('docs.title', locale)}</h2>
@@ -435,7 +779,6 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
             </Card>
           ) : (
             <div className="space-y-2">
-              {/* Smart folders from property metadata + existing doc types */}
               {[...folderTypes, ...ALL_DOC_TYPES.filter((t2) => !folderTypes.includes(t2) && (docsByType[t2]?.length > 0 || uploadFolder === t2))].map((type) => {
                 const typeDocs = docsByType[type] || [];
                 const isOpen = !!openFolders[type];

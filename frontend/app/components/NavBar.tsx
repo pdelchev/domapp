@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/leases', key: 'nav.leases', icon: '📄' },
   { href: '/finance', key: 'nav.finance', icon: '💰' },
   { href: '/documents', key: 'nav.documents', icon: '📄' },
+  { href: '/problems', key: 'nav.problems', icon: '🔧' },
   { href: '/notifications', key: 'nav.notifications', icon: '🔔' },
 ];
 
@@ -31,6 +32,7 @@ const BOTTOM_TABS = [
 const MORE_ITEMS = [
   { href: '/owners', key: 'nav.owners' },
   { href: '/tenants', key: 'nav.tenants' },
+  { href: '/problems', key: 'nav.problems' },
   { href: '/notifications', key: 'nav.notifications' },
 ];
 

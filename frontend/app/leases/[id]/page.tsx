@@ -46,6 +46,12 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
     status: 'active',
     auto_generate_payments: true,
     notes: '',
+    electricity_meter_in: '',
+    electricity_meter_out: '',
+    water_meter_in: '',
+    water_meter_out: '',
+    gas_meter_in: '',
+    gas_meter_out: '',
   });
 
   useEffect(() => {
@@ -68,6 +74,12 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
           status: data.status || 'active',
           auto_generate_payments: data.auto_generate_payments ?? true,
           notes: data.notes || '',
+          electricity_meter_in: data.electricity_meter_in ?? '',
+          electricity_meter_out: data.electricity_meter_out ?? '',
+          water_meter_in: data.water_meter_in ?? '',
+          water_meter_out: data.water_meter_out ?? '',
+          gas_meter_in: data.gas_meter_in ?? '',
+          gas_meter_out: data.gas_meter_out ?? '',
         });
         setProperties(props);
         setTenants(allTenants);
@@ -100,6 +112,12 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
         status: form.status,
         auto_generate_payments: form.auto_generate_payments,
         notes: form.notes || null,
+        electricity_meter_in: form.electricity_meter_in ? Number(form.electricity_meter_in) : null,
+        electricity_meter_out: form.electricity_meter_out ? Number(form.electricity_meter_out) : null,
+        water_meter_in: form.water_meter_in ? Number(form.water_meter_in) : null,
+        water_meter_out: form.water_meter_out ? Number(form.water_meter_out) : null,
+        gas_meter_in: form.gas_meter_in ? Number(form.gas_meter_in) : null,
+        gas_meter_out: form.gas_meter_out ? Number(form.gas_meter_out) : null,
       };
       await updateLease(Number(id), payload);
       setSuccess(t('common.saved', locale));
@@ -237,6 +255,30 @@ export default function EditLeasePage({ params }: { params: Promise<{ id: string
             </div>
           </form>
         </Card>
+
+        {/* Meter Readings */}
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card>
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <span>⚡</span> {t('leases.meters', locale)} — {t('leases.move_in', locale)}
+            </h3>
+            <div className="space-y-3">
+              <Input label={t('leases.electricity_meter', locale)} type="number" value={form.electricity_meter_in} onChange={(e) => set('electricity_meter_in', e.target.value)} placeholder="kWh" />
+              <Input label={t('leases.water_meter', locale)} type="number" value={form.water_meter_in} onChange={(e) => set('water_meter_in', e.target.value)} placeholder="m³" />
+              <Input label={t('leases.gas_meter', locale)} type="number" value={form.gas_meter_in} onChange={(e) => set('gas_meter_in', e.target.value)} placeholder="m³" />
+            </div>
+          </Card>
+          <Card>
+            <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <span>📦</span> {t('leases.meters', locale)} — {t('leases.move_out', locale)}
+            </h3>
+            <div className="space-y-3">
+              <Input label={t('leases.electricity_meter', locale)} type="number" value={form.electricity_meter_out} onChange={(e) => set('electricity_meter_out', e.target.value)} placeholder="kWh" />
+              <Input label={t('leases.water_meter', locale)} type="number" value={form.water_meter_out} onChange={(e) => set('water_meter_out', e.target.value)} placeholder="m³" />
+              <Input label={t('leases.gas_meter', locale)} type="number" value={form.gas_meter_out} onChange={(e) => set('gas_meter_out', e.target.value)} placeholder="m³" />
+            </div>
+          </Card>
+        </div>
 
         {/* Payments for this Lease */}
         <div className="mt-8">

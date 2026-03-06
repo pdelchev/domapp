@@ -6,7 +6,7 @@ import { createLease, getProperties, getTenants } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, FormSection } from '../../components/ui';
 
 interface Property { id: number; name: string; }
 interface Tenant { id: number; full_name: string; }
@@ -29,6 +29,9 @@ export default function NewLeasePage() {
     deposit: '',
     auto_generate_payments: true,
     notes: '',
+    electricity_meter_in: '',
+    water_meter_in: '',
+    gas_meter_in: '',
   });
 
   useEffect(() => {
@@ -56,6 +59,9 @@ export default function NewLeasePage() {
         deposit: form.deposit ? Number(form.deposit) : null,
         auto_generate_payments: form.auto_generate_payments,
         notes: form.notes || null,
+        electricity_meter_in: form.electricity_meter_in ? Number(form.electricity_meter_in) : null,
+        water_meter_in: form.water_meter_in ? Number(form.water_meter_in) : null,
+        gas_meter_in: form.gas_meter_in ? Number(form.gas_meter_in) : null,
       };
       await createLease(payload);
       router.push('/leases');
@@ -123,8 +129,24 @@ export default function NewLeasePage() {
             )}
 
             <Textarea label={t('leases.notes', locale)} value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
+          </form>
+        </Card>
 
-            <div className="flex gap-3 pt-2">
+        {/* Meter Readings — Move-in */}
+        <Card className="mt-4">
+          <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+            <span>⚡</span> {t('leases.meters', locale)} — {t('leases.move_in', locale)}
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input label={t('leases.electricity_meter', locale)} type="number" value={form.electricity_meter_in} onChange={(e) => set('electricity_meter_in', e.target.value)} placeholder="kWh" />
+            <Input label={t('leases.water_meter', locale)} type="number" value={form.water_meter_in} onChange={(e) => set('water_meter_in', e.target.value)} placeholder="m³" />
+            <Input label={t('leases.gas_meter', locale)} type="number" value={form.gas_meter_in} onChange={(e) => set('gas_meter_in', e.target.value)} placeholder="m³" />
+          </div>
+        </Card>
+
+        <Card className="mt-4">
+          <form onSubmit={handleSubmit}>
+            <div className="flex gap-3">
               <Button type="submit" disabled={saving}>
                 {saving ? '...' : t('common.save', locale)}
               </Button>

@@ -429,3 +429,51 @@ export async function getFinanceSummary() {
   if (!res.ok) throw new Error('Failed to fetch finance summary');
   return res.json();
 }
+
+// --- Problems ---
+export async function getProblems(propertyId?: number, status?: string, priority?: string, category?: string) {
+  const params = new URLSearchParams();
+  if (propertyId) params.set('property', String(propertyId));
+  if (status) params.set('status', status);
+  if (priority) params.set('priority', priority);
+  if (category) params.set('category', category);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/problems/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch problems');
+  return res.json();
+}
+
+export async function getProblem(id: number) {
+  const res = await apiFetch(`/api/problems/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch problem');
+  return res.json();
+}
+
+export async function createProblem(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/problems/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create problem');
+  return res.json();
+}
+
+export async function updateProblem(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/problems/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update problem');
+  return res.json();
+}
+
+export async function deleteProblem(id: number) {
+  const res = await apiFetch(`/api/problems/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete problem');
+}
+
+export async function getProblemsSummary() {
+  const res = await apiFetch('/api/problems/summary/');
+  if (!res.ok) throw new Error('Failed to fetch problems summary');
+  return res.json();
+}

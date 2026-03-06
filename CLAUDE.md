@@ -18,6 +18,7 @@ backend/
   leases/         # Lease model + CRUD API
   finance/        # RentPayment, Expense models + CRUD API
   documents/      # Document model (file uploads) + API
+  problems/       # Problem/emergency tracking per property + CRUD API
   notifications/  # Notification model + API
   dashboard/      # Dashboard summary endpoint (aggregations)
 
@@ -45,6 +46,9 @@ frontend/
     finance/payments/page.tsx   # Rent payments list with filters + mark paid
     finance/expenses/page.tsx   # Expenses list with filters + inline add/edit
     documents/page.tsx          # Document Vault — cross-property compliance dashboard + searchable list
+    problems/page.tsx           # Problems list (card-based with filters, quick status change)
+    problems/new/page.tsx       # Report new problem form
+    problems/[id]/page.tsx      # Edit problem + resolution tracking
     notifications/page.tsx      # Notifications list with type/read filters, dismiss, mark all read
     context/LanguageContext.tsx  # React Context for EN/BG locale
     components/
@@ -173,6 +177,9 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/notifications/<id>/dismiss/` | DELETE | Delete a notification |
 | `/api/dashboard/summary/` | GET | Dashboard metrics + collection progress (month_payments_total/collected, month_total_due/collected) |
 | `/api/finance/summary/` | GET | Finance summary (income, expenses, net by property) |
+| `/api/problems/` | GET, POST | List/create problems (?property=&status=&priority=&category=) |
+| `/api/problems/<id>/` | GET, PUT, DELETE | Problem detail/update/delete |
+| `/api/problems/summary/` | GET | Problem counts by status and priority |
 
 ## Conventions
 - **All data is user-scoped**: Every model has a `user` FK to the manager. Querysets filter by `request.user`.
@@ -196,6 +203,7 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **Expense**: property FK, category, description, amount, due/paid_date, is_recurring
 - **Document**: property FK, document_type (19 types), file, label, expiry_date, file_size, uploaded_at, replaces (version chain FK), reminders
 - **Notification**: user FK, notification_type, title, message, related_property, read_status
+- **Problem**: user FK, property FK, title, description, category (12 types), priority (emergency/high/medium/low), status (open/in_progress/resolved/closed), reported_by, assigned_to, estimated_cost, actual_cost, resolution_notes, resolved_at
 
 ## Roadmap
 - [x] Step 1: Project scaffold
@@ -215,5 +223,6 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - [x] Step 13.5: Dashboard redesign — card-based payments, quick-pay, batch mark-paid, undo toasts, collection progress bar, smart method memory (localStorage)
 - [x] Step 14: Notifications center (list with type/read filters, mark read, mark all read, dismiss, unread badge in NavBar)
 - [x] Step 14.5: Document Vault — smart folders, compliance dashboard, version chain, expanded document types
+- [x] Step 14.7: Problems/Emergencies — issue tracker per property (CRUD, priorities, categories, cost tracking, resolution notes, quick status actions, property view integration)
 - [ ] Step 15: Celery tasks (auto-notifications, reminders)
 - [ ] Step 16: Financial reports & charts
