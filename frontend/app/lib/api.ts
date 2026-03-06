@@ -1,6 +1,6 @@
 // Use relative URLs — Next.js rewrites proxy /api/* to Django backend.
 // This eliminates CORS issues in Codespaces and production.
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const API_URL = '';
 
 // --- Token helpers ---
 export function getTokens() {
