@@ -520,7 +520,7 @@ export default function DashboardPage() {
                     key={payment.id}
                     className={`!p-0 border-l-[3px] ${borderColor} transition-all duration-200 ${
                       isSelected ? 'ring-2 ring-indigo-500 !border-l-indigo-500' : ''
-                    }`}
+                    } ${isOverdue && !isSelected ? 'bg-red-50/60' : ''}`}
                   >
                     {/* Main card row */}
                     <div
@@ -560,7 +560,7 @@ export default function DashboardPage() {
                           <span className="whitespace-nowrap font-medium text-gray-500">{periodLabel(payment.due_date, payment.rent_frequency, locale)}</span>
                           <span>&middot;</span>
                           {isOverdue ? (
-                            <span className="text-red-500 font-medium whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
+                            <span className="text-red-600 font-semibold whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
                           ) : isDueToday ? (
                             <span className="text-amber-600 font-medium whitespace-nowrap">{t('dash.due_today', locale)}</span>
                           ) : (
