@@ -18,7 +18,7 @@ class DashboardSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        user = request.user.get_data_owner()
         today = timezone.now().date()
         current_month = today.month
         current_year = today.year

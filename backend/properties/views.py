@@ -13,10 +13,10 @@ class PropertyOwnerViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return PropertyOwner.objects.filter(user=self.request.user)
+        return PropertyOwner.objects.filter(user=self.request.user.get_data_owner())
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user.get_data_owner())
 
 
 class PropertyViewSet(viewsets.ModelViewSet):
@@ -25,14 +25,14 @@ class PropertyViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Property.objects.filter(user=self.request.user).select_related('owner')
+        qs = Property.objects.filter(user=self.request.user.get_data_owner()).select_related('owner')
         owner_id = self.request.query_params.get('owner')
         if owner_id:
             qs = qs.filter(owner_id=owner_id)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user.get_data_owner())
 
 
 class UnitViewSet(viewsets.ModelViewSet):
@@ -41,7 +41,7 @@ class UnitViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Unit.objects.filter(property__user=self.request.user)
+        qs = Unit.objects.filter(property__user=self.request.user.get_data_owner())
         property_id = self.request.query_params.get('property')
         if property_id:
             qs = qs.filter(property_id=property_id)

@@ -19,7 +19,7 @@ class LeaseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = Lease.objects.filter(
-            property__user=self.request.user
+            property__user=self.request.user.get_data_owner()
         ).select_related('tenant', 'property')
 
         property_id = self.request.query_params.get('property')

@@ -20,7 +20,7 @@ class DocumentViewSet(mixins.ListModelMixin,
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Document.objects.filter(property__user=self.request.user).select_related('property')
+        qs = Document.objects.filter(property__user=self.request.user.get_data_owner()).select_related('property')
         property_id = self.request.query_params.get('property')
         if property_id:
             qs = qs.filter(property_id=property_id)
@@ -50,7 +50,7 @@ class SmartFoldersView(APIView):
 
     def get(self, request, property_id):
         try:
-            prop = Property.objects.get(pk=property_id, user=request.user)
+            prop = Property.objects.get(pk=property_id, user=request.user.get_data_owner())
         except Property.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 

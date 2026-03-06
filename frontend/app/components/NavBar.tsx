@@ -6,6 +6,7 @@ import { getMe, logout, getUnreadCount } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import { Button } from './ui';
+import Logo from './Logo';
 
 const NAV_ITEMS = [
   { href: '/dashboard', key: 'nav.dashboard' },
@@ -122,8 +123,9 @@ export default function NavBar() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             {/* Brand */}
-            <a href="/dashboard" className="flex items-center gap-2">
-              <span className="text-lg font-semibold text-gray-900">DomApp</span>
+            <a href="/dashboard" className="flex items-center gap-1.5">
+              <Logo size={28} />
+              <span className="text-lg font-semibold text-gray-900 hidden sm:block">DomApp</span>
             </a>
 
             {/* Desktop Nav */}

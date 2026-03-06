@@ -11,8 +11,8 @@ class TenantViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Tenant.objects.filter(
-            user=self.request.user
+            user=self.request.user.get_data_owner()
         ).prefetch_related('leases__property')
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user.get_data_owner())

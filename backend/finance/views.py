@@ -18,7 +18,7 @@ class RentPaymentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = RentPayment.objects.filter(
-            lease__property__user=self.request.user
+            lease__property__user=self.request.user.get_data_owner()
         ).select_related('lease__tenant', 'lease__property')
         lease_id = self.request.query_params.get('lease')
         if lease_id:
@@ -35,7 +35,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Expense.objects.filter(property__user=self.request.user).select_related('property')
+        qs = Expense.objects.filter(property__user=self.request.user.get_data_owner()).select_related('property')
         property_id = self.request.query_params.get('property')
         if property_id:
             qs = qs.filter(property_id=property_id)
@@ -68,7 +68,7 @@ class BatchMarkPaidView(APIView):
         # Only update payments owned by this user and in actionable status
         payments = RentPayment.objects.filter(
             id__in=payment_ids,
-            lease__property__user=request.user,
+            lease__property__user=request.user.get_data_owner(),
             status__in=['pending', 'overdue'],
         )
 
@@ -92,7 +92,7 @@ class FinanceSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        user = request.user.get_data_owner()
         today = timezone.now().date()
         current_month = today.month
         current_year = today.year

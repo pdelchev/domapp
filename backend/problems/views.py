@@ -15,7 +15,7 @@ class ProblemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Problem.objects.filter(user=self.request.user).select_related('property')
+        qs = Problem.objects.filter(user=self.request.user.get_data_owner()).select_related('property')
 
         # Filter by property
         prop_id = self.request.query_params.get('property')
@@ -40,7 +40,7 @@ class ProblemViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user.get_data_owner())
 
     def perform_update(self, serializer):
         # Auto-set resolved_at when status changes to resolved/closed
@@ -59,7 +59,7 @@ class ProblemSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Problem.objects.filter(user=request.user)
+        qs = Problem.objects.filter(user=request.user.get_data_owner())
 
         # Active = not resolved/closed
         active = qs.filter(status__in=['open', 'in_progress'])
