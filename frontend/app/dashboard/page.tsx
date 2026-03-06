@@ -49,6 +49,7 @@ interface Payment {
   payment_date: string | null;
   status: string;
   method: string | null;
+  rent_frequency: string;
 }
 
 interface UndoItem {
@@ -116,6 +117,23 @@ const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
 };
 
 const today = () => new Date().toISOString().split('T')[0];
+
+const MONTH_NAMES_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH_NAMES_BG = ['Яну', 'Фев', 'Мар', 'Апр', 'Май', 'Юни', 'Юли', 'Авг', 'Сеп', 'Окт', 'Ное', 'Дек'];
+
+function periodLabel(dueDate: string, frequency: string, locale: string): string {
+  const d = new Date(dueDate);
+  const months = locale === 'bg' ? MONTH_NAMES_BG : MONTH_NAMES_EN;
+  if (frequency === 'monthly') {
+    return `${months[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  if (frequency === 'biweekly' || frequency === 'weekly') {
+    const end = new Date(d);
+    end.setDate(end.getDate() + (frequency === 'weekly' ? 6 : 13));
+    return `${d.getDate()} ${months[d.getMonth()]} – ${end.getDate()} ${months[end.getMonth()]}`;
+  }
+  return dueDate;
+}
 
 // ---------------------------------------------------------------------------
 // Main Component
@@ -539,7 +557,7 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
                           <span className="truncate">{payment.property_name}</span>
                           <span>&middot;</span>
-                          <span className="whitespace-nowrap">{payment.due_date}</span>
+                          <span className="whitespace-nowrap font-medium text-gray-500">{periodLabel(payment.due_date, payment.rent_frequency, locale)}</span>
                           <span>&middot;</span>
                           {isOverdue ? (
                             <span className="text-red-500 font-medium whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>

@@ -5,6 +5,7 @@ from .models import RentPayment, Expense
 class RentPaymentSerializer(serializers.ModelSerializer):
     tenant_name = serializers.CharField(source='lease.tenant.full_name', read_only=True)
     property_name = serializers.CharField(source='lease.property.name', read_only=True)
+    rent_frequency = serializers.CharField(source='lease.rent_frequency', read_only=True)
 
     class Meta:
         model = RentPayment
