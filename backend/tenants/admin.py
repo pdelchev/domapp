@@ -4,6 +4,5 @@ from .models import Tenant
 
 @admin.register(Tenant)
 class TenantAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'property', 'phone', 'start_date', 'end_date', 'is_active')
-    list_filter = ('is_active',)
-    search_fields = ('full_name', 'email', 'phone', 'property__name')
+    list_display = ('full_name', 'phone', 'email', 'id_number')
+    search_fields = ('full_name', 'email', 'phone')

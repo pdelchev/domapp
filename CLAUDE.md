@@ -25,15 +25,27 @@ frontend/
   app/
     page.tsx                    # Root — redirects to /login
     layout.tsx                  # Root layout (Inter font, LanguageProvider)
-    globals.css                 # Tailwind import + base styles
+    globals.css                 # Tailwind import + base styles + slide-up animation
     login/page.tsx              # Login page
-    dashboard/page.tsx          # Dashboard with metric cards + property table
+    dashboard/page.tsx          # Dashboard with metric cards, collection progress, action cards (batch pay, undo)
     owners/page.tsx             # Owners list (table)
     owners/new/page.tsx         # Add owner form
     owners/[id]/page.tsx        # Edit owner form
     properties/page.tsx         # Properties list (table with filters)
     properties/new/page.tsx     # Add property form
-    properties/[id]/page.tsx    # Edit property form
+    properties/[id]/page.tsx    # Property view (read-only details, leases, documents)
+    properties/[id]/edit/page.tsx # Edit property form
+    tenants/page.tsx            # Tenants list (table with status filters)
+    tenants/new/page.tsx        # Add tenant form
+    tenants/[id]/page.tsx       # Edit tenant + linked leases & payments
+    leases/page.tsx             # Leases list (table with status/frequency filters)
+    leases/new/page.tsx         # Add lease form (property, tenant, frequency, amount)
+    leases/[id]/page.tsx        # Edit lease + payment table with mark-paid
+    finance/page.tsx            # Finance dashboard (income, expenses, net per property)
+    finance/payments/page.tsx   # Rent payments list with filters + mark paid
+    finance/expenses/page.tsx   # Expenses list with filters + inline add/edit
+    documents/page.tsx          # Document Vault — cross-property compliance dashboard + searchable list
+    notifications/page.tsx      # Notifications list with type/read filters, dismiss, mark all read
     context/LanguageContext.tsx  # React Context for EN/BG locale
     components/
       ui.tsx                    # Design system — all shared UI components
@@ -140,13 +152,20 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/leases/<id>/` | GET, PUT, DELETE | Lease detail/update/delete |
 | `/api/rent-payments/` | GET, POST | List/create payments (?lease=&status=) |
 | `/api/rent-payments/<id>/` | GET, PATCH | Payment detail/update (no DELETE) |
+| `/api/rent-payments/batch-mark-paid/` | POST | Batch mark payments as paid (accepts `{ids, payment_method, payment_date}`) |
 | `/api/expenses/` | GET, POST | List/create expenses (?property=&category=) |
 | `/api/expenses/<id>/` | GET, PUT, DELETE | Expense detail/update/delete |
-| `/api/documents/` | GET, POST | List/upload documents (?property=&type=) |
+| `/api/documents/` | GET, POST | List/upload documents (?property=&type=&search=&expiry=) |
 | `/api/documents/<id>/` | GET, DELETE | Document detail/delete (no PUT) |
-| `/api/notifications/` | GET | List notifications |
+| `/api/documents/smart-folders/<property_id>/` | GET | Smart folders for property (based on metadata) |
+| `/api/documents/compliance/` | GET | Cross-property compliance summary (expired, expiring, by property) |
+| `/api/notifications/` | GET | List notifications (?type=&read=true/false) |
 | `/api/notifications/<id>/` | PATCH | Mark notification as read |
-| `/api/dashboard/summary/` | GET | Dashboard metrics |
+| `/api/notifications/unread-count/` | GET | Unread notification count (for badge) |
+| `/api/notifications/mark-all-read/` | POST | Mark all notifications as read |
+| `/api/notifications/<id>/dismiss/` | DELETE | Delete a notification |
+| `/api/dashboard/summary/` | GET | Dashboard metrics + collection progress (month_payments_total/collected, month_total_due/collected) |
+| `/api/finance/summary/` | GET | Finance summary (income, expenses, net by property) |
 
 ## Conventions
 - **All data is user-scoped**: Every model has a `user` FK to the manager. Querysets filter by `request.user`.
@@ -156,6 +175,7 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **Styling**: Always use `ui.tsx` components. Never write raw button/input Tailwind classes in pages.
 - **Nav bar**: Shared `NavBar` component. Used on every authenticated page.
 - **Currency**: EUR, formatted via `Intl.NumberFormat`.
+- **API proxy**: Next.js rewrites proxy `/api/*` to Django (`localhost:8000`). API_URL is empty string (relative URLs). No CORS issues in Codespaces.
 - **Component pattern**: Page-level components as default exports. Shared components in `app/components/`.
 - **Form state**: Use functional updater `setForm((prev) => ...)` to avoid stale closures. Never define React components inside other components (causes focus loss on re-render).
 
@@ -163,11 +183,11 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **PropertyOwner**: full_name, phone, email, id_number, address, bank_name, bank_iban, notes
 - **Property**: name, address, city, country, property_type, cadastral_number, square_meters, purchase_price/date, current_value, mortgage, utilities, insurance, building_management, security, access codes, notes
 - **Unit**: property FK, unit_number, floor, square_meters, notes
-- **Tenant**: property FK, full_name, phone, email, id_number, move_in/out_date, deposit
-- **Lease**: property FK, tenant FK, start/end_date, monthly_rent, rent_due_day, deposit, status
+- **Tenant**: user FK, full_name, phone, email, id_number (contact record only — property/dates/deposit live on Lease)
+- **Lease**: property FK, tenant FK, start/end_date, monthly_rent, rent_frequency (monthly/weekly/biweekly/one_time), rent_due_day, deposit, status, auto_generate_payments, next_payment_date
 - **RentPayment**: lease FK, due_date, amount_due/paid, payment_date, status, payment_method
 - **Expense**: property FK, category, description, amount, due/paid_date, is_recurring
-- **Document**: property FK, document_type, file, description, expiry_date, reminders
+- **Document**: property FK, document_type (19 types), file, label, expiry_date, file_size, uploaded_at, replaces (version chain FK), reminders
 - **Notification**: user FK, notification_type, title, message, related_property, read_status
 
 ## Roadmap
@@ -179,11 +199,14 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - [x] Step 7: Properties CRUD pages (list, add, edit)
 - [x] Step 8: Owners CRUD pages (list, add, edit)
 - [x] Step 8.5: Design system — shared UI components, consistent styling
-- [ ] Step 9: Tenants CRUD pages
-- [ ] Step 10: Leases management
-- [ ] Step 11: Rent payment tracking
-- [ ] Step 12: Expense tracking
-- [ ] Step 13: Document management
-- [ ] Step 14: Notifications center
+- [x] Step 9: Tenants CRUD pages (list, add, edit with linked leases & payments)
+- [x] Step 10: Finance dashboard (income, expenses, net per property)
+- [x] Step 11: Rent payment tracking (list with filters, mark paid)
+- [x] Step 12: Expense tracking (list with filters, inline add/edit)
+- [x] Step 12.5: Leases management (CRUD, frequency options, auto-payment generation, mark-paid with method)
+- [x] Step 13: Property view page + document management (view, upload by type, delete)
+- [x] Step 13.5: Dashboard redesign — card-based payments, quick-pay, batch mark-paid, undo toasts, collection progress bar, smart method memory (localStorage)
+- [x] Step 14: Notifications center (list with type/read filters, mark read, mark all read, dismiss, unread badge in NavBar)
+- [x] Step 14.5: Document Vault — smart folders, compliance dashboard, version chain, expanded document types
 - [ ] Step 15: Celery tasks (auto-notifications, reminders)
 - [ ] Step 16: Financial reports & charts

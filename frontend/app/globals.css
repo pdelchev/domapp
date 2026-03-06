@@ -4,3 +4,34 @@
 input, textarea, select {
   color: #111827 !important;
 }
+
+/* Safe area for notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Bottom nav clearance — only in PWA standalone mode on mobile */
+@media (display-mode: standalone) and (max-width: 767px) {
+  .pwa-shell {
+    padding-bottom: 5rem; /* h-16 tab bar + safe margin */
+  }
+}
+/* iOS standalone fallback (no display-mode support in older Safari) */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    .pwa-standalone .pwa-shell {
+      padding-bottom: 5rem;
+    }
+  }
+}
+
+/* Undo toast slide-up animation */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(1rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}

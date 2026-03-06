@@ -152,7 +152,7 @@ export default function PropertiesPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/properties/${prop.id}`); }}
+                          onClick={(e) => { e.stopPropagation(); router.push(`/properties/${prop.id}/edit`); }}
                         >
                           {t('common.edit', locale)}
                         </Button>

@@ -75,6 +75,21 @@ class DashboardSummaryView(APIView):
             expiry_date__lte=today + timedelta(days=30)
         ).count()
 
+        # Collection progress — how many of this month's payments are collected
+        month_payments = RentPayment.objects.filter(
+            lease__property__user=user,
+            due_date__month=current_month,
+            due_date__year=current_year,
+        )
+        month_payments_total = month_payments.count()
+        month_payments_collected = month_payments.filter(status='paid').count()
+        month_total_due = month_payments.aggregate(
+            total=Sum('amount_due')
+        )['total'] or 0
+        month_total_collected = month_payments.filter(status='paid').aggregate(
+            total=Sum('amount_paid')
+        )['total'] or 0
+
         return Response({
             'total_properties': total_properties,
             'total_portfolio_value': float(total_portfolio_value),
@@ -86,4 +101,8 @@ class DashboardSummaryView(APIView):
             'upcoming_rent_due': upcoming_rent,
             'overdue_rent': overdue_rent,
             'expiring_documents': expiring_documents,
+            'month_payments_total': month_payments_total,
+            'month_payments_collected': month_payments_collected,
+            'month_total_due': float(month_total_due),
+            'month_total_collected': float(month_total_collected),
         })

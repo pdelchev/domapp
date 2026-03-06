@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use relative URLs — Next.js rewrites proxy /api/* to Django backend.
+// This eliminates CORS issues in Codespaces and production.
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 // --- Token helpers ---
 export function getTokens() {
@@ -181,6 +183,12 @@ export async function getTenants(propertyId?: number) {
   return res.json();
 }
 
+export async function getTenant(id: number) {
+  const res = await apiFetch(`/api/tenants/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch tenant');
+  return res.json();
+}
+
 export async function createTenant(data: Record<string, unknown>) {
   const res = await apiFetch('/api/tenants/', {
     method: 'POST',
@@ -215,6 +223,12 @@ export async function getLeases(propertyId?: number, status?: string) {
   return res.json();
 }
 
+export async function getLease(id: number) {
+  const res = await apiFetch(`/api/leases/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch lease');
+  return res.json();
+}
+
 export async function createLease(data: Record<string, unknown>) {
   const res = await apiFetch('/api/leases/', {
     method: 'POST',
@@ -236,6 +250,14 @@ export async function updateLease(id: number, data: Record<string, unknown>) {
 export async function deleteLease(id: number) {
   const res = await apiFetch(`/api/leases/${id}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete lease');
+}
+
+export async function generateLeasePayments(id: number) {
+  const res = await apiFetch(`/api/leases/${id}/generate_payments/`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to generate payments');
+  return res.json();
 }
 
 // --- Rent Payments ---
@@ -267,6 +289,15 @@ export async function updateRentPayment(id: number, data: Record<string, unknown
   return res.json();
 }
 
+export async function batchMarkPaid(paymentIds: number[], method: string, paymentDate: string) {
+  const res = await apiFetch('/api/rent-payments/batch-mark-paid/', {
+    method: 'POST',
+    body: JSON.stringify({ payment_ids: paymentIds, method, payment_date: paymentDate }),
+  });
+  if (!res.ok) throw new Error('Failed to batch mark paid');
+  return res.json();
+}
+
 // --- Expenses ---
 export async function getExpenses(propertyId?: number, category?: string) {
   const params = new URLSearchParams();
@@ -275,6 +306,12 @@ export async function getExpenses(propertyId?: number, category?: string) {
   const query = params.toString() ? `?${params}` : '';
   const res = await apiFetch(`/api/expenses/${query}`);
   if (!res.ok) throw new Error('Failed to fetch expenses');
+  return res.json();
+}
+
+export async function getExpense(id: number) {
+  const res = await apiFetch(`/api/expenses/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch expense');
   return res.json();
 }
 
@@ -326,9 +363,25 @@ export async function deleteDocument(id: number) {
   if (!res.ok) throw new Error('Failed to delete document');
 }
 
+export async function getSmartFolders(propertyId: number) {
+  const res = await apiFetch(`/api/documents/smart-folders/${propertyId}/`);
+  if (!res.ok) throw new Error('Failed to fetch smart folders');
+  return res.json();
+}
+
+export async function getComplianceSummary() {
+  const res = await apiFetch('/api/documents/compliance/');
+  if (!res.ok) throw new Error('Failed to fetch compliance summary');
+  return res.json();
+}
+
 // --- Notifications ---
-export async function getNotifications() {
-  const res = await apiFetch('/api/notifications/');
+export async function getNotifications(type?: string, read?: string) {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (read) params.set('read', read);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/notifications/${query}`);
   if (!res.ok) throw new Error('Failed to fetch notifications');
   return res.json();
 }
@@ -342,9 +395,37 @@ export async function markNotificationRead(id: number) {
   return res.json();
 }
 
+export async function getUnreadCount() {
+  const res = await apiFetch('/api/notifications/unread-count/');
+  if (!res.ok) throw new Error('Failed to fetch unread count');
+  return res.json();
+}
+
+export async function markAllNotificationsRead() {
+  const res = await apiFetch('/api/notifications/mark-all-read/', {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to mark all read');
+  return res.json();
+}
+
+export async function dismissNotification(id: number) {
+  const res = await apiFetch(`/api/notifications/${id}/dismiss/`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error('Failed to dismiss notification');
+}
+
 // --- Dashboard ---
 export async function getDashboardSummary() {
   const res = await apiFetch('/api/dashboard/summary/');
   if (!res.ok) throw new Error('Failed to fetch dashboard');
+  return res.json();
+}
+
+// --- Finance Summary ---
+export async function getFinanceSummary() {
+  const res = await apiFetch('/api/finance/summary/');
+  if (!res.ok) throw new Error('Failed to fetch finance summary');
   return res.json();
 }

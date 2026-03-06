@@ -159,7 +159,7 @@ export function Card({
 // --- Page Shell -------------------------------------------------------------
 
 export function PageShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-gray-50">{children}</div>;
+  return <div className="min-h-screen bg-gray-50 pwa-shell">{children}</div>;
 }
 
 export function PageContent({
