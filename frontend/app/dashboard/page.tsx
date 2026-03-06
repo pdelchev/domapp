@@ -509,8 +509,8 @@ export default function DashboardPage() {
                 const isSelected = selectedIds.has(payment.id);
                 const isPaying = payingIds.has(payment.id);
                 const days = daysFromToday(payment.due_date);
-                const isOverdue = payment.status === 'overdue';
-                const isDueToday = days === 0;
+                const isOverdue = payment.status === 'overdue' || (payment.status === 'pending' && days < 0);
+                const isDueToday = !isOverdue && days === 0;
 
                 // Left border color: red=overdue, yellow=today, transparent=upcoming
                 const borderColor = isOverdue ? 'border-l-red-500' : isDueToday ? 'border-l-amber-400' : 'border-l-transparent';
