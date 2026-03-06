@@ -388,6 +388,11 @@ const translations: Record<string, Record<Locale, string>> = {
   'common.saved': { en: 'Saved successfully', bg: 'Запазено успешно' },
   'common.deleted': { en: 'Deleted successfully', bg: 'Изтрито успешно' },
   'common.error': { en: 'An error occurred', bg: 'Възникна грешка' },
+
+  // PWA Install
+  'pwa.install_title': { en: 'Install DomApp', bg: 'Инсталирай DomApp' },
+  'pwa.install_desc': { en: 'Add to your home screen for the best experience', bg: 'Добави на началния екран за най-добро изживяване' },
+  'pwa.install_button': { en: 'Install', bg: 'Инсталирай' },
 };
 
 export function t(key: string, locale: Locale): string {
