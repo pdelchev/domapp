@@ -150,7 +150,7 @@ export function Card({
   padding?: boolean;
 }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${padding ? 'p-6' : ''} ${className}`}>
+    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${padding ? 'p-6' : 'overflow-x-auto'} ${className}`}>
       {children}
     </div>
   );
