@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Kill any existing processes on our ports
-kill $(lsof -t -i:8000) 2>/dev/null
-kill $(lsof -t -i:3000) 2>/dev/null
+# Kill any existing processes on our ports (use fuser to catch all child processes)
+fuser -k 3000/tcp 2>/dev/null
+fuser -k 8000/tcp 2>/dev/null
+sleep 1
 
 # Start Django backend
 cd /workspaces/domapp/backend

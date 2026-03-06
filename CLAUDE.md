@@ -67,6 +67,13 @@ cd backend && source venv/bin/activate && python manage.py runserver 0.0.0.0:800
 # Frontend only
 cd frontend && npm run dev -- -p 3000
 
+# Port conflict troubleshooting (EADDRINUSE)
+# Next.js spawns child processes (next-server) that `lsof -t` may miss.
+# Always use `fuser -k <port>/tcp` to kill ALL processes on a port.
+# start.sh already does this, but if running manually:
+fuser -k 3000/tcp 2>/dev/null && sleep 1
+fuser -k 8000/tcp 2>/dev/null && sleep 1
+
 # Django management
 cd backend && source venv/bin/activate
 python manage.py makemigrations
