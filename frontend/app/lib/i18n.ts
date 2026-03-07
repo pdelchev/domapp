@@ -52,7 +52,7 @@ const translations: Record<string, Record<Locale, string>> = {
   // Dashboard tooltips
   'dash.tip_cash_flow': { en: 'Rent collected minus expenses paid this month', bg: 'Събран наем минус платени разходи този месец' },
   'dash.tip_portfolio': { en: 'Total current value of all your properties', bg: 'Обща текуща стойност на всички ваши имоти' },
-  'dash.tip_occupancy': { en: 'Percentage of properties with active leases', bg: 'Процент имоти с активни договори' },
+  'dash.tip_occupancy': { en: 'Occupied units/properties out of total rentable slots', bg: 'Заети обекти/имоти от общия брой отдаваеми единици' },
   'dash.tip_action': { en: 'Payments overdue or coming due soon that need attention', bg: 'Просрочени или предстоящи плащания, които изискват внимание' },
   'dash.tip_collection': { en: 'How many of this month\'s payments have been collected', bg: 'Колко от плащанията за този месец са събрани' },
   'dash.tip_action_list': { en: 'Payments due within 4 days or past due — tap to expand, green button for quick pay', bg: 'Плащания до 4 дни преди падеж или просрочени — натисни за детайли, зелен бутон за бързо плащане' },

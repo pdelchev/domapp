@@ -17,6 +17,8 @@ interface DashboardData {
   total_portfolio_value: number;
   active_leases: number;
   occupancy_rate: number;
+  total_rentable: number;
+  total_occupied: number;
   monthly_rent_collected: number;
   monthly_expenses: number;
   net_cash_flow: number;
@@ -434,7 +436,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-500 mb-1">{t('dash.occupancy', locale)}</p>
               </Tooltip>
               <p className="text-xl font-bold text-gray-900">{dashboard.occupancy_rate}%</p>
-              <p className="text-[11px] text-gray-400 mt-2">{dashboard.active_leases} {t('dash.active_leases', locale).toLowerCase()}</p>
+              <p className="text-[11px] text-gray-400 mt-2">{dashboard.total_occupied}/{dashboard.total_rentable} &middot; {dashboard.active_leases} {t('dash.active_leases', locale).toLowerCase()}</p>
             </Card>
             {/* Action Required */}
             <Card className="!p-4">

@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
 from django.db.models import Sum, Q
 from datetime import timedelta
-from properties.models import Property
+from properties.models import Property, Unit
 from leases.models import Lease
 from finance.models import RentPayment, Expense
 from documents.models import Document
@@ -33,8 +33,28 @@ class DashboardSummaryView(APIView):
         # Leases
         active_leases = Lease.objects.filter(
             property__user=user, status='active'
-        ).count()
-        occupancy_rate = (active_leases / total_properties * 100) if total_properties > 0 else 0
+        )
+        active_lease_count = active_leases.count()
+
+        # Occupancy — based on rentable slots (units if they exist, else property = 1 slot)
+        # Total rentable slots: properties with units count their units, others count as 1
+        total_units = Unit.objects.filter(property__user=user).count()
+        properties_with_units = Unit.objects.filter(
+            property__user=user
+        ).values('property').distinct().count()
+        properties_without_units = total_properties - properties_with_units
+        total_rentable = total_units + properties_without_units
+
+        # Occupied slots: units with active lease + whole-property leases (no unit)
+        occupied_units = active_leases.filter(
+            unit__isnull=False
+        ).values('unit').distinct().count()
+        occupied_whole = active_leases.filter(
+            unit__isnull=True
+        ).values('property').distinct().count()
+        total_occupied = occupied_units + occupied_whole
+
+        occupancy_rate = (total_occupied / total_rentable * 100) if total_rentable > 0 else 0
 
         # Rent collected this month — count by payment_date (when money arrived),
         # not due_date (which may be a different month for late payments)
@@ -55,12 +75,12 @@ class DashboardSummaryView(APIView):
         # Net cash flow
         net_cash_flow = monthly_rent_collected - monthly_expenses
 
-        # Upcoming rent (due within next 7 days, not yet paid)
+        # Upcoming rent (due within next 15 days, not yet paid)
         upcoming_rent = RentPayment.objects.filter(
             lease__property__user=user,
             status__in=['pending', 'overdue'],
             due_date__gte=today,
-            due_date__lte=today + timedelta(days=7)
+            due_date__lte=today + timedelta(days=15)
         ).count()
 
         # Overdue rent — any unpaid payment past its due date (by date, not status field)
@@ -95,8 +115,10 @@ class DashboardSummaryView(APIView):
         return Response({
             'total_properties': total_properties,
             'total_portfolio_value': float(total_portfolio_value),
-            'active_leases': active_leases,
+            'active_leases': active_lease_count,
             'occupancy_rate': round(occupancy_rate, 1),
+            'total_rentable': total_rentable,
+            'total_occupied': total_occupied,
             'monthly_rent_collected': float(monthly_rent_collected),
             'monthly_expenses': float(monthly_expenses),
             'net_cash_flow': float(net_cash_flow),
