@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProperty, updateProperty, getOwners, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems, getUnits, createUnit, updateUnit, deleteUnit } from '../../lib/api';
+import { getProperty, updateProperty, getOwners, getProperties, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems, getUnits, createUnit, updateUnit, deleteUnit } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -203,6 +203,7 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   const [uploading, setUploading] = useState(false);
   const [docError, setDocError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const [allProperties, setAllProperties] = useState<{ id: number; name: string; property_type: string }[]>([]);
 
   // Inline editing state
   const [editingSection, setEditingSection] = useState<string | null>(null);
@@ -214,15 +215,17 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
     Promise.all([
       getProperty(Number(id)),
       getOwners(),
+      getProperties(),
       getLeases(Number(id)),
       getDocuments(Number(id)),
       getSmartFolders(Number(id)),
       getProblems(Number(id)),
       getUnits(Number(id)),
     ])
-      .then(([propData, ownersData, leasesData, docsData, foldersData, problemsData, unitsData]) => {
+      .then(([propData, ownersData, propsData, leasesData, docsData, foldersData, problemsData, unitsData]) => {
         setProp(propData);
         setOwners(ownersData);
+        setAllProperties(propsData);
         setLeases(leasesData);
         setDocs(docsData);
         setSmartFolders(foldersData);
@@ -251,7 +254,7 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   // --- Section editing logic ---
   // Maps section name to the property fields it contains
   const SECTION_FIELDS: Record<string, string[]> = {
-    basic: ['name', 'owner', 'address', 'city', 'country', 'property_type'],
+    basic: ['name', 'owner', 'address', 'city', 'country', 'property_type', 'parent_property'],
     land: ['cadastral_number', 'square_meters', 'purchase_price', 'purchase_date', 'current_value'],
     mortgage: ['mortgage_provider', 'mortgage_account_number', 'mortgage_monthly_payment'],
     utilities: [
@@ -489,6 +492,20 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
                   <option value="storage">{t('type.storage', locale)}</option>
                 </Select>
               </div>
+              {['parking', 'garage', 'storage'].includes(ef('property_type')) && (
+                <Select
+                  label={t('properties.parent_property', locale)}
+                  value={ef('parent_property')}
+                  onChange={(e) => setEf('parent_property', e.target.value)}
+                >
+                  <option value="">{t('properties.no_parent', locale)}</option>
+                  {allProperties
+                    .filter((p) => !['parking', 'garage', 'storage'].includes(p.property_type) && p.id !== Number(id))
+                    .map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                </Select>
+              )}
               <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
             </div>
           ) : (
