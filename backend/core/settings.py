@@ -181,6 +181,9 @@ if AWS_ACCESS_KEY_ID and AWS_STORAGE_BUCKET_NAME and AWS_S3_ENDPOINT_URL:
         AWS_QUERYSTRING_AUTH = False
 else:
     # Local development storage
+    STORAGES['default'] = {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    }
     MEDIA_URL = '/media/'
 
 MEDIA_ROOT = BASE_DIR / 'media'
