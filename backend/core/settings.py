@@ -14,6 +14,21 @@ DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 
+# CSRF — trust origins from env, Codespaces, and localhost
+_extra_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _extra_origins if o.strip()] + [
+    'https://*.up.railway.app',
+    'https://*.app.github.dev',
+    'https://*.preview.app.github.dev',
+    'https://*.github.dev',
+    'http://localhost:8000',
+    'http://localhost:3000',
+    'http://127.0.0.1:8000',
+]
+
+# Trust proxy headers (Railway, Codespaces, etc.)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 # --- Installed Apps ---
 INSTALLED_APPS = [
     'django.contrib.admin',
