@@ -157,10 +157,10 @@ CELERY_TASK_SERIALIZER = 'json'
 
 # --- File Storage ---
 # Use Cloudflare R2 when credentials are provided, otherwise local storage
-AWS_ACCESS_KEY_ID = (os.environ.get('R2_ACCESS_KEY_ID') or '').strip()
-AWS_SECRET_ACCESS_KEY = (os.environ.get('R2_SECRET_ACCESS_KEY') or '').strip()
-AWS_STORAGE_BUCKET_NAME = (os.environ.get('R2_BUCKET_NAME') or '').strip()
-AWS_S3_ENDPOINT_URL = (os.environ.get('R2_ENDPOINT_URL') or '').strip()  # https://<account_id>.r2.cloudflarestorage.com
+AWS_ACCESS_KEY_ID = (os.environ.get('R2_ACCESS_KEY_ID') or '').strip().lstrip('=')
+AWS_SECRET_ACCESS_KEY = (os.environ.get('R2_SECRET_ACCESS_KEY') or '').strip().lstrip('=')
+AWS_STORAGE_BUCKET_NAME = (os.environ.get('R2_BUCKET_NAME') or '').strip().lstrip('=')
+AWS_S3_ENDPOINT_URL = (os.environ.get('R2_ENDPOINT_URL') or '').strip().lstrip('=')  # https://<account_id>.r2.cloudflarestorage.com
 AWS_S3_REGION_NAME = 'auto'
 AWS_DEFAULT_ACL = None
 AWS_QUERYSTRING_AUTH = True
