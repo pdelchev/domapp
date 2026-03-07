@@ -6,7 +6,7 @@ import { getFinanceSummary } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Spinner } from '../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Badge, Spinner, Tooltip } from '../components/ui';
 
 interface PropertyBreakdown {
   id: number;
@@ -49,17 +49,17 @@ export default function FinancePage() {
   }
 
   const cards = [
-    { label: t('finance.total_income', locale), value: fmt(data.total_income), color: 'text-green-600', bg: 'bg-green-50' },
-    { label: t('finance.total_expenses', locale), value: fmt(data.total_expenses), color: 'text-red-600', bg: 'bg-red-50' },
-    { label: t('finance.net_income', locale), value: fmt(data.net_income), color: data.net_income >= 0 ? 'text-green-600' : 'text-red-600', bg: data.net_income >= 0 ? 'bg-green-50' : 'bg-red-50' },
+    { label: t('finance.total_income', locale), value: fmt(data.total_income), color: 'text-green-600', bg: 'bg-green-50', tip: t('finance.tip_total_income', locale) },
+    { label: t('finance.total_expenses', locale), value: fmt(data.total_expenses), color: 'text-red-600', bg: 'bg-red-50', tip: t('finance.tip_total_expenses', locale) },
+    { label: t('finance.net_income', locale), value: fmt(data.net_income), color: data.net_income >= 0 ? 'text-green-600' : 'text-red-600', bg: data.net_income >= 0 ? 'bg-green-50' : 'bg-red-50', tip: t('finance.tip_net_income', locale) },
   ];
 
   const monthCards = [
-    { label: t('finance.income', locale), value: fmt(data.month_income), color: 'text-green-600' },
-    { label: t('finance.expenses', locale), value: fmt(data.month_expenses), color: 'text-red-600' },
-    { label: t('finance.net', locale), value: fmt(data.month_net), color: data.month_net >= 0 ? 'text-green-600' : 'text-red-600' },
-    { label: t('finance.pending', locale), value: fmt(data.pending_amount), color: 'text-yellow-600' },
-    { label: t('finance.overdue', locale), value: fmt(data.overdue_amount), color: 'text-red-600' },
+    { label: t('finance.income', locale), value: fmt(data.month_income), color: 'text-green-600', tip: t('finance.tip_month_income', locale) },
+    { label: t('finance.expenses', locale), value: fmt(data.month_expenses), color: 'text-red-600', tip: t('finance.tip_month_expenses', locale) },
+    { label: t('finance.net', locale), value: fmt(data.month_net), color: data.month_net >= 0 ? 'text-green-600' : 'text-red-600', tip: t('finance.tip_month_net', locale) },
+    { label: t('finance.pending', locale), value: fmt(data.pending_amount), color: 'text-yellow-600', tip: t('finance.tip_pending', locale) },
+    { label: t('finance.overdue', locale), value: fmt(data.overdue_amount), color: 'text-red-600', tip: t('finance.tip_overdue', locale) },
   ];
 
   return (
@@ -85,7 +85,9 @@ export default function FinancePage() {
           {cards.map((c) => (
             <Card key={c.label}>
               <div className={`rounded-lg p-1 inline-block mb-2`}>
-                <p className="text-[13px] font-medium text-gray-500">{c.label}</p>
+                <Tooltip text={c.tip}>
+                  <p className="text-[13px] font-medium text-gray-500">{c.label}</p>
+                </Tooltip>
               </div>
               <p className={`text-2xl font-semibold ${c.color}`}>{c.value}</p>
             </Card>
@@ -97,7 +99,9 @@ export default function FinancePage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {monthCards.map((c) => (
             <Card key={c.label}>
-              <p className="text-[13px] font-medium text-gray-500 mb-1">{c.label}</p>
+              <Tooltip text={c.tip}>
+                <p className="text-[13px] font-medium text-gray-500 mb-1">{c.label}</p>
+              </Tooltip>
               <p className={`text-lg font-semibold ${c.color}`}>{c.value}</p>
             </Card>
           ))}

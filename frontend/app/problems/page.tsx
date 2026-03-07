@@ -6,7 +6,7 @@ import { getProblems, getProperties, deleteProblem, updateProblem } from '../lib
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Badge, Button, Select, Spinner, EmptyState } from '../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Badge, Button, Select, Spinner, EmptyState, Tooltip } from '../components/ui';
 
 interface Problem {
   id: number;
@@ -150,14 +150,20 @@ export default function ProblemsPage() {
           {emergencyCount > 0 && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-xs font-semibold text-red-700">{emergencyCount} {t('problems.emergency', locale)}</span>
+              <Tooltip text={t('problems.tip_emergency', locale)}>
+                <span className="text-xs font-semibold text-red-700">{emergencyCount} {t('problems.emergency', locale)}</span>
+              </Tooltip>
             </div>
           )}
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
-            <span className="text-xs font-medium text-amber-700">{openCount} {t('problems.open', locale)}</span>
+            <Tooltip text={t('problems.tip_open', locale)}>
+              <span className="text-xs font-medium text-amber-700">{openCount} {t('problems.open', locale)}</span>
+            </Tooltip>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-            <span className="text-xs font-medium text-blue-700">{inProgressCount} {t('problems.in_progress', locale)}</span>
+            <Tooltip text={t('problems.tip_in_progress', locale)}>
+              <span className="text-xs font-medium text-blue-700">{inProgressCount} {t('problems.in_progress', locale)}</span>
+            </Tooltip>
           </div>
         </div>
 
