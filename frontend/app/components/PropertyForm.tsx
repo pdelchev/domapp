@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getOwners } from '../lib/api';
+import { getOwners, getProperties } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import { Button, Input, Select, Textarea, Alert, FormSection } from './ui';
@@ -12,6 +12,12 @@ interface Owner {
   full_name: string;
 }
 
+interface PropertyOption {
+  id: number;
+  name: string;
+  property_type: string;
+}
+
 interface PropertyFormData {
   owner: string;
   name: string;
@@ -19,6 +25,7 @@ interface PropertyFormData {
   city: string;
   country: string;
   property_type: string;
+  parent_property: string;
   cadastral_number: string;
   square_meters: string;
   purchase_price: string;
@@ -57,6 +64,7 @@ const EMPTY_FORM: PropertyFormData = {
   city: '',
   country: 'Bulgaria',
   property_type: 'apartment',
+  parent_property: '',
   cadastral_number: '',
   square_meters: '',
   purchase_price: '',
@@ -107,6 +115,7 @@ export default function PropertyForm({
   const router = useRouter();
   const { locale } = useLanguage();
   const [owners, setOwners] = useState<Owner[]>([]);
+  const [allProperties, setAllProperties] = useState<PropertyOption[]>([]);
   const [form, setForm] = useState<PropertyFormData>(initialData || EMPTY_FORM);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     basic: true,
@@ -115,6 +124,7 @@ export default function PropertyForm({
 
   useEffect(() => {
     getOwners().then(setOwners).catch(() => {});
+    getProperties().then(setAllProperties).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -157,8 +167,25 @@ export default function PropertyForm({
             <option value="house">{t('type.house', locale)}</option>
             <option value="studio">{t('type.studio', locale)}</option>
             <option value="commercial">{t('type.commercial', locale)}</option>
+            <option value="parking">{t('type.parking', locale)}</option>
+            <option value="garage">{t('type.garage', locale)}</option>
+            <option value="storage">{t('type.storage', locale)}</option>
           </Select>
         </div>
+        {['parking', 'garage', 'storage'].includes(form.property_type) && (
+          <Select
+            label={t('properties.parent_property', locale)}
+            value={form.parent_property}
+            onChange={(e) => set('parent_property', e.target.value)}
+          >
+            <option value="">{t('properties.no_parent', locale)}</option>
+            {allProperties
+              .filter((p) => !['parking', 'garage', 'storage'].includes(p.property_type) && p.id !== Number(initialData?.owner))
+              .map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+          </Select>
+        )}
       </FormSection>
 
       {/* Land & Acquisition */}

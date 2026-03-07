@@ -138,6 +138,16 @@ const translations: Record<string, Record<Locale, string>> = {
   'type.house': { en: 'House', bg: 'Къща' },
   'type.studio': { en: 'Studio', bg: 'Студио' },
   'type.commercial': { en: 'Commercial', bg: 'Търговски обект' },
+  'type.parking': { en: 'Parking', bg: 'Паркомясто' },
+  'type.garage': { en: 'Garage', bg: 'Гараж' },
+  'type.storage': { en: 'Storage', bg: 'Мазе / Склад' },
+
+  // Linked properties
+  'properties.parent_property': { en: 'Linked to (parent property)', bg: 'Свързано с (основен имот)' },
+  'properties.no_parent': { en: 'None (standalone)', bg: 'Няма (самостоятелен)' },
+  'properties.linked': { en: 'Linked', bg: 'Свързани' },
+  'properties.linked_properties': { en: 'Linked Properties', bg: 'Свързани имоти' },
+  'properties.linked_to': { en: 'Linked to', bg: 'Свързан с' },
 
   // Units
   'units.title': { en: 'Units', bg: 'Обекти' },

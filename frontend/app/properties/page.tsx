@@ -18,6 +18,8 @@ interface Property {
   owner_name: string;
   current_value: number | null;
   square_meters: number | null;
+  parent_property: number | null;
+  parent_property_name: string | null;
 }
 
 interface Owner {
@@ -25,11 +27,14 @@ interface Owner {
   full_name: string;
 }
 
-const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
+const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple' | 'gray' | 'indigo'> = {
   apartment: 'blue',
   house: 'green',
   studio: 'yellow',
   commercial: 'purple',
+  parking: 'gray',
+  garage: 'gray',
+  storage: 'indigo',
 };
 
 export default function PropertiesPage() {
@@ -105,6 +110,9 @@ export default function PropertiesPage() {
             <option value="house">{t('type.house', locale)}</option>
             <option value="studio">{t('type.studio', locale)}</option>
             <option value="commercial">{t('type.commercial', locale)}</option>
+            <option value="parking">{t('type.parking', locale)}</option>
+            <option value="garage">{t('type.garage', locale)}</option>
+            <option value="storage">{t('type.storage', locale)}</option>
           </Select>
         </div>
 
@@ -134,6 +142,11 @@ export default function PropertiesPage() {
                     <td className="px-5 py-3">
                       <div>
                         <span className="text-sm font-medium text-gray-900">{prop.name}</span>
+                        {prop.parent_property_name && (
+                          <span className="ml-1.5 text-xs text-gray-400">
+                            → {prop.parent_property_name}
+                          </span>
+                        )}
                         <p className="text-xs text-gray-500 md:hidden">{prop.city}</p>
                       </div>
                     </td>

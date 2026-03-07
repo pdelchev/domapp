@@ -37,6 +37,9 @@ class Property(models.Model):
         ('house', 'House'),
         ('studio', 'Studio'),
         ('commercial', 'Commercial'),
+        ('parking', 'Parking'),
+        ('garage', 'Garage'),
+        ('storage', 'Storage'),
     ]
 
     user = models.ForeignKey(
@@ -56,6 +59,16 @@ class Property(models.Model):
     city = models.CharField(max_length=100)
     country = models.CharField(max_length=100, default='Bulgaria')
     property_type = models.CharField(max_length=20, choices=PROPERTY_TYPES, default='apartment')
+
+    # --- Parent link (for auxiliary properties like parking, garage, storage) ---
+    parent_property = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='linked_properties',
+        help_text='Parent property this is linked to (e.g. apartment for a parking spot)'
+    )
 
     # --- Land Registry & Acquisition ---
     cadastral_number = models.CharField(max_length=100, blank=True, null=True, help_text='Кадастрален номер')

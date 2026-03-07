@@ -11,9 +11,10 @@ class PropertyOwnerAdmin(admin.ModelAdmin):
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('name', 'owner', 'city', 'property_type', 'purchase_price', 'created_at')
+    list_display = ('name', 'owner', 'city', 'property_type', 'parent_property', 'purchase_price', 'created_at')
     list_filter = ('property_type', 'city')
     search_fields = ('name', 'address', 'city', 'owner__full_name')
+    raw_id_fields = ('parent_property',)
 
 
 @admin.register(Unit)

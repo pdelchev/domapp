@@ -47,6 +47,9 @@ interface PropertyData {
   front_door_code: string | null;
   lock_box_code: string | null;
   notes: string | null;
+  parent_property: number | null;
+  parent_property_name: string | null;
+  linked_properties: { id: number; name: string; property_type: string; cadastral_number: string | null; square_meters: number | null }[];
 }
 
 interface OwnerItem { id: number; full_name: string; }
@@ -102,11 +105,14 @@ interface UnitRecord {
   notes: string | null;
 }
 
-const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
+const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple' | 'gray' | 'indigo'> = {
   apartment: 'blue',
   house: 'green',
   studio: 'yellow',
   commercial: 'purple',
+  parking: 'gray',
+  garage: 'gray',
+  storage: 'indigo',
 };
 
 const ALL_DOC_TYPES = [
@@ -818,6 +824,58 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
             </Card>
           )}
         </div>
+
+        {/* ====== Parent link ====== */}
+        {prop.parent_property_name && (
+          <div className="mt-6">
+            <p className="text-sm text-gray-500">
+              {t('properties.linked_to', locale)}:{' '}
+              <button
+                onClick={() => router.push(`/properties/${prop.parent_property}`)}
+                className="text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                {prop.parent_property_name}
+              </button>
+            </p>
+          </div>
+        )}
+
+        {/* ====== Linked Properties ====== */}
+        {prop.linked_properties && prop.linked_properties.length > 0 && (
+          <div className="mt-8">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('properties.linked_properties', locale)}</h2>
+            <Card padding={false}>
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200 text-left">
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('properties.name', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('properties.type', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('properties.cadastral', locale)}</th>
+                    <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right hidden md:table-cell">{t('properties.sqm', locale)}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {prop.linked_properties.map((lp) => (
+                    <tr
+                      key={lp.id}
+                      onClick={() => router.push(`/properties/${lp.id}`)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-5 py-3 text-sm font-medium text-gray-900">{lp.name}</td>
+                      <td className="px-5 py-3">
+                        <Badge color={TYPE_BADGE[lp.property_type] || 'gray'}>
+                          {t(`type.${lp.property_type}`, locale)}
+                        </Badge>
+                      </td>
+                      <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{lp.cadastral_number || '—'}</td>
+                      <td className="px-5 py-3 text-sm text-gray-500 text-right hidden md:table-cell">{lp.square_meters || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          </div>
+        )}
 
         {/* ====== Leases ====== */}
         <div className="mt-8">
