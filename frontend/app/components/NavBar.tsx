@@ -5,7 +5,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { getMe, logout, getUnreadCount } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
-import { Button } from './ui';
 import Logo from './Logo';
 
 const NAV_ITEMS = [
@@ -19,11 +18,22 @@ const NAV_ITEMS = [
   { href: '/problems', key: 'nav.problems' },
 ];
 
-// Desktop nav — condensed (Owners under Properties, Leases under Tenants)
-const DESKTOP_NAV = [
+// Desktop nav — some items have dropdown sub-links
+type DesktopNavItem = {
+  href: string;
+  key: string;
+  sub?: { href: string; key: string }[];
+};
+const DESKTOP_NAV: DesktopNavItem[] = [
   { href: '/dashboard', key: 'nav.dashboard' },
-  { href: '/properties', key: 'nav.properties' },
-  { href: '/tenants', key: 'nav.tenants' },
+  { href: '/properties', key: 'nav.properties', sub: [
+    { href: '/properties', key: 'nav.properties' },
+    { href: '/owners', key: 'nav.owners' },
+  ]},
+  { href: '/tenants', key: 'nav.tenants', sub: [
+    { href: '/tenants', key: 'nav.tenants' },
+    { href: '/leases', key: 'nav.leases' },
+  ]},
   { href: '/finance', key: 'nav.finance' },
   { href: '/documents', key: 'nav.documents' },
   { href: '/problems', key: 'nav.problems' },
@@ -110,19 +120,54 @@ export default function NavBar() {
 
             {/* Desktop Nav */}
             <div className="hidden md:flex items-center gap-1">
-              {DESKTOP_NAV.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive(item.href)
-                      ? 'bg-indigo-50 text-indigo-700'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
-                >
-                  {t(item.key, locale)}
-                </a>
-              ))}
+              {DESKTOP_NAV.map((item) =>
+                item.sub ? (
+                  <div key={item.href} className="relative group/nav">
+                    <a
+                      href={item.href}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1 ${
+                        isActive(item.href)
+                          ? 'bg-indigo-50 text-indigo-700'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
+                    >
+                      {t(item.key, locale)}
+                      <svg className="w-3.5 h-3.5 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </a>
+                    <div className="absolute left-0 top-full pt-1 invisible opacity-0 group-hover/nav:visible group-hover/nav:opacity-100 transition-all duration-150 z-50">
+                      <div className="bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                        {item.sub.map((sub) => (
+                          <a
+                            key={sub.href}
+                            href={sub.href}
+                            className={`block px-4 py-2 text-sm transition-colors ${
+                              pathname === sub.href || pathname.startsWith(sub.href + '/')
+                                ? 'bg-indigo-50 text-indigo-700 font-medium'
+                                : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            {t(sub.key, locale)}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      isActive(item.href)
+                        ? 'bg-indigo-50 text-indigo-700'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    {t(item.key, locale)}
+                  </a>
+                )
+              )}
             </div>
 
             {/* Right */}
@@ -153,9 +198,15 @@ export default function NavBar() {
                 {locale === 'en' ? 'BG' : 'EN'}
               </button>
               <span className="text-sm text-gray-500 hidden sm:block">{username}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden md:inline-flex">
-                {t('nav.logout', locale)}
-              </Button>
+              <button
+                onClick={handleLogout}
+                className="hidden md:inline-flex p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                title={t('nav.logout', locale)}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
+              </button>
 
               {/* Hamburger — mobile only */}
               <button
@@ -187,8 +238,11 @@ export default function NavBar() {
               ))}
               <button
                 onClick={handleLogout}
-                className="block w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+                className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
               >
+                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                </svg>
                 {t('nav.logout', locale)}
               </button>
             </div>
