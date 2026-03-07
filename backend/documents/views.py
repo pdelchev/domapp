@@ -102,7 +102,7 @@ class ComplianceSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user
+        user = request.user.get_data_owner()
         today = timezone.now().date()
         threshold = today + timedelta(days=30)
 

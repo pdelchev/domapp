@@ -1,4 +1,4 @@
-const CACHE_NAME = 'domapp-v6';
+const CACHE_NAME = 'domapp-v7';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -20,9 +20,9 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Network-first for everything except static assets
-  // This ensures pages and API calls always get fresh content
-  if (url.pathname.startsWith('/api/') || request.mode === 'navigate') {
+  // Network-first for API calls, page navigations, and Next.js RSC requests
+  const isRSC = request.headers.get('RSC') === '1' || request.headers.get('Next-Router-State-Tree');
+  if (url.pathname.startsWith('/api/') || request.mode === 'navigate' || isRSC) {
     event.respondWith(
       fetch(request).catch(() => caches.match(request))
     );

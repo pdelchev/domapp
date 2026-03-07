@@ -353,13 +353,19 @@ export default function DocumentVaultPage() {
                             </svg>
                           )}
                           {bf.status === 'error' && (
-                            <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            </svg>
+                            <button
+                              onClick={() => updateFile(bf.id, 'status', 'pending')}
+                              title={locale === 'bg' ? 'Опитай отново' : 'Retry'}
+                              className="p-0.5 text-red-500 hover:text-indigo-600 shrink-0"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            </button>
                           )}
                           <span className="text-sm font-medium text-gray-900 truncate flex-1">{bf.file.name}</span>
                           <span className="text-xs text-gray-400 shrink-0">{formatFileSize(bf.file.size)}</span>
-                          {bf.status === 'pending' && (
+                          {(bf.status === 'pending' || bf.status === 'error') && (
                             <button
                               onClick={() => removeFile(bf.id)}
                               className="p-1 text-gray-400 hover:text-red-500 shrink-0"
@@ -371,8 +377,8 @@ export default function DocumentVaultPage() {
                           )}
                         </div>
 
-                        {/* Per-file settings — only for pending */}
-                        {bf.status === 'pending' && (
+                        {/* Per-file settings — for pending and error */}
+                        {(bf.status === 'pending' || bf.status === 'error') && (
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <select
                               value={bf.property}
