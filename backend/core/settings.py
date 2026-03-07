@@ -192,5 +192,22 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30MB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30MB
 
+# --- Logging ---
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'documents': {'level': 'DEBUG'},
+        'django.request': {'level': 'ERROR'},
+    },
+}
+
 # --- Custom User Model ---
 AUTH_USER_MODEL = 'accounts.User'

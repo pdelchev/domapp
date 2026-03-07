@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, mixins, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
@@ -8,6 +9,8 @@ from datetime import timedelta
 from .models import Document, get_smart_folders
 from .serializers import DocumentSerializer
 from properties.models import Property
+
+logger = logging.getLogger(__name__)
 
 
 class DocumentViewSet(mixins.ListModelMixin,
@@ -42,6 +45,13 @@ class DocumentViewSet(mixins.ListModelMixin,
             elif expiry == 'valid':
                 qs = qs.filter(expiry_date__gt=today + timedelta(days=30))
         return qs
+
+    def perform_create(self, serializer):
+        try:
+            serializer.save()
+        except Exception:
+            logger.exception("Document upload failed")
+            raise
 
 
 class SmartFoldersView(APIView):
