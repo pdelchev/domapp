@@ -484,6 +484,9 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
                   <option value="house">{t('type.house', locale)}</option>
                   <option value="studio">{t('type.studio', locale)}</option>
                   <option value="commercial">{t('type.commercial', locale)}</option>
+                  <option value="parking">{t('type.parking', locale)}</option>
+                  <option value="garage">{t('type.garage', locale)}</option>
+                  <option value="storage">{t('type.storage', locale)}</option>
                 </Select>
               </div>
               <EditActions onSave={saveSection} onCancel={cancelEditing} saving={saving} />
