@@ -216,8 +216,23 @@ export default function DocumentVaultPage() {
     } : f));
   }, [bulkProperty, bulkType, bulkExpiry]);
 
+  // Auto-apply bulk values to pending files when dropdowns change
+  useEffect(() => {
+    if (bulkFiles.length > 0 && (bulkProperty || bulkType || bulkExpiry)) {
+      applyToAll();
+    }
+  }, [bulkProperty, bulkType, bulkExpiry]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleBulkUpload = useCallback(async () => {
-    const pending = bulkFiles.filter((f) => f.status === 'pending');
+    // Apply bulk values one final time before upload
+    const applied = bulkFiles.map((f) => f.status === 'pending' ? {
+      ...f,
+      property: bulkProperty || f.property,
+      document_type: bulkType || f.document_type,
+      expiry_date: bulkExpiry || f.expiry_date,
+    } : f);
+    setBulkFiles(applied);
+    const pending = applied.filter((f) => f.status === 'pending');
     const invalid = pending.find((f) => !f.property || !f.document_type);
     if (invalid) { setBulkError(t('common.required', locale)); return; }
     setBulkError('');
@@ -243,7 +258,7 @@ export default function DocumentVaultPage() {
       setBulkSuccess(`${successCount} ${t('docs.uploaded_count', locale)}`);
       loadData();
     }
-  }, [bulkFiles, locale, loadData]);
+  }, [bulkFiles, bulkProperty, bulkType, bulkExpiry, locale, loadData]);
 
   const closeBulkImport = () => {
     if (bulkUploading) return;
