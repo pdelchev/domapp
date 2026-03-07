@@ -56,6 +56,11 @@ const translations: Record<string, Record<Locale, string>> = {
   'dash.tip_action': { en: 'Payments overdue or coming due soon that need attention', bg: 'Просрочени или предстоящи плащания, които изискват внимание' },
   'dash.tip_collection': { en: 'How many of this month\'s payments have been collected', bg: 'Колко от плащанията за този месец са събрани' },
   'dash.tip_action_list': { en: 'Payments due within 4 days or past due — tap to expand, green button for quick pay', bg: 'Плащания до 4 дни преди падеж или просрочени — натисни за детайли, зелен бутон за бързо плащане' },
+  'dash.upcoming_payments': { en: 'Upcoming Payments', bg: 'Предстоящи плащания' },
+  'dash.open_problems': { en: 'Open Problems', bg: 'Отворени проблеми' },
+  'dash.no_upcoming': { en: 'No upcoming payments', bg: 'Няма предстоящи плащания' },
+  'dash.no_problems': { en: 'No open problems', bg: 'Няма отворени проблеми' },
+  'dash.view_all': { en: 'View All', bg: 'Виж всички' },
 
   // Owners
   'owners.title': { en: 'Property Owners', bg: 'Собственици на имоти' },

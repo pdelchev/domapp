@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'storages',
     # DomApp apps
     'accounts',
     'properties',
@@ -155,7 +156,33 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
 # --- File Storage ---
-MEDIA_URL = '/media/'
+# Use Cloudflare R2 when credentials are provided, otherwise local storage
+AWS_ACCESS_KEY_ID = os.environ.get('R2_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('R2_SECRET_ACCESS_KEY')
+AWS_STORAGE_BUCKET_NAME = os.environ.get('R2_BUCKET_NAME')
+AWS_S3_ENDPOINT_URL = os.environ.get('R2_ENDPOINT_URL')  # https://<account_id>.r2.cloudflarestorage.com
+AWS_S3_REGION_NAME = 'auto'
+AWS_DEFAULT_ACL = None
+AWS_QUERYSTRING_AUTH = True
+AWS_S3_FILE_OVERWRITE = False
+AWS_S3_SIGNATURE_VERSION = 's3v4'
+
+if AWS_ACCESS_KEY_ID and AWS_STORAGE_BUCKET_NAME and AWS_S3_ENDPOINT_URL:
+    # R2 production storage
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage',
+    }
+    MEDIA_URL = f'{AWS_S3_ENDPOINT_URL}/{AWS_STORAGE_BUCKET_NAME}/'
+    # Use public R2 URL if configured (e.g. custom domain or r2.dev subdomain)
+    R2_PUBLIC_URL = os.environ.get('R2_PUBLIC_URL')
+    if R2_PUBLIC_URL:
+        AWS_S3_CUSTOM_DOMAIN = R2_PUBLIC_URL.replace('https://', '').replace('http://', '').rstrip('/')
+        MEDIA_URL = f'{R2_PUBLIC_URL}/'
+        AWS_QUERYSTRING_AUTH = False
+else:
+    # Local development storage
+    MEDIA_URL = '/media/'
+
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # --- Custom User Model ---

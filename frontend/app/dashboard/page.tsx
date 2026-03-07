@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDashboardSummary, getProperties, getRentPayments, updateRentPayment, batchMarkPaid } from '../lib/api';
+import { getDashboardSummary, getRentPayments, updateRentPayment, batchMarkPaid, getProblems } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
@@ -31,13 +31,14 @@ interface DashboardData {
   month_total_collected: number;
 }
 
-interface Property {
+interface Problem {
   id: number;
-  name: string;
-  city: string;
-  property_type: string;
-  owner_name: string;
-  current_value: number;
+  title: string;
+  property_name: string;
+  category: string;
+  priority: string;
+  status: string;
+  created_at: string;
 }
 
 interface Payment {
@@ -111,11 +112,11 @@ function daysFromToday(dateStr: string): number {
   return Math.round((d.getTime() - now.getTime()) / 86400000);
 }
 
-const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple'> = {
-  apartment: 'blue',
-  house: 'green',
-  studio: 'yellow',
-  commercial: 'purple',
+const PRIORITY_COLOR: Record<string, 'red' | 'yellow' | 'blue' | 'gray'> = {
+  emergency: 'red',
+  high: 'red',
+  medium: 'yellow',
+  low: 'blue',
 };
 
 const today = () => new Date().toISOString().split('T')[0];
@@ -147,7 +148,7 @@ export default function DashboardPage() {
 
   // Data
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [problems, setProblems] = useState<Problem[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -174,8 +175,11 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try {
-        const [dash, props] = await Promise.all([getDashboardSummary(), getProperties()]);
-        if (!cancelled) { setDashboard(dash); setProperties(props); }
+        const [dash, allProbs] = await Promise.all([getDashboardSummary(), getProblems()]);
+        if (!cancelled) {
+          setDashboard(dash);
+          setProblems(allProbs.filter((p: Problem) => p.status === 'open' || p.status === 'in_progress'));
+        }
       } catch {
         if (!cancelled) router.push('/login');
       } finally {
@@ -627,8 +631,8 @@ export default function DashboardPage() {
 
                     {/* Expanded detail panel (date, method, amount) */}
                     {isExpanded && !batchMode && (
-                      <div className="px-3 pb-3 pt-1 border-t border-gray-100">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="px-3 pb-3 pt-1 border-t border-gray-100 overflow-hidden">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
                           {/* Date */}
                           <div>
                             <label className="block text-[11px] font-medium text-gray-500 mb-1">{t('payments.payment_date', locale)}</label>
@@ -636,7 +640,7 @@ export default function DashboardPage() {
                               type="date"
                               value={expandDate}
                               onChange={(e) => setExpandDate(e.target.value)}
-                              className="w-full h-9 px-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                              className="w-full h-9 px-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white box-border max-w-full min-w-0"
                             />
                           </div>
                           {/* Method — pill buttons */}
@@ -735,41 +739,77 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ====== PROPERTIES — same as before ====== */}
+        {/* ====== UPCOMING PAYMENTS ====== */}
+        {(() => {
+          const upcoming = payments
+            .filter((p) => p.status !== 'paid' && daysFromToday(p.due_date) > 4)
+            .sort((a, b) => daysFromToday(a.due_date) - daysFromToday(b.due_date))
+            .slice(0, 8);
+          return (
+            <Card padding={false}>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+                <h2 className="text-sm font-semibold text-gray-900">{t('dash.upcoming_payments', locale)}</h2>
+                <Button size="sm" variant="ghost" onClick={() => router.push('/finance/payments')}>
+                  {t('dash.view_all', locale)}
+                </Button>
+              </div>
+              {upcoming.length === 0 ? (
+                <div className="py-8 text-center">
+                  <p className="text-sm text-gray-400">{t('dash.no_upcoming', locale)}</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-100">
+                  {upcoming.map((p) => {
+                    const days = daysFromToday(p.due_date);
+                    return (
+                      <div key={p.id} className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => router.push(`/leases/${p.lease}`)}>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{p.tenant_name}</p>
+                          <p className="text-xs text-gray-400">{p.property_name} &middot; {periodLabel(p.due_date, p.rent_frequency, locale)}</p>
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 ml-4">
+                          <span className="text-sm font-medium text-gray-700">{fmt(p.amount_due)}</span>
+                          <Badge color={days <= 7 ? 'yellow' : 'blue'}>
+                            {days === 0 ? (locale === 'bg' ? 'Днес' : 'Today') : `${days}d`}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          );
+        })()}
+
+        {/* ====== OPEN PROBLEMS ====== */}
         <Card padding={false}>
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <h2 className="text-sm font-semibold text-gray-900">{t('nav.properties', locale)}</h2>
-            <Button size="sm" onClick={() => router.push('/properties/new')}>
-              + {t('common.add', locale)}
+            <h2 className="text-sm font-semibold text-gray-900">{t('dash.open_problems', locale)}</h2>
+            <Button size="sm" variant="ghost" onClick={() => router.push('/problems')}>
+              {t('dash.view_all', locale)}
             </Button>
           </div>
-
-          {properties.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-sm text-gray-400">{t('common.no_data', locale)}</p>
+          {problems.length === 0 ? (
+            <div className="py-8 text-center">
+              <p className="text-sm text-gray-400">{t('dash.no_problems', locale)}</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {properties.map((prop) => (
+              {problems.slice(0, 5).map((prob) => (
                 <div
-                  key={prop.id}
-                  onClick={() => router.push(`/properties/${prop.id}`)}
-                  className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors active:bg-gray-100"
+                  key={prob.id}
+                  onClick={() => router.push(`/problems/${prob.id}`)}
+                  className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{prop.name}</p>
-                    <p className="text-xs text-gray-400">{prop.city} &middot; {prop.owner_name}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{prob.title}</p>
+                    <p className="text-xs text-gray-400">{prob.property_name} &middot; {t(`problems.${prob.category}`, locale)}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0 ml-4">
-                    <Badge color={TYPE_BADGE[prop.property_type] || 'gray'}>
-                      {t(`type.${prop.property_type}`, locale)}
+                    <Badge color={PRIORITY_COLOR[prob.priority] || 'gray'}>
+                      {t(`problems.${prob.priority}`, locale)}
                     </Badge>
-                    {prop.current_value > 0 && (
-                      <span className="text-sm font-medium text-gray-700 hidden sm:inline">{fmt(prop.current_value)}</span>
-                    )}
-                    <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                    </svg>
                   </div>
                 </div>
               ))}
