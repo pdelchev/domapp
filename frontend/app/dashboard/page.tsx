@@ -6,7 +6,7 @@ import { getDashboardSummary, getProperties, getRentPayments, updateRentPayment,
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, Card, Button, Badge, Spinner } from '../components/ui';
+import { PageShell, PageContent, Card, Button, Badge, Spinner, Tooltip } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,13 +198,23 @@ export default function DashboardPage() {
     return String(value);
   };
 
-  // ------- Actionable payments (pending + overdue, sorted by urgency) -------
+  // ------- Actionable payments -------
+  // Show only payments within 4 days before due date or any time after.
+  // Overdue = more than 5 days past due. Pending = within ±4 days of due date.
+  // Payments too far in the future (>4 days before due) are hidden.
   const actionable = payments
-    .filter((p) => p.status === 'pending' || p.status === 'overdue')
+    .filter((p) => {
+      if (p.status === 'paid') return false;
+      const days = daysFromToday(p.due_date);
+      // days > 0 means due date is in the future
+      // Show if due date is within 4 days ahead or any time past
+      return days <= 4;
+    })
     .sort((a, b) => {
-      if (a.status === 'overdue' && b.status !== 'overdue') return -1;
-      if (a.status !== 'overdue' && b.status === 'overdue') return 1;
-      return a.due_date.localeCompare(b.due_date);
+      const daysA = daysFromToday(a.due_date);
+      const daysB = daysFromToday(b.due_date);
+      // Most overdue first, then by due date
+      return daysA - daysB;
     });
 
   // ------- Quick Pay (one-tap) -------
@@ -362,7 +372,7 @@ export default function DashboardPage() {
   };
 
   const selectAllOverdue = () => {
-    setSelectedIds(new Set(actionable.filter((p) => p.status === 'overdue').map((p) => p.id)));
+    setSelectedIds(new Set(actionable.filter((p) => daysFromToday(p.due_date) < -5).map((p) => p.id)));
   };
 
   const selectAll = () => {
@@ -399,7 +409,9 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             {/* Net Cash Flow */}
             <Card className="!p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('dash.net_cash_flow', locale)}</p>
+              <Tooltip text={t('dash.tip_cash_flow', locale)}>
+                <p className="text-xs text-gray-500 mb-1">{t('dash.net_cash_flow', locale)}</p>
+              </Tooltip>
               <p className={`text-xl font-bold transition-all duration-300 ${dashboard.net_cash_flow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {fmt(dashboard.net_cash_flow)}
               </p>
@@ -410,19 +422,25 @@ export default function DashboardPage() {
             </Card>
             {/* Portfolio Value */}
             <Card className="!p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('dash.portfolio_value', locale)}</p>
+              <Tooltip text={t('dash.tip_portfolio', locale)}>
+                <p className="text-xs text-gray-500 mb-1">{t('dash.portfolio_value', locale)}</p>
+              </Tooltip>
               <p className="text-xl font-bold text-gray-900">{fmt(dashboard.total_portfolio_value)}</p>
               <p className="text-[11px] text-gray-400 mt-2">{dashboard.total_properties} {t('dash.properties', locale).toLowerCase()}</p>
             </Card>
             {/* Occupancy */}
             <Card className="!p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('dash.occupancy', locale)}</p>
+              <Tooltip text={t('dash.tip_occupancy', locale)}>
+                <p className="text-xs text-gray-500 mb-1">{t('dash.occupancy', locale)}</p>
+              </Tooltip>
               <p className="text-xl font-bold text-gray-900">{dashboard.occupancy_rate}%</p>
               <p className="text-[11px] text-gray-400 mt-2">{dashboard.active_leases} {t('dash.active_leases', locale).toLowerCase()}</p>
             </Card>
             {/* Action Required */}
             <Card className="!p-4">
-              <p className="text-xs text-gray-500 mb-1">{t('dash.action_required', locale)}</p>
+              <Tooltip text={t('dash.tip_action', locale)}>
+                <p className="text-xs text-gray-500 mb-1">{t('dash.action_required', locale)}</p>
+              </Tooltip>
               <div className="flex items-baseline gap-2">
                 <p className={`text-xl font-bold ${dashboard.overdue_rent > 0 ? 'text-red-600' : 'text-gray-900'}`}>{dashboard.overdue_rent}</p>
                 <span className="text-[11px] text-red-500">{t('dash.overdue', locale).toLowerCase()}</span>
@@ -436,9 +454,11 @@ export default function DashboardPage() {
         {dashboard && totalCount > 0 && (
           <Card className="!px-4 !py-3 mb-4">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-medium text-gray-700">
-                {t('dash.collection', locale)}: {collectedCount} {t('dash.of', locale)} {totalCount} {t('dash.collected', locale)}
-              </span>
+              <Tooltip text={t('dash.tip_collection', locale)}>
+                <span className="text-xs font-medium text-gray-700">
+                  {t('dash.collection', locale)}: {collectedCount} {t('dash.of', locale)} {totalCount} {t('dash.collected', locale)}
+                </span>
+              </Tooltip>
               <span className="text-xs font-semibold text-gray-900">{progressPct}%</span>
             </div>
             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -458,7 +478,9 @@ export default function DashboardPage() {
           {/* Section header */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-gray-900">{t('dash.action_required', locale)}</h2>
+              <Tooltip text={t('dash.tip_action_list', locale)}>
+                <h2 className="text-sm font-semibold text-gray-900">{t('dash.action_required', locale)}</h2>
+              </Tooltip>
               {actionable.length > 0 && <Badge color="red">{actionable.length}</Badge>}
             </div>
             {actionable.length > 1 && (
@@ -481,7 +503,7 @@ export default function DashboardPage() {
               >
                 {t('dash.select_all', locale)}
               </button>
-              {actionable.some((p) => p.status === 'overdue') && (
+              {actionable.some((p) => daysFromToday(p.due_date) < -5) && (
                 <button
                   onClick={selectAllOverdue}
                   className="text-xs font-medium text-red-600 hover:text-red-800 px-2 py-1 rounded-md hover:bg-red-50 transition-colors"
@@ -509,11 +531,14 @@ export default function DashboardPage() {
                 const isSelected = selectedIds.has(payment.id);
                 const isPaying = payingIds.has(payment.id);
                 const days = daysFromToday(payment.due_date);
-                const isOverdue = payment.status === 'overdue' || (payment.status === 'pending' && days < 0);
+                // Overdue = more than 5 days past due date
+                const isOverdue = days < -5;
+                // Pending = within the window (-5 to +4 days of due date)
                 const isDueToday = !isOverdue && days === 0;
+                const isDueSoon = !isOverdue && !isDueToday && days > 0;
 
-                // Left border color: red=overdue, yellow=today, transparent=upcoming
-                const borderColor = isOverdue ? 'border-l-red-500' : isDueToday ? 'border-l-amber-400' : 'border-l-transparent';
+                // Left border color: red=overdue, amber=today, blue=upcoming, transparent=past but not overdue
+                const borderColor = isOverdue ? 'border-l-red-500' : isDueToday ? 'border-l-amber-400' : isDueSoon ? 'border-l-blue-400' : 'border-l-orange-300';
 
                 return (
                   <Card
@@ -549,23 +574,30 @@ export default function DashboardPage() {
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium text-gray-900 truncate">{payment.tenant_name}</span>
                           <span className="hidden sm:inline-flex">
-                            <Badge color={isOverdue ? 'red' : 'yellow'}>
-                              {t(`payments.${payment.status}`, locale)}
+                            <Badge color={isOverdue ? 'red' : isDueToday ? 'yellow' : isDueSoon ? 'blue' : 'yellow'}>
+                              {isOverdue ? t('payments.overdue', locale) : t('payments.pending', locale)}
                             </Badge>
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-                          <span className="truncate">{payment.property_name}</span>
-                          <span>&middot;</span>
-                          <span className="whitespace-nowrap font-medium text-gray-500">{periodLabel(payment.due_date, payment.rent_frequency, locale)}</span>
-                          <span>&middot;</span>
-                          {isOverdue ? (
-                            <span className="text-red-600 font-semibold whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
-                          ) : isDueToday ? (
-                            <span className="text-amber-600 font-medium whitespace-nowrap">{t('dash.due_today', locale)}</span>
-                          ) : (
-                            <span className="whitespace-nowrap">{t('dash.due_in', locale)} {days} {t('dash.days', locale)}</span>
-                          )}
+                        <div className="text-xs text-gray-400 mt-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate">{payment.property_name}</span>
+                            <span>&middot;</span>
+                            <span className="whitespace-nowrap font-medium text-gray-500">{periodLabel(payment.due_date, payment.rent_frequency, locale)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="whitespace-nowrap text-gray-500">{payment.due_date}</span>
+                            <span>&middot;</span>
+                            {isOverdue ? (
+                              <span className="text-red-600 font-semibold whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
+                            ) : isDueToday ? (
+                              <span className="text-amber-600 font-medium whitespace-nowrap">{t('dash.due_today', locale)}</span>
+                            ) : days < 0 ? (
+                              <span className="text-orange-600 font-medium whitespace-nowrap">{Math.abs(days)} {t('dash.days_overdue', locale)}</span>
+                            ) : (
+                              <span className="whitespace-nowrap">{t('dash.due_in', locale)} {days} {t('dash.days', locale)}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
 

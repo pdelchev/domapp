@@ -36,11 +36,12 @@ class DashboardSummaryView(APIView):
         ).count()
         occupancy_rate = (active_leases / total_properties * 100) if total_properties > 0 else 0
 
-        # Rent this month
+        # Rent collected this month — count by payment_date (when money arrived),
+        # not due_date (which may be a different month for late payments)
         monthly_rent_collected = RentPayment.objects.filter(
             lease__property__user=user,
-            due_date__month=current_month,
-            due_date__year=current_year,
+            payment_date__month=current_month,
+            payment_date__year=current_year,
             status='paid'
         ).aggregate(total=Sum('amount_paid'))['total'] or 0
 
@@ -54,18 +55,19 @@ class DashboardSummaryView(APIView):
         # Net cash flow
         net_cash_flow = monthly_rent_collected - monthly_expenses
 
-        # Upcoming rent (next 7 days)
+        # Upcoming rent (due within next 7 days, not yet paid)
         upcoming_rent = RentPayment.objects.filter(
             lease__property__user=user,
-            status='pending',
+            status__in=['pending', 'overdue'],
             due_date__gte=today,
             due_date__lte=today + timedelta(days=7)
         ).count()
 
-        # Overdue rent
+        # Overdue rent — any unpaid payment past its due date (by date, not status field)
         overdue_rent = RentPayment.objects.filter(
             lease__property__user=user,
-            status='overdue'
+            status__in=['pending', 'overdue'],
+            due_date__lt=today
         ).count()
 
         # Expiring documents (next 30 days)

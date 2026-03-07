@@ -1,4 +1,4 @@
-const CACHE_NAME = 'domapp-v5';
+const CACHE_NAME = 'domapp-v6';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

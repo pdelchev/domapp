@@ -49,6 +49,14 @@ const translations: Record<string, Record<Locale, string>> = {
   'dash.days': { en: 'days', bg: 'дни' },
   'dash.collection': { en: 'Collection', bg: 'Събиране' },
 
+  // Dashboard tooltips
+  'dash.tip_cash_flow': { en: 'Rent collected minus expenses paid this month', bg: 'Събран наем минус платени разходи този месец' },
+  'dash.tip_portfolio': { en: 'Total current value of all your properties', bg: 'Обща текуща стойност на всички ваши имоти' },
+  'dash.tip_occupancy': { en: 'Percentage of properties with active leases', bg: 'Процент имоти с активни договори' },
+  'dash.tip_action': { en: 'Payments overdue or coming due soon that need attention', bg: 'Просрочени или предстоящи плащания, които изискват внимание' },
+  'dash.tip_collection': { en: 'How many of this month\'s payments have been collected', bg: 'Колко от плащанията за този месец са събрани' },
+  'dash.tip_action_list': { en: 'Payments due within 4 days or past due — tap to expand, green button for quick pay', bg: 'Плащания до 4 дни преди падеж или просрочени — натисни за детайли, зелен бутон за бързо плащане' },
+
   // Owners
   'owners.title': { en: 'Property Owners', bg: 'Собственици на имоти' },
   'owners.add': { en: 'Add Owner', bg: 'Добави собственик' },
@@ -304,6 +312,14 @@ const translations: Record<string, Record<Locale, string>> = {
   'docs.renew': { en: 'Upload Renewal', bg: 'Качи подновяване' },
   'docs.all_properties': { en: 'All Properties', bg: 'Всички имоти' },
   'docs.search': { en: 'Search documents...', bg: 'Търси документи...' },
+  'docs.bulk_import': { en: 'Bulk Import', bg: 'Групово качване' },
+  'docs.drop_files': { en: 'Drop files here or tap to select', bg: 'Пуснете файлове тук или натиснете за избор' },
+  'docs.apply_all': { en: 'Apply to all', bg: 'Приложи към всички' },
+  'docs.uploading': { en: 'Uploading...', bg: 'Качване...' },
+  'docs.uploaded_count': { en: 'uploaded', bg: 'качени' },
+  'docs.remove': { en: 'Remove', bg: 'Премахни' },
+  'docs.select_property': { en: 'Select property', bg: 'Избери имот' },
+  'docs.select_type': { en: 'Select type', bg: 'Избери тип' },
 
   // Notifications
   'notif.title': { en: 'Notifications', bg: 'Известия' },
@@ -388,6 +404,13 @@ const translations: Record<string, Record<Locale, string>> = {
   'common.saved': { en: 'Saved successfully', bg: 'Запазено успешно' },
   'common.deleted': { en: 'Deleted successfully', bg: 'Изтрито успешно' },
   'common.error': { en: 'An error occurred', bg: 'Възникна грешка' },
+
+  // FAB (Floating Action Button)
+  'fab.new_property': { en: 'New Property', bg: 'Нов имот' },
+  'fab.new_tenant': { en: 'New Tenant', bg: 'Нов наемател' },
+  'fab.new_lease': { en: 'New Lease', bg: 'Нов договор' },
+  'fab.new_problem': { en: 'New Problem', bg: 'Нов проблем' },
+  'fab.new_expense': { en: 'New Expense', bg: 'Нов разход' },
 
   // PWA Install
   'pwa.install_title': { en: 'Install DomApp', bg: 'Инсталирай DomApp' },

@@ -12,18 +12,29 @@ input, textarea, select {
   }
 }
 
-/* Bottom nav clearance — only in PWA standalone mode on mobile */
-@media (display-mode: standalone) and (max-width: 767px) {
-  .pwa-shell {
-    padding-bottom: 5rem; /* h-16 tab bar + safe margin */
-  }
+/* PWA standalone — no bottom tab bar padding needed anymore */
+
+/* FAB speed-dial animations */
+@keyframes fab-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-/* iOS standalone fallback (no display-mode support in older Safari) */
-@supports (-webkit-touch-callout: none) {
-  @media (max-width: 767px) {
-    .pwa-standalone .pwa-shell {
-      padding-bottom: 5rem;
-    }
+.fab-backdrop-in {
+  animation: fab-backdrop 0.2s ease-out;
+}
+
+@keyframes fab-action {
+  from { opacity: 0; transform: translateY(12px) scale(0.8); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.fab-action-in {
+  animation: fab-action 0.25s ease-out both;
+}
+
+/* Safe area offset for FAB on notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom-fab {
+    margin-bottom: env(safe-area-inset-bottom);
   }
 }
 
