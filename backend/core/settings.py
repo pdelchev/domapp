@@ -189,8 +189,8 @@ else:
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Allow large file uploads (default 2.5MB is too small for documents)
-DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
-FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
+DATA_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 31457280  # 30MB
 
 # --- Custom User Model ---
 AUTH_USER_MODEL = 'accounts.User'
