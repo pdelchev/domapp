@@ -209,7 +209,7 @@ export default function NavBar() {
 
           {/* Speed-dial actions */}
           {fabOpen && (
-            <div className="fixed bottom-24 right-5 z-[70] flex flex-col-reverse items-end gap-3 fab-menu-in">
+            <div className="fixed bottom-28 right-5 z-[70] flex flex-col-reverse items-end gap-3 fab-menu-in">
               {FAB_ACTIONS.map((action, i) => (
                 <button
                   key={action.href}
