@@ -508,3 +508,44 @@ export async function getProblemsSummary() {
   if (!res.ok) throw new Error('Failed to fetch problems summary');
   return res.json();
 }
+
+// --- Investments ---
+export async function getInvestments(propertyId?: number, status?: string, type?: string) {
+  const params = new URLSearchParams();
+  if (propertyId) params.set('property', String(propertyId));
+  if (status) params.set('status', status);
+  if (type) params.set('type', type);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/investments/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch investments');
+  return res.json();
+}
+
+export async function getInvestment(id: number) {
+  const res = await apiFetch(`/api/investments/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch investment');
+  return res.json();
+}
+
+export async function createInvestment(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/investments/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create investment');
+  return res.json();
+}
+
+export async function updateInvestment(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/investments/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update investment');
+  return res.json();
+}
+
+export async function deleteInvestment(id: number) {
+  const res = await apiFetch(`/api/investments/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete investment');
+}
