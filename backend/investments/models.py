@@ -1,82 +1,181 @@
-from django.db import models
 from django.conf import settings
-from properties.models import Property
+from django.db import models
+from decimal import Decimal
 
 
-class Investment(models.Model):
-    """
-    Tracks an investment tied to a property (or standalone).
-    Examples: renovation, solar panels, new appliance, land purchase.
-    """
-    TYPE_CHOICES = [
-        ('renovation', 'Renovation'),
-        ('equipment', 'Equipment'),
-        ('expansion', 'Expansion'),
-        ('energy', 'Energy Efficiency'),
-        ('land', 'Land Purchase'),
-        ('furniture', 'Furniture'),
-        ('security', 'Security System'),
-        ('stock', 'Stock'),
-        ('crypto', 'Cryptocurrency'),
-        ('bond', 'Bond'),
-        ('mutual_fund', 'Mutual Fund'),
-        ('other', 'Other'),
-    ]
+CURRENCY_CHOICES = [
+    ('GBP', 'GBP'),
+    ('EUR', 'EUR'),
+    ('BGN', 'BGN'),
+    ('USD', 'USD'),
+    ('CHF', 'CHF'),
+]
 
-    STATUS_CHOICES = [
-        ('planned', 'Planned'),
-        ('in_progress', 'In Progress'),
-        ('completed', 'Completed'),
-        ('cancelled', 'Cancelled'),
-    ]
+ASSET_TYPE_CHOICES = [
+    ('stock', 'Stock'),
+    ('etf', 'ETF'),
+    ('crypto', 'Crypto'),
+    ('bond', 'Bond'),
+    ('fund', 'Fund'),
+]
 
+TRANSACTION_TYPE_CHOICES = [
+    ('buy', 'Buy'),
+    ('sell', 'Sell'),
+    ('dividend', 'Dividend'),
+    ('fee', 'Fee'),
+    ('split', 'Split'),
+    ('transfer_in', 'Transfer In'),
+    ('transfer_out', 'Transfer Out'),
+]
+
+CONDITION_CHOICES = [
+    ('above', 'Above'),
+    ('below', 'Below'),
+]
+
+
+class Portfolio(models.Model):
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE,
-        related_name='investments'
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='portfolios'
     )
-    property = models.ForeignKey(
-        Property,
-        on_delete=models.CASCADE,
-        related_name='investments',
-        blank=True,
-        null=True
-    )
-
-    title = models.CharField(max_length=255)
+    name = models.CharField(max_length=255)
+    country = models.CharField(max_length=100)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='EUR')
+    broker = models.CharField(max_length=255, blank=True, default='')
     description = models.TextField(blank=True, default='')
-    investment_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='other')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='planned')
-
-    # Financial
-    amount_invested = models.DecimalField(max_digits=12, decimal_places=2)
-    expected_return = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-    actual_return = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-
-    # Dates
-    investment_date = models.DateField()
-    completion_date = models.DateField(blank=True, null=True)
-
-    # Market investment fields (stocks, crypto, bonds, etc.)
-    ticker_symbol = models.CharField(max_length=20, blank=True, default='')
-    quantity = models.DecimalField(max_digits=14, decimal_places=4, blank=True, null=True)
-    purchase_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-    current_price = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
-
-    notes = models.TextField(blank=True, default='')
-
-    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['-investment_date']
+        ordering = ['name']
         indexes = [
-            models.Index(fields=['user', 'status']),
-            models.Index(fields=['investment_type']),
-            models.Index(fields=['-investment_date']),
+            models.Index(fields=['user']),
+            models.Index(fields=['currency']),
         ]
 
     def __str__(self):
-        prop = self.property.name if self.property else 'General'
-        return f"{self.title} — {prop} ({self.status})"
+        return f"{self.name} ({self.currency})"
+
+
+class Holding(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='holdings'
+    )
+    portfolio = models.ForeignKey(
+        Portfolio, on_delete=models.CASCADE, related_name='holdings'
+    )
+    ticker = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    asset_type = models.CharField(max_length=10, choices=ASSET_TYPE_CHOICES)
+    sector = models.CharField(max_length=100, blank=True, default='')
+    quantity = models.DecimalField(max_digits=14, decimal_places=6, default=0)
+    avg_purchase_price = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    current_price = models.DecimalField(
+        max_digits=12, decimal_places=4, blank=True, null=True
+    )
+    currency = models.CharField(max_length=3, blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['ticker']
+        indexes = [
+            models.Index(fields=['user', 'portfolio']),
+            models.Index(fields=['ticker']),
+            models.Index(fields=['asset_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.ticker} — {self.name}"
+
+    def total_invested(self):
+        return self.quantity * self.avg_purchase_price
+
+    def market_value(self):
+        if self.current_price is not None:
+            return self.quantity * self.current_price
+        return Decimal('0')
+
+    def gain_loss(self):
+        return self.market_value() - self.total_invested()
+
+    def gain_loss_pct(self):
+        invested = self.total_invested()
+        if invested > 0:
+            return (self.gain_loss() / invested) * Decimal('100')
+        return Decimal('0')
+
+
+class Transaction(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='transactions'
+    )
+    holding = models.ForeignKey(
+        Holding, on_delete=models.CASCADE, related_name='transactions'
+    )
+    transaction_type = models.CharField(max_length=15, choices=TRANSACTION_TYPE_CHOICES)
+    quantity = models.DecimalField(max_digits=14, decimal_places=6, default=0)
+    price_per_unit = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    fees = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    date = models.DateField()
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'holding']),
+            models.Index(fields=['transaction_type']),
+            models.Index(fields=['-date']),
+        ]
+
+    def __str__(self):
+        return f"{self.transaction_type} {self.quantity}x {self.holding.ticker} @ {self.price_per_unit}"
+
+
+class WatchlistItem(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='watchlist_items'
+    )
+    ticker = models.CharField(max_length=20)
+    name = models.CharField(max_length=255)
+    asset_type = models.CharField(max_length=10, choices=ASSET_TYPE_CHOICES)
+    target_price = models.DecimalField(
+        max_digits=12, decimal_places=4, blank=True, null=True
+    )
+    current_price = models.DecimalField(
+        max_digits=12, decimal_places=4, blank=True, null=True
+    )
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['ticker']
+
+    def __str__(self):
+        return f"{self.ticker} — {self.name}"
+
+
+class PriceAlert(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='price_alerts'
+    )
+    ticker = models.CharField(max_length=20)
+    name = models.CharField(max_length=255, blank=True, default='')
+    condition = models.CharField(max_length=5, choices=CONDITION_CHOICES)
+    target_price = models.DecimalField(max_digits=12, decimal_places=4)
+    current_price = models.DecimalField(
+        max_digits=12, decimal_places=4, blank=True, null=True
+    )
+    triggered = models.BooleanField(default=False)
+    triggered_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Alert: {self.ticker} {self.condition} {self.target_price}"

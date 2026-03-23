@@ -509,45 +509,144 @@ export async function getProblemsSummary() {
   return res.json();
 }
 
-// --- Investments ---
-export async function getInvestments(propertyId?: number, status?: string, type?: string) {
+// --- Investments: Portfolios ---
+export async function getPortfolios() {
+  const res = await apiFetch('/api/portfolios/');
+  if (!res.ok) throw new Error('Failed to fetch portfolios');
+  return res.json();
+}
+export async function getPortfolio(id: number) {
+  const res = await apiFetch(`/api/portfolios/${id}/`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function createPortfolio(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/portfolios/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function updatePortfolio(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/portfolios/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function deletePortfolio(id: number) {
+  const res = await apiFetch(`/api/portfolios/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
+export async function getPortfolioSummary(id: number) {
+  const res = await apiFetch(`/api/portfolios/${id}/summary/`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+
+// --- Investments: Holdings ---
+export async function getHoldings(portfolioId?: number, assetType?: string, search?: string) {
   const params = new URLSearchParams();
-  if (propertyId) params.set('property', String(propertyId));
-  if (status) params.set('status', status);
-  if (type) params.set('type', type);
+  if (portfolioId) params.set('portfolio', String(portfolioId));
+  if (assetType) params.set('asset_type', assetType);
+  if (search) params.set('search', search);
   const query = params.toString() ? `?${params}` : '';
-  const res = await apiFetch(`/api/investments/${query}`);
-  if (!res.ok) throw new Error('Failed to fetch investments');
+  const res = await apiFetch(`/api/holdings/${query}`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function getHolding(id: number) {
+  const res = await apiFetch(`/api/holdings/${id}/`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function createHolding(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/holdings/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function updateHolding(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/holdings/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function deleteHolding(id: number) {
+  const res = await apiFetch(`/api/holdings/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
+export async function bulkUploadHoldings(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/holdings/bulk_upload/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
   return res.json();
 }
 
-export async function getInvestment(id: number) {
-  const res = await apiFetch(`/api/investments/${id}/`);
-  if (!res.ok) throw new Error('Failed to fetch investment');
+// --- Investments: Transactions ---
+export async function getTransactions(holdingId?: number, type?: string, dateFrom?: string, dateTo?: string) {
+  const params = new URLSearchParams();
+  if (holdingId) params.set('holding', String(holdingId));
+  if (type) params.set('type', type);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/transactions/${query}`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function createTransaction(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/transactions/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function deleteTransaction(id: number) {
+  const res = await apiFetch(`/api/transactions/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
+export async function getDividendSummary() {
+  const res = await apiFetch('/api/transactions/dividends/');
+  if (!res.ok) throw new Error('Failed');
   return res.json();
 }
 
-export async function createInvestment(data: Record<string, unknown>) {
-  const res = await apiFetch('/api/investments/', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to create investment');
+// --- Investments: Watchlist ---
+export async function getWatchlist() {
+  const res = await apiFetch('/api/watchlist/');
+  if (!res.ok) throw new Error('Failed');
   return res.json();
 }
-
-export async function updateInvestment(id: number, data: Record<string, unknown>) {
-  const res = await apiFetch(`/api/investments/${id}/`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error('Failed to update investment');
+export async function createWatchlistItem(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/watchlist/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
   return res.json();
 }
+export async function deleteWatchlistItem(id: number) {
+  const res = await apiFetch(`/api/watchlist/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
 
-export async function deleteInvestment(id: number) {
-  const res = await apiFetch(`/api/investments/${id}/`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete investment');
+// --- Investments: Price Alerts ---
+export async function getPriceAlerts() {
+  const res = await apiFetch('/api/price-alerts/');
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function createPriceAlert(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/price-alerts/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function deletePriceAlert(id: number) {
+  const res = await apiFetch(`/api/price-alerts/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
+
+// --- Investments: Dashboard & Reports ---
+export async function getInvestmentDashboard() {
+  const res = await apiFetch('/api/investment-dashboard/');
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function getTaxReport(year: number, portfolioId?: number) {
+  const params = new URLSearchParams({ year: String(year) });
+  if (portfolioId) params.set('portfolio', String(portfolioId));
+  const res = await apiFetch(`/api/tax-report/?${params}`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
 }
 
 // --- Music: Songs ---
