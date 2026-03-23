@@ -144,13 +144,15 @@ export function Card({
   children,
   className = '',
   padding = true,
+  onClick,
 }: {
   children: React.ReactNode;
   className?: string;
   padding?: boolean;
+  onClick?: () => void;
 }) {
   return (
-    <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${padding ? 'p-6' : 'overflow-x-auto'} ${className}`}>
+    <div onClick={onClick} className={`bg-white border border-gray-200 rounded-xl shadow-sm ${padding ? 'p-6' : 'overflow-x-auto'} ${className}`}>
       {children}
     </div>
   );
