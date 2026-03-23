@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/', include('dashboard.urls')),
     path('api/', include('problems.urls')),
     path('api/', include('investments.urls')),
+    path('api/', include('music.urls')),
 ]
 
 if settings.DEBUG:

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'dashboard',
     'problems',
     'investments',
+    'music',
 ]
 
 # --- Middleware ---

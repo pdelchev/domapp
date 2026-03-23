@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { href: '/finance', key: 'nav.finance' },
   { href: '/documents', key: 'nav.documents' },
   { href: '/investments', key: 'nav.investments' },
+  { href: '/music', key: 'nav.music' },
   { href: '/problems', key: 'nav.problems' },
 ];
 
@@ -37,6 +38,7 @@ const DESKTOP_NAV: DesktopNavItem[] = [
   ]},
   { href: '/finance', key: 'nav.finance' },
   { href: '/investments', key: 'nav.investments' },
+  { href: '/music', key: 'nav.music' },
   { href: '/documents', key: 'nav.documents' },
   { href: '/problems', key: 'nav.problems' },
 ];

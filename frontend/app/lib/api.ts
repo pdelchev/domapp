@@ -549,3 +549,90 @@ export async function deleteInvestment(id: number) {
   const res = await apiFetch(`/api/investments/${id}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete investment');
 }
+
+// --- Music: Songs ---
+export async function getSongs(search?: string) {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/songs/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch songs');
+  return res.json();
+}
+
+export async function uploadSong(formData: FormData) {
+  const res = await apiFetch('/api/songs/', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Failed to upload song');
+  return res.json();
+}
+
+export async function updateSong(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/songs/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update song');
+  return res.json();
+}
+
+export async function deleteSong(id: number) {
+  const res = await apiFetch(`/api/songs/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete song');
+}
+
+// --- Music: Playlists ---
+export async function getPlaylists() {
+  const res = await apiFetch('/api/playlists/');
+  if (!res.ok) throw new Error('Failed to fetch playlists');
+  return res.json();
+}
+
+export async function getPlaylist(id: number) {
+  const res = await apiFetch(`/api/playlists/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch playlist');
+  return res.json();
+}
+
+export async function createPlaylist(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/playlists/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create playlist');
+  return res.json();
+}
+
+export async function updatePlaylist(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/playlists/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update playlist');
+  return res.json();
+}
+
+export async function deletePlaylist(id: number) {
+  const res = await apiFetch(`/api/playlists/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete playlist');
+}
+
+export async function addSongToPlaylist(playlistId: number, songId: number) {
+  const res = await apiFetch(`/api/playlists/${playlistId}/add-song/`, {
+    method: 'POST',
+    body: JSON.stringify({ song_id: songId }),
+  });
+  if (!res.ok) throw new Error('Failed to add song to playlist');
+  return res.json();
+}
+
+export async function removeSongFromPlaylist(playlistId: number, songId: number) {
+  const res = await apiFetch(`/api/playlists/${playlistId}/remove-song/`, {
+    method: 'POST',
+    body: JSON.stringify({ song_id: songId }),
+  });
+  if (!res.ok) throw new Error('Failed to remove song from playlist');
+  return res.json();
+}
