@@ -17,10 +17,30 @@ import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Badge, Alert, Spinner, FormSection } from '../../components/ui';
 
+interface MarketAreaRaw {
+  country: string;
+  city: string;
+  area: string;
+  high_value: boolean;
+  avg_sqm: number;
+  currency: string;
+}
+
 interface MarketDataResponse {
   countries: Record<string, { currency: string; eur_rate: number; tax_pct: number }>;
   cities: Record<string, string[]>;
-  areas: Record<string, string[]>;
+  areas: MarketAreaRaw[];
+}
+
+// Transform flat areas list into lookup: "Country:City" → ["Area1", "Area2", ...]
+function buildAreaLookup(areas: MarketAreaRaw[]): Record<string, string[]> {
+  const lookup: Record<string, string[]> = {};
+  for (const a of areas) {
+    const key = `${a.country}:${a.city}`;
+    if (!lookup[key]) lookup[key] = [];
+    if (!lookup[key].includes(a.area)) lookup[key].push(a.area);
+  }
+  return lookup;
 }
 
 interface AnalysisResult {
@@ -154,19 +174,29 @@ export default function DealAnalyzerPage() {
   const [openSections, setOpenSections] = useState({ basic: true, details: false, saved: false });
   const toggleSection = (key: keyof typeof openSections) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
+  // Precomputed area lookup from market data
+  const [areaLookup, setAreaLookup] = useState<Record<string, string[]>>({});
+
   // Load market data + saved analyses
   useEffect(() => {
     Promise.all([getMarketData(), getPropertyAnalyses()])
-      .then(([md, sa]) => { setMarketData(md); setSavedAnalyses(sa); })
-      .catch(() => router.push('/login'))
+      .then(([md, sa]) => {
+        setMarketData(md);
+        setAreaLookup(buildAreaLookup(md.areas || []));
+        setSavedAnalyses(sa);
+      })
+      .catch((err) => {
+        console.error('Failed to load analyzer data:', err);
+        setError('Failed to load market data. Please refresh.');
+      })
       .finally(() => setLoading(false));
-  }, [router]);
+  }, []);
 
   // Cascading dropdown values
   const countries = marketData ? Object.keys(marketData.countries) : [];
   const cities = form.country && marketData?.cities ? (marketData.cities[form.country] || []) : [];
-  const areas = form.country && form.city && marketData?.areas
-    ? (marketData.areas[`${form.country}:${form.city}`] || [])
+  const areas = form.country && form.city
+    ? (areaLookup[`${form.country}:${form.city}`] || [])
     : [];
 
   const updateForm = (field: string, value: string | boolean) => {
