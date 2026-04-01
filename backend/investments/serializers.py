@@ -1,6 +1,6 @@
 from decimal import Decimal
 from rest_framework import serializers
-from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert
+from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert, PropertyAnalysis
 
 
 class PortfolioSerializer(serializers.ModelSerializer):
@@ -82,5 +82,35 @@ class WatchlistItemSerializer(serializers.ModelSerializer):
 class PriceAlertSerializer(serializers.ModelSerializer):
     class Meta:
         model = PriceAlert
+        fields = '__all__'
+        read_only_fields = ['user']
+
+
+# §SERIALIZER:PropertyAnalysis — input validation + output for deal analyzer
+class PropertyAnalysisInputSerializer(serializers.Serializer):
+    """Validates the input form for property analysis. Not a ModelSerializer
+    because we compute results in the service layer before saving."""
+    name = serializers.CharField(max_length=255)
+    country = serializers.CharField(max_length=100)
+    city = serializers.CharField(max_length=100)
+    area = serializers.CharField(max_length=200, required=False, default='')
+    property_type = serializers.CharField(max_length=20)
+    square_meters = serializers.DecimalField(max_digits=10, decimal_places=2)
+    asking_price = serializers.DecimalField(max_digits=14, decimal_places=2)
+    parking_included = serializers.BooleanField(default=False)
+    parking_price = serializers.DecimalField(max_digits=10, decimal_places=2, default=0)
+    num_bedrooms = serializers.IntegerField(default=1, min_value=0, max_value=10)
+    condition = serializers.CharField(max_length=20, default='good')
+    furnishing = serializers.CharField(max_length=20, default='unfurnished')
+    floor = serializers.IntegerField(required=False, allow_null=True)
+    total_floors = serializers.IntegerField(required=False, allow_null=True)
+    year_built = serializers.IntegerField(required=False, allow_null=True)
+    notes = serializers.CharField(required=False, default='')
+
+
+class PropertyAnalysisSerializer(serializers.ModelSerializer):
+    """Full read serializer for saved analyses."""
+    class Meta:
+        model = PropertyAnalysis
         fields = '__all__'
         read_only_fields = ['user']

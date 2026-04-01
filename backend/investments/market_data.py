@@ -1,0 +1,389 @@
+"""
+=== MARKET BENCHMARK DATA ===
+// §REF:market_data — property valuation benchmarks by country/city/area
+// §FLOW: services.py reads this → computes analysis → returns verdict
+// §UPDATE: edit dicts below to refresh market pricing (no migration needed)
+
+Real estate market benchmarks for property valuation analysis.
+All prices in EUR. Updated Q1 2026.
+
+Structure per area:
+  avg_sqm    — average price per sqm (EUR)
+  min_sqm    — bottom of market range
+  max_sqm    — top of market range
+  rent_sqm   — monthly rent per sqm (standard long-term)
+  airbnb_adr — average daily rate for Airbnb/short-term
+  airbnb_occ — occupancy rate (0.0-1.0)
+  yield_pct  — typical gross rental yield
+  appr_pct   — annual appreciation trend
+  high_value — premium/high-demand area flag
+  parking_premium — parking price as % of total property value
+"""
+
+# §DATA:countries — top-level geo hierarchy
+COUNTRIES = {
+    'Bulgaria': {'currency': 'BGN', 'eur_rate': 1.9558, 'tax_pct': 10.0},
+    'UAE': {'currency': 'AED', 'eur_rate': 4.02, 'tax_pct': 0.0},
+    'United Kingdom': {'currency': 'GBP', 'eur_rate': 0.86, 'tax_pct': 20.0},
+}
+
+# §DATA:cities — city list per country
+CITIES = {
+    'Bulgaria': ['Sofia', 'Plovdiv', 'Varna', 'Burgas'],
+    'UAE': ['Dubai', 'Abu Dhabi'],
+    'United Kingdom': ['London', 'Manchester', 'Birmingham', 'Leeds', 'Edinburgh', 'Bristol'],
+}
+
+# §DATA:areas — neighborhood benchmarks (all prices EUR)
+MARKET_DATA = {
+    # ─── SOFIA ───────────────────────────────────────────
+    ('Bulgaria', 'Sofia', 'Lozenets'): {
+        'avg_sqm': 2800, 'min_sqm': 2200, 'max_sqm': 3800,
+        'rent_sqm': 14.0, 'airbnb_adr': 75, 'airbnb_occ': 0.70,
+        'yield_pct': 5.0, 'appr_pct': 8.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+    ('Bulgaria', 'Sofia', 'Iztok'): {
+        'avg_sqm': 2500, 'min_sqm': 2000, 'max_sqm': 3200,
+        'rent_sqm': 12.5, 'airbnb_adr': 65, 'airbnb_occ': 0.68,
+        'yield_pct': 5.2, 'appr_pct': 7.0, 'high_value': True,
+        'parking_premium': 0.07,
+    },
+    ('Bulgaria', 'Sofia', 'Center'): {
+        'avg_sqm': 2600, 'min_sqm': 2000, 'max_sqm': 3500,
+        'rent_sqm': 13.0, 'airbnb_adr': 70, 'airbnb_occ': 0.72,
+        'yield_pct': 5.0, 'appr_pct': 6.5, 'high_value': True,
+        'parking_premium': 0.10,
+    },
+    ('Bulgaria', 'Sofia', 'Oborishte'): {
+        'avg_sqm': 2700, 'min_sqm': 2100, 'max_sqm': 3500,
+        'rent_sqm': 13.5, 'airbnb_adr': 72, 'airbnb_occ': 0.68,
+        'yield_pct': 5.0, 'appr_pct': 7.5, 'high_value': True,
+        'parking_premium': 0.09,
+    },
+    ('Bulgaria', 'Sofia', 'Vitosha'): {
+        'avg_sqm': 2200, 'min_sqm': 1700, 'max_sqm': 3000,
+        'rent_sqm': 11.0, 'airbnb_adr': 55, 'airbnb_occ': 0.62,
+        'yield_pct': 5.0, 'appr_pct': 7.0, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('Bulgaria', 'Sofia', 'Boyana'): {
+        'avg_sqm': 3000, 'min_sqm': 2200, 'max_sqm': 4200,
+        'rent_sqm': 14.0, 'airbnb_adr': 85, 'airbnb_occ': 0.58,
+        'yield_pct': 4.5, 'appr_pct': 9.0, 'high_value': True,
+        'parking_premium': 0.05,
+    },
+    ('Bulgaria', 'Sofia', 'Mladost'): {
+        'avg_sqm': 1600, 'min_sqm': 1200, 'max_sqm': 2100,
+        'rent_sqm': 9.0, 'airbnb_adr': 45, 'airbnb_occ': 0.60,
+        'yield_pct': 5.8, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('Bulgaria', 'Sofia', 'Studentski Grad'): {
+        'avg_sqm': 1400, 'min_sqm': 1000, 'max_sqm': 1800,
+        'rent_sqm': 8.5, 'airbnb_adr': 40, 'airbnb_occ': 0.65,
+        'yield_pct': 6.5, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.05,
+    },
+    ('Bulgaria', 'Sofia', 'Lyulin'): {
+        'avg_sqm': 1000, 'min_sqm': 750, 'max_sqm': 1300,
+        'rent_sqm': 6.5, 'airbnb_adr': 32, 'airbnb_occ': 0.50,
+        'yield_pct': 6.8, 'appr_pct': 4.0, 'high_value': False,
+        'parking_premium': 0.04,
+    },
+    ('Bulgaria', 'Sofia', 'Druzhba'): {
+        'avg_sqm': 1100, 'min_sqm': 800, 'max_sqm': 1400,
+        'rent_sqm': 7.0, 'airbnb_adr': 35, 'airbnb_occ': 0.52,
+        'yield_pct': 6.5, 'appr_pct': 4.5, 'high_value': False,
+        'parking_premium': 0.04,
+    },
+    ('Bulgaria', 'Sofia', 'Manastirski Livadi'): {
+        'avg_sqm': 2100, 'min_sqm': 1600, 'max_sqm': 2700,
+        'rent_sqm': 10.5, 'airbnb_adr': 52, 'airbnb_occ': 0.60,
+        'yield_pct': 5.2, 'appr_pct': 7.0, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('Bulgaria', 'Sofia', 'Geo Milev'): {
+        'avg_sqm': 2000, 'min_sqm': 1500, 'max_sqm': 2600,
+        'rent_sqm': 10.0, 'airbnb_adr': 50, 'airbnb_occ': 0.62,
+        'yield_pct': 5.3, 'appr_pct': 6.0, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('Bulgaria', 'Sofia', 'Krastova Vada'): {
+        'avg_sqm': 2300, 'min_sqm': 1800, 'max_sqm': 3000,
+        'rent_sqm': 11.5, 'airbnb_adr': 58, 'airbnb_occ': 0.63,
+        'yield_pct': 5.0, 'appr_pct': 7.5, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+
+    # ─── PLOVDIV ─────────────────────────────────────────
+    ('Bulgaria', 'Plovdiv', 'Center'): {
+        'avg_sqm': 1500, 'min_sqm': 1100, 'max_sqm': 2100,
+        'rent_sqm': 8.5, 'airbnb_adr': 50, 'airbnb_occ': 0.65,
+        'yield_pct': 6.0, 'appr_pct': 6.0, 'high_value': True,
+        'parking_premium': 0.07,
+    },
+    ('Bulgaria', 'Plovdiv', 'Kapana'): {
+        'avg_sqm': 1600, 'min_sqm': 1200, 'max_sqm': 2200,
+        'rent_sqm': 9.0, 'airbnb_adr': 55, 'airbnb_occ': 0.68,
+        'yield_pct': 5.8, 'appr_pct': 7.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+    ('Bulgaria', 'Plovdiv', 'Marasha'): {
+        'avg_sqm': 1200, 'min_sqm': 900, 'max_sqm': 1600,
+        'rent_sqm': 7.0, 'airbnb_adr': 40, 'airbnb_occ': 0.58,
+        'yield_pct': 6.2, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.05,
+    },
+    ('Bulgaria', 'Plovdiv', 'Trakiya'): {
+        'avg_sqm': 900, 'min_sqm': 650, 'max_sqm': 1200,
+        'rent_sqm': 5.5, 'airbnb_adr': 32, 'airbnb_occ': 0.50,
+        'yield_pct': 6.8, 'appr_pct': 4.5, 'high_value': False,
+        'parking_premium': 0.04,
+    },
+    ('Bulgaria', 'Plovdiv', 'Karshiyaka'): {
+        'avg_sqm': 1300, 'min_sqm': 1000, 'max_sqm': 1800,
+        'rent_sqm': 7.5, 'airbnb_adr': 42, 'airbnb_occ': 0.60,
+        'yield_pct': 6.0, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.05,
+    },
+
+    # ─── VARNA ───────────────────────────────────────────
+    ('Bulgaria', 'Varna', 'Center'): {
+        'avg_sqm': 1800, 'min_sqm': 1400, 'max_sqm': 2500,
+        'rent_sqm': 10.0, 'airbnb_adr': 60, 'airbnb_occ': 0.65,
+        'yield_pct': 5.5, 'appr_pct': 6.5, 'high_value': True,
+        'parking_premium': 0.07,
+    },
+    ('Bulgaria', 'Varna', 'Sea Garden'): {
+        'avg_sqm': 2200, 'min_sqm': 1700, 'max_sqm': 3000,
+        'rent_sqm': 12.0, 'airbnb_adr': 75, 'airbnb_occ': 0.60,
+        'yield_pct': 5.0, 'appr_pct': 7.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+
+    # ─── BURGAS ──────────────────────────────────────────
+    ('Bulgaria', 'Burgas', 'Center'): {
+        'avg_sqm': 1300, 'min_sqm': 1000, 'max_sqm': 1800,
+        'rent_sqm': 7.0, 'airbnb_adr': 45, 'airbnb_occ': 0.55,
+        'yield_pct': 5.8, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('Bulgaria', 'Burgas', 'Sarafovo'): {
+        'avg_sqm': 1500, 'min_sqm': 1100, 'max_sqm': 2000,
+        'rent_sqm': 8.0, 'airbnb_adr': 55, 'airbnb_occ': 0.50,
+        'yield_pct': 5.5, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.05,
+    },
+
+    # ─── DUBAI ───────────────────────────────────────────
+    ('UAE', 'Dubai', 'Downtown'): {
+        'avg_sqm': 6000, 'min_sqm': 4500, 'max_sqm': 9000,
+        'rent_sqm': 30.0, 'airbnb_adr': 220, 'airbnb_occ': 0.80,
+        'yield_pct': 5.5, 'appr_pct': 10.0, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Dubai', 'Dubai Marina'): {
+        'avg_sqm': 4500, 'min_sqm': 3500, 'max_sqm': 6500,
+        'rent_sqm': 25.0, 'airbnb_adr': 180, 'airbnb_occ': 0.78,
+        'yield_pct': 6.0, 'appr_pct': 8.5, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Dubai', 'Palm Jumeirah'): {
+        'avg_sqm': 8000, 'min_sqm': 5500, 'max_sqm': 13000,
+        'rent_sqm': 38.0, 'airbnb_adr': 350, 'airbnb_occ': 0.75,
+        'yield_pct': 5.0, 'appr_pct': 12.0, 'high_value': True,
+        'parking_premium': 0.02,
+    },
+    ('UAE', 'Dubai', 'JBR'): {
+        'avg_sqm': 4200, 'min_sqm': 3200, 'max_sqm': 5800,
+        'rent_sqm': 24.0, 'airbnb_adr': 200, 'airbnb_occ': 0.82,
+        'yield_pct': 6.2, 'appr_pct': 7.5, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Dubai', 'Business Bay'): {
+        'avg_sqm': 3800, 'min_sqm': 2800, 'max_sqm': 5200,
+        'rent_sqm': 22.0, 'airbnb_adr': 160, 'airbnb_occ': 0.76,
+        'yield_pct': 6.5, 'appr_pct': 8.0, 'high_value': False,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Dubai', 'JVC'): {
+        'avg_sqm': 2200, 'min_sqm': 1500, 'max_sqm': 3000,
+        'rent_sqm': 14.0, 'airbnb_adr': 100, 'airbnb_occ': 0.70,
+        'yield_pct': 7.5, 'appr_pct': 6.0, 'high_value': False,
+        'parking_premium': 0.04,
+    },
+    ('UAE', 'Dubai', 'Dubai Hills'): {
+        'avg_sqm': 3500, 'min_sqm': 2500, 'max_sqm': 5000,
+        'rent_sqm': 20.0, 'airbnb_adr': 150, 'airbnb_occ': 0.72,
+        'yield_pct': 6.0, 'appr_pct': 9.0, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Dubai', 'Arabian Ranches'): {
+        'avg_sqm': 3200, 'min_sqm': 2400, 'max_sqm': 4500,
+        'rent_sqm': 18.0, 'airbnb_adr': 180, 'airbnb_occ': 0.60,
+        'yield_pct': 5.5, 'appr_pct': 7.5, 'high_value': False,
+        'parking_premium': 0.02,
+    },
+
+    # ─── ABU DHABI ───────────────────────────────────────
+    ('UAE', 'Abu Dhabi', 'Al Reem Island'): {
+        'avg_sqm': 3000, 'min_sqm': 2200, 'max_sqm': 4200,
+        'rent_sqm': 18.0, 'airbnb_adr': 130, 'airbnb_occ': 0.68,
+        'yield_pct': 6.5, 'appr_pct': 6.0, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Abu Dhabi', 'Saadiyat Island'): {
+        'avg_sqm': 4500, 'min_sqm': 3200, 'max_sqm': 6500,
+        'rent_sqm': 25.0, 'airbnb_adr': 200, 'airbnb_occ': 0.65,
+        'yield_pct': 5.5, 'appr_pct': 8.0, 'high_value': True,
+        'parking_premium': 0.02,
+    },
+    ('UAE', 'Abu Dhabi', 'Yas Island'): {
+        'avg_sqm': 3200, 'min_sqm': 2500, 'max_sqm': 4500,
+        'rent_sqm': 19.0, 'airbnb_adr': 160, 'airbnb_occ': 0.70,
+        'yield_pct': 6.0, 'appr_pct': 7.0, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Abu Dhabi', 'Corniche'): {
+        'avg_sqm': 3800, 'min_sqm': 2800, 'max_sqm': 5200,
+        'rent_sqm': 22.0, 'airbnb_adr': 170, 'airbnb_occ': 0.65,
+        'yield_pct': 5.8, 'appr_pct': 6.5, 'high_value': True,
+        'parking_premium': 0.03,
+    },
+    ('UAE', 'Abu Dhabi', 'Al Raha Beach'): {
+        'avg_sqm': 2800, 'min_sqm': 2000, 'max_sqm': 3800,
+        'rent_sqm': 16.0, 'airbnb_adr': 120, 'airbnb_occ': 0.62,
+        'yield_pct': 6.2, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.03,
+    },
+
+    # ─── LONDON ──────────────────────────────────────────
+    ('United Kingdom', 'London', 'Zone 1 (Central)'): {
+        'avg_sqm': 15000, 'min_sqm': 10000, 'max_sqm': 25000,
+        'rent_sqm': 45.0, 'airbnb_adr': 200, 'airbnb_occ': 0.78,
+        'yield_pct': 3.2, 'appr_pct': 4.0, 'high_value': True,
+        'parking_premium': 0.12,
+    },
+    ('United Kingdom', 'London', 'Zone 2 (Inner)'): {
+        'avg_sqm': 9000, 'min_sqm': 6500, 'max_sqm': 13000,
+        'rent_sqm': 32.0, 'airbnb_adr': 150, 'airbnb_occ': 0.75,
+        'yield_pct': 3.8, 'appr_pct': 4.5, 'high_value': True,
+        'parking_premium': 0.10,
+    },
+    ('United Kingdom', 'London', 'Zone 3 (Outer)'): {
+        'avg_sqm': 6500, 'min_sqm': 4500, 'max_sqm': 9000,
+        'rent_sqm': 24.0, 'airbnb_adr': 110, 'airbnb_occ': 0.70,
+        'yield_pct': 4.2, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.08,
+    },
+    ('United Kingdom', 'London', 'Canary Wharf'): {
+        'avg_sqm': 8500, 'min_sqm': 6000, 'max_sqm': 12000,
+        'rent_sqm': 35.0, 'airbnb_adr': 160, 'airbnb_occ': 0.72,
+        'yield_pct': 4.0, 'appr_pct': 5.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+
+    # ─── MANCHESTER ──────────────────────────────────────
+    ('United Kingdom', 'Manchester', 'City Centre'): {
+        'avg_sqm': 4000, 'min_sqm': 3000, 'max_sqm': 5500,
+        'rent_sqm': 18.0, 'airbnb_adr': 95, 'airbnb_occ': 0.72,
+        'yield_pct': 5.5, 'appr_pct': 6.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+    ('United Kingdom', 'Manchester', 'Salford Quays'): {
+        'avg_sqm': 3500, 'min_sqm': 2600, 'max_sqm': 4800,
+        'rent_sqm': 16.0, 'airbnb_adr': 85, 'airbnb_occ': 0.68,
+        'yield_pct': 5.8, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+    ('United Kingdom', 'Manchester', 'Northern Quarter'): {
+        'avg_sqm': 4200, 'min_sqm': 3200, 'max_sqm': 5800,
+        'rent_sqm': 19.0, 'airbnb_adr': 100, 'airbnb_occ': 0.75,
+        'yield_pct': 5.5, 'appr_pct': 6.5, 'high_value': True,
+        'parking_premium': 0.09,
+    },
+
+    # ─── BIRMINGHAM ──────────────────────────────────────
+    ('United Kingdom', 'Birmingham', 'City Centre'): {
+        'avg_sqm': 3200, 'min_sqm': 2500, 'max_sqm': 4500,
+        'rent_sqm': 15.0, 'airbnb_adr': 80, 'airbnb_occ': 0.68,
+        'yield_pct': 5.8, 'appr_pct': 5.5, 'high_value': False,
+        'parking_premium': 0.07,
+    },
+    ('United Kingdom', 'Birmingham', 'Jewellery Quarter'): {
+        'avg_sqm': 3500, 'min_sqm': 2700, 'max_sqm': 4800,
+        'rent_sqm': 16.0, 'airbnb_adr': 85, 'airbnb_occ': 0.65,
+        'yield_pct': 5.5, 'appr_pct': 6.0, 'high_value': True,
+        'parking_premium': 0.07,
+    },
+
+    # ─── LEEDS ───────────────────────────────────────────
+    ('United Kingdom', 'Leeds', 'City Centre'): {
+        'avg_sqm': 2800, 'min_sqm': 2000, 'max_sqm': 3800,
+        'rent_sqm': 14.0, 'airbnb_adr': 75, 'airbnb_occ': 0.65,
+        'yield_pct': 6.0, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.06,
+    },
+
+    # ─── EDINBURGH ───────────────────────────────────────
+    ('United Kingdom', 'Edinburgh', 'New Town'): {
+        'avg_sqm': 5000, 'min_sqm': 3800, 'max_sqm': 7000,
+        'rent_sqm': 22.0, 'airbnb_adr': 130, 'airbnb_occ': 0.75,
+        'yield_pct': 4.8, 'appr_pct': 5.5, 'high_value': True,
+        'parking_premium': 0.10,
+    },
+    ('United Kingdom', 'Edinburgh', 'Old Town'): {
+        'avg_sqm': 4800, 'min_sqm': 3500, 'max_sqm': 6500,
+        'rent_sqm': 21.0, 'airbnb_adr': 140, 'airbnb_occ': 0.78,
+        'yield_pct': 4.5, 'appr_pct': 5.0, 'high_value': True,
+        'parking_premium': 0.11,
+    },
+
+    # ─── BRISTOL ─────────────────────────────────────────
+    ('United Kingdom', 'Bristol', 'Harbourside'): {
+        'avg_sqm': 4200, 'min_sqm': 3200, 'max_sqm': 5800,
+        'rent_sqm': 18.0, 'airbnb_adr': 100, 'airbnb_occ': 0.70,
+        'yield_pct': 5.0, 'appr_pct': 5.5, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+    ('United Kingdom', 'Bristol', 'Clifton'): {
+        'avg_sqm': 4500, 'min_sqm': 3500, 'max_sqm': 6200,
+        'rent_sqm': 19.0, 'airbnb_adr': 110, 'airbnb_occ': 0.68,
+        'yield_pct': 4.8, 'appr_pct': 5.0, 'high_value': True,
+        'parking_premium': 0.08,
+    },
+}
+
+
+def get_areas_for_city(country: str, city: str) -> list[str]:
+    """Return list of areas for a given country+city."""
+    return [
+        area for (c, ci, area) in MARKET_DATA.keys()
+        if c == country and ci == city
+    ]
+
+
+def get_market_data(country: str, city: str, area: str) -> dict | None:
+    """Look up benchmark data for a specific area."""
+    return MARKET_DATA.get((country, city, area))
+
+
+def get_country_info(country: str) -> dict | None:
+    """Return currency/tax info for a country."""
+    return COUNTRIES.get(country)
+
+
+def get_all_areas() -> list[dict]:
+    """Return all areas with their market data for frontend dropdowns."""
+    result = []
+    for (country, city, area), data in MARKET_DATA.items():
+        result.append({
+            'country': country,
+            'city': city,
+            'area': area,
+            'high_value': data['high_value'],
+            'avg_sqm': data['avg_sqm'],
+            'currency': COUNTRIES.get(country, {}).get('currency', 'EUR'),
+        })
+    return result

@@ -649,6 +649,32 @@ export async function getTaxReport(year: number, portfolioId?: number) {
   return res.json();
 }
 
+// --- Deal Analyzer ---
+export async function getMarketData() {
+  const res = await apiFetch('/api/market-data/');
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function analyzeProperty(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/analyze-property/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function getPropertyAnalyses(filters?: Record<string, string>) {
+  const params = new URLSearchParams(filters || {});
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/property-analyses/${query}`);
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
+export async function deletePropertyAnalysis(id: number) {
+  const res = await apiFetch(`/api/property-analyses/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed');
+}
+
 // --- Music: Songs ---
 export async function getSongs(search?: string) {
   const params = new URLSearchParams();
@@ -733,5 +759,30 @@ export async function removeSongFromPlaylist(playlistId: number, songId: number)
     body: JSON.stringify({ song_id: songId }),
   });
   if (!res.ok) throw new Error('Failed to remove song from playlist');
+  return res.json();
+}
+
+// --- Music: Engagement (favorites, play tracking, recently played) ---
+export async function toggleSongFavorite(id: number) {
+  const res = await apiFetch(`/api/songs/${id}/favorite/`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to toggle favorite');
+  return res.json();
+}
+
+export async function recordSongPlay(id: number) {
+  const res = await apiFetch(`/api/songs/${id}/play/`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to record play');
+  return res.json();
+}
+
+export async function getRecentlyPlayed() {
+  const res = await apiFetch('/api/songs/recently-played/');
+  if (!res.ok) throw new Error('Failed to fetch recently played');
+  return res.json();
+}
+
+export async function getMusicStats() {
+  const res = await apiFetch('/api/songs/stats/');
+  if (!res.ok) throw new Error('Failed to fetch music stats');
   return res.json();
 }

@@ -1,13 +1,22 @@
 'use client';
 
+/**
+ * Playlist Detail — Spotify-style with gradient header.
+ *
+ * AI-NAV: Gradient header using playlist color_preview.
+ * AI-NAV: Track list with play indicator, remove button.
+ * AI-NAV: Add songs panel with available songs.
+ * AI-NAV: Inline edit for playlist name/description.
+ */
+
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getPlaylist, updatePlaylist, getSongs, addSongToPlaylist, removeSongFromPlaylist } from '../../../lib/api';
+import { getPlaylist, updatePlaylist, getSongs, addSongToPlaylist, removeSongFromPlaylist, recordSongPlay } from '../../../lib/api';
 import { useLanguage } from '../../../context/LanguageContext';
 import { t } from '../../../lib/i18n';
 import NavBar from '../../../components/NavBar';
 import MusicPlayer, { Track } from '../../../components/MusicPlayer';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Textarea, Alert, EmptyState, Spinner } from '../../../components/ui';
+import { PageShell, PageContent, Card, Button, Input, Textarea, Alert, EmptyState, Spinner } from '../../../components/ui';
 
 interface Song {
   id: number;
@@ -16,6 +25,7 @@ interface Song {
   album: string;
   file_url: string;
   duration: number;
+  color_hex?: string;
 }
 
 interface PlaylistTrack {
@@ -30,15 +40,7 @@ interface Playlist {
   description: string;
   song_count: number;
   tracks: PlaylistTrack[] | null;
-}
-
-interface AllSong {
-  id: number;
-  title: string;
-  artist: string;
-  album: string;
-  file_url: string;
-  duration: number;
+  color_preview: string[];
 }
 
 function formatDuration(seconds: number): string {
@@ -53,13 +55,14 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const { locale } = useLanguage();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
-  const [allSongs, setAllSongs] = useState<AllSong[]>([]);
+  const [allSongs, setAllSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({ name: '', description: '' });
   const [showAddSongs, setShowAddSongs] = useState(false);
+  const [searchAdd, setSearchAdd] = useState('');
   const [playerTracks, setPlayerTracks] = useState<Track[]>([]);
   const [playerIndex, setPlayerIndex] = useState(-1);
 
@@ -92,11 +95,8 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
       const updated = await updatePlaylist(Number(id), form);
       setPlaylist((prev) => prev ? { ...prev, ...updated } : prev);
       setEditing(false);
-    } catch {
-      setError(t('common.error', locale));
-    } finally {
-      setSaving(false);
-    }
+    } catch { setError(t('common.error', locale)); }
+    finally { setSaving(false); }
   };
 
   const handleAddSong = async (songId: number) => {
@@ -113,89 +113,151 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
     } catch { /* ignore */ }
   };
 
+  const handleRecordPlay = async (trackId: number) => {
+    try { await recordSongPlay(trackId); } catch { /* non-critical */ }
+  };
+
   const playPlaylist = (startIndex: number = 0) => {
     if (!playlist?.tracks) return;
     const tracks: Track[] = playlist.tracks.map((pt) => ({
-      id: pt.song.id,
-      title: pt.song.title,
-      artist: pt.song.artist,
-      album: pt.song.album,
-      file_url: pt.song.file_url,
-      duration: pt.song.duration,
+      id: pt.song.id, title: pt.song.title, artist: pt.song.artist,
+      album: pt.song.album, file_url: pt.song.file_url, duration: pt.song.duration,
+      color_hex: pt.song.color_hex,
     }));
     setPlayerTracks(tracks);
     setPlayerIndex(startIndex);
   };
 
   const trackIds = new Set(playlist?.tracks?.map((pt) => pt.song.id) || []);
-  const availableSongs = allSongs.filter((s) => !trackIds.has(s.id));
+  const availableSongs = allSongs.filter((s) => {
+    if (trackIds.has(s.id)) return false;
+    if (!searchAdd) return true;
+    const q = searchAdd.toLowerCase();
+    return s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+  });
 
-  if (loading) {
-    return <PageShell><NavBar /><Spinner message={t('common.loading', locale)} /></PageShell>;
-  }
+  const gradientColor = playlist?.color_preview?.[0] || '#6366f1';
 
-  if (!playlist) {
-    return <PageShell><NavBar /><EmptyState icon="🎵" message={t('common.no_data', locale)} /></PageShell>;
-  }
+  if (loading) return <PageShell><NavBar /><Spinner message={t('common.loading', locale)} /></PageShell>;
+  if (!playlist) return <PageShell><NavBar /><EmptyState icon="🎵" message={t('common.no_data', locale)} /></PageShell>;
 
   return (
     <PageShell>
       <NavBar />
-      <PageContent size="lg">
-        <PageHeader
-          title={playlist.name}
-          backLabel={t('common.back', locale)}
-          onBack={() => router.push('/music/playlists')}
-          action={
-            <div className="flex gap-2">
-              {playlist.tracks && playlist.tracks.length > 0 && (
-                <Button onClick={() => playPlaylist(0)}>
-                  ▶ {t('music.play', locale)}
-                </Button>
-              )}
-              <Button variant="secondary" onClick={() => setShowAddSongs(!showAddSongs)}>
-                + {t('music.add_to_playlist', locale)}
-              </Button>
+
+      {/* Gradient header */}
+      <div
+        className="px-4 sm:px-6 lg:px-8 pt-6 pb-8"
+        style={{ background: `linear-gradient(180deg, ${gradientColor}40 0%, transparent 100%)` }}
+      >
+        <div className="max-w-6xl mx-auto">
+          <button
+            onClick={() => router.push('/music')}
+            className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            {t('common.back', locale)}
+          </button>
+
+          <div className="flex items-end gap-4">
+            {/* Playlist cover mosaic */}
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl shadow-lg overflow-hidden grid grid-cols-2 shrink-0">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} style={{ background: playlist.color_preview?.[i] || gradientColor }} />
+              ))}
             </div>
-          }
-        />
 
-        <Alert type="error" message={error} />
-
-        {/* Edit name/description */}
-        {editing ? (
-          <Card className="mb-6">
-            <form onSubmit={handleSave} className="space-y-4">
-              <Input label={t('music.playlist_name', locale)} value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
-              <Textarea label={t('music.playlist_description', locale)} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} rows={2} />
-              <div className="flex gap-3">
-                <Button type="submit" disabled={saving}>{saving ? '...' : t('common.save', locale)}</Button>
-                <Button type="button" variant="secondary" onClick={() => setEditing(false)}>{t('common.cancel', locale)}</Button>
-              </div>
-            </form>
-          </Card>
-        ) : (
-          <div className="mb-6 flex items-center gap-3">
-            {playlist.description && <p className="text-sm text-gray-500">{playlist.description}</p>}
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>{t('common.edit', locale)}</Button>
+            <div className="min-w-0 flex-1">
+              {editing ? (
+                <form onSubmit={handleSave} className="space-y-2">
+                  <input
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    className="text-xl font-bold text-gray-900 bg-transparent border-b-2 border-indigo-500 outline-none w-full"
+                    required
+                  />
+                  <input
+                    value={form.description}
+                    onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder={t('music.playlist_description', locale)}
+                    className="text-sm text-gray-600 bg-transparent border-b border-gray-300 outline-none w-full"
+                  />
+                  <div className="flex gap-2 pt-1">
+                    <Button type="submit" size="sm" disabled={saving}>{t('common.save', locale)}</Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>{t('common.cancel', locale)}</Button>
+                  </div>
+                </form>
+              ) : (
+                <>
+                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">{playlist.name}</h1>
+                  {playlist.description && <p className="text-sm text-gray-600 truncate mt-0.5">{playlist.description}</p>}
+                  <p className="text-xs text-gray-500 mt-1">{playlist.song_count} {t('music.tracks', locale)}</p>
+                </>
+              )}
+            </div>
           </div>
-        )}
+
+          {/* Action buttons */}
+          <div className="flex items-center gap-3 mt-4">
+            {playlist.tracks && playlist.tracks.length > 0 && (
+              <button
+                onClick={() => playPlaylist(0)}
+                className="w-12 h-12 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg transition-transform hover:scale-105"
+              >
+                <svg className="w-6 h-6 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
+            )}
+            {!editing && (
+              <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+                {t('common.edit', locale)}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setShowAddSongs(!showAddSongs)}>
+              + {t('music.add_to_playlist', locale)}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <PageContent size="lg">
+        <Alert type="error" message={error} />
 
         {/* Add songs panel */}
         {showAddSongs && (
           <Card className="mb-6">
-            <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('music.add_to_playlist', locale)}</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-gray-900">{t('music.add_to_playlist', locale)}</h3>
+              <button onClick={() => setShowAddSongs(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder={t('common.search', locale)}
+              value={searchAdd}
+              onChange={(e) => setSearchAdd(e.target.value)}
+              className="w-full h-9 px-3 text-sm border border-gray-300 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
             {availableSongs.length === 0 ? (
-              <p className="text-sm text-gray-500">{t('music.no_songs', locale)}</p>
+              <p className="text-sm text-gray-500 py-2">{t('music.no_songs', locale)}</p>
             ) : (
               <div className="max-h-64 overflow-y-auto divide-y divide-gray-100">
-                {availableSongs.map((song) => (
-                  <div key={song.id} className="flex items-center justify-between py-2 px-1 hover:bg-gray-50">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-900 truncate">{song.title}</p>
-                      <p className="text-xs text-gray-500">{song.artist || t('music.unknown_artist', locale)}</p>
+                {availableSongs.slice(0, 50).map((song) => (
+                  <div key={song.id} className="flex items-center justify-between py-2 hover:bg-gray-50 rounded-lg px-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-md shrink-0" style={{ background: song.color_hex || '#6366f1' }} />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{song.title}</p>
+                        <p className="text-xs text-gray-500">{song.artist || ''}</p>
+                      </div>
                     </div>
-                    <Button size="sm" onClick={() => handleAddSong(song.id)}>+</Button>
+                    <Button size="sm" variant="ghost" onClick={() => handleAddSong(song.id)}>+</Button>
                   </div>
                 ))}
               </div>
@@ -207,49 +269,65 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
         {!playlist.tracks || playlist.tracks.length === 0 ? (
           <EmptyState icon="🎵" message={t('music.no_songs', locale)} />
         ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider w-10">#</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('music.song_title', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('music.artist', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell text-right">{t('music.duration', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {playlist.tracks.map((pt, i) => {
-                  const isActive = playerTracks[playerIndex]?.id === pt.song.id;
-                  return (
-                    <tr
-                      key={pt.id}
-                      className={`hover:bg-gray-50 cursor-pointer ${isActive ? 'bg-indigo-50' : ''}`}
-                      onClick={() => playPlaylist(i)}
-                    >
-                      <td className="px-5 py-3 text-sm text-gray-400">
-                        {isActive ? <span className="text-indigo-600 font-medium">▶</span> : i + 1}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className={`text-sm font-medium ${isActive ? 'text-indigo-600' : 'text-gray-900'}`}>{pt.song.title}</span>
-                      </td>
-                      <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{pt.song.artist || '—'}</td>
-                      <td className="px-5 py-3 text-sm text-gray-500 hidden sm:table-cell text-right">{formatDuration(pt.song.duration)}</td>
-                      <td className="px-5 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                        <Button variant="danger" size="sm" onClick={() => handleRemoveSong(pt.song.id)}>
-                          {t('music.remove_from_playlist', locale)}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
+          <div className="space-y-1">
+            {playlist.tracks.map((pt, i) => {
+              const isActive = playerTracks[playerIndex]?.id === pt.song.id;
+              return (
+                <div
+                  key={pt.id}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+                    isActive ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => playPlaylist(i)}
+                >
+                  {/* Track number / playing indicator */}
+                  <div className="w-6 text-center shrink-0">
+                    {isActive ? (
+                      <div className="flex gap-0.5 justify-center">
+                        <div className="w-0.5 h-3 bg-indigo-600 rounded-full animate-pulse" />
+                        <div className="w-0.5 h-4 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                        <div className="w-0.5 h-2 bg-indigo-600 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">{i + 1}</span>
+                    )}
+                  </div>
+
+                  {/* Song color dot */}
+                  <div
+                    className="w-8 h-8 rounded-md shrink-0"
+                    style={{ background: pt.song.color_hex || '#6366f1' }}
+                  />
+
+                  {/* Song info */}
+                  <div className="min-w-0 flex-1">
+                    <p className={`text-sm font-medium truncate ${isActive ? 'text-indigo-600' : 'text-gray-900'}`}>
+                      {pt.song.title}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">{pt.song.artist || ''}</p>
+                  </div>
+
+                  {/* Duration */}
+                  <span className="text-xs text-gray-400 hidden sm:block">{formatDuration(pt.song.duration)}</span>
+
+                  {/* Remove button */}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveSong(pt.song.id); }}
+                    className="p-1.5 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                    title={t('music.remove_from_playlist', locale)}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         )}
 
         {/* Spacer for player */}
-        {playerIndex >= 0 && <div className="h-24" />}
+        {playerIndex >= 0 && <div className="h-20" />}
       </PageContent>
 
       {/* Persistent player */}
@@ -258,6 +336,7 @@ export default function PlaylistDetailPage({ params }: { params: Promise<{ id: s
           tracks={playerTracks}
           initialIndex={playerIndex}
           onTrackChange={setPlayerIndex}
+          onPlay={handleRecordPlay}
         />
       )}
     </PageShell>

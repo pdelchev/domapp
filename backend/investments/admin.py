@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert
+from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert, PropertyAnalysis
 
 
 @admin.register(Portfolio)
@@ -35,3 +35,17 @@ class PriceAlertAdmin(admin.ModelAdmin):
     list_display = ['ticker', 'name', 'condition', 'target_price', 'current_price', 'triggered', 'triggered_at']
     list_filter = ['condition', 'triggered']
     search_fields = ['ticker', 'name']
+
+
+@admin.register(PropertyAnalysis)
+class PropertyAnalysisAdmin(admin.ModelAdmin):
+    list_display = ['name', 'user', 'country', 'city', 'area', 'asking_price', 'verdict', 'verdict_score', 'created_at']
+    list_filter = ['country', 'city', 'verdict', 'property_type']
+    search_fields = ['name', 'city', 'area', 'notes']
+    readonly_fields = [
+        'total_cost', 'price_per_sqm', 'market_avg_sqm', 'price_vs_market_pct',
+        'estimated_monthly_rent', 'estimated_annual_rent', 'gross_rental_yield',
+        'net_rental_yield', 'estimated_airbnb_monthly', 'airbnb_annual_revenue',
+        'airbnb_yield', 'cap_rate', 'roi_5_year', 'roi_10_year',
+        'break_even_months', 'area_heat_score', 'verdict', 'verdict_score',
+    ]

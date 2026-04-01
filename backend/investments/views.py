@@ -9,14 +9,18 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert
+from .models import Portfolio, Holding, Transaction, WatchlistItem, PriceAlert, PropertyAnalysis
 from .serializers import (
     PortfolioSerializer,
     HoldingSerializer,
     TransactionSerializer,
     WatchlistItemSerializer,
     PriceAlertSerializer,
+    PropertyAnalysisInputSerializer,
+    PropertyAnalysisSerializer,
 )
+from .services import analyze_property
+from .market_data import get_all_areas, COUNTRIES, CITIES
 
 
 class PortfolioViewSet(viewsets.ModelViewSet):
@@ -468,3 +472,102 @@ class TaxReportView(APIView):
             },
             'by_holding': sorted(by_holding_list, key=lambda x: x['ticker']),
         })
+
+
+# §VIEW:AnalyzePropertyView — POST to run analysis + auto-save result
+class AnalyzePropertyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = PropertyAnalysisInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        result = analyze_property(data)
+
+        if 'error' in result:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        # §FLOW:auto-save — every analysis is persisted for history
+        user = request.user.get_data_owner()
+        analysis = PropertyAnalysis.objects.create(
+            user=user,
+            name=data.get('name', ''),
+            country=data.get('country', ''),
+            city=data.get('city', ''),
+            area=data.get('area', ''),
+            property_type=data.get('property_type', 'apartment'),
+            square_meters=data.get('square_meters', 0),
+            asking_price=data.get('asking_price', 0),
+            currency=result.get('currency', 'EUR'),
+            parking_included=data.get('parking_included', False),
+            parking_price=data.get('parking_price', 0),
+            num_bedrooms=data.get('num_bedrooms', 1),
+            condition=data.get('condition', 'good'),
+            furnishing=data.get('furnishing', 'unfurnished'),
+            floor=data.get('floor'),
+            total_floors=data.get('total_floors'),
+            year_built=data.get('year_built'),
+            notes=data.get('notes', ''),
+            # Computed fields
+            total_cost=result['total_cost'],
+            price_per_sqm=result['price_per_sqm'],
+            market_avg_sqm=result['market_avg_sqm'],
+            price_vs_market_pct=result['price_vs_market_pct'],
+            estimated_monthly_rent=result['estimated_monthly_rent'],
+            estimated_annual_rent=result['estimated_annual_rent'],
+            gross_rental_yield=result['gross_rental_yield'],
+            net_rental_yield=result['net_rental_yield'],
+            estimated_airbnb_monthly=result['estimated_airbnb_monthly'],
+            airbnb_annual_revenue=result['airbnb_annual_revenue'],
+            airbnb_yield=result['airbnb_yield'],
+            cap_rate=result['cap_rate'],
+            roi_5_year=result['roi_5_year'],
+            roi_10_year=result['roi_10_year'],
+            break_even_months=result['break_even_months'],
+            area_heat_score=result['area_heat_score'],
+            verdict=result['verdict'],
+            verdict_score=result['verdict_score'],
+        )
+
+        # Return full result + saved record id
+        result['id'] = analysis.id
+        result['created_at'] = analysis.created_at.isoformat()
+        return Response(result, status=status.HTTP_201_CREATED)
+
+
+# §VIEW:MarketDataView — GET areas + benchmarks for frontend dropdowns
+class MarketDataView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({
+            'countries': COUNTRIES,
+            'cities': CITIES,
+            'areas': get_all_areas(),
+        })
+
+
+# §VIEW:PropertyAnalysisViewSet — CRUD for saved analyses
+class PropertyAnalysisViewSet(viewsets.ModelViewSet):
+    serializer_class = PropertyAnalysisSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = PropertyAnalysis.objects.filter(
+            user=self.request.user.get_data_owner()
+        )
+        country = self.request.query_params.get('country')
+        if country:
+            qs = qs.filter(country=country)
+        city = self.request.query_params.get('city')
+        if city:
+            qs = qs.filter(city=city)
+        verdict = self.request.query_params.get('verdict')
+        if verdict:
+            qs = qs.filter(verdict=verdict)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user.get_data_owner())
