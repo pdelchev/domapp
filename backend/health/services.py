@@ -48,26 +48,29 @@ def match_biomarker(parsed_name: str, parsed_unit: str = '') -> tuple:
                 return (bm, 0.95)
 
     # §PASS3: Partial alias match (parsed name contains alias or vice versa)
+    # Only for aliases >= 3 chars to avoid false positives (e.g., "P" matching "PCT")
     for bm in all_biomarkers:
         for alias in bm.aliases:
             alias_l = alias.lower()
-            if alias_l in name_lower or name_lower in alias_l:
-                return (bm, 0.85)
+            if len(alias_l) >= 3 and len(name_lower) >= 3:
+                if alias_l in name_lower or name_lower in alias_l:
+                    return (bm, 0.85)
 
-    # §PASS4: Fuzzy match on name fields
-    best_match = None
-    best_score = 0
-    for bm in all_biomarkers:
-        for candidate in [bm.name.lower(), bm.name_bg.lower(), bm.abbreviation.lower()]:
-            if not candidate:
-                continue
-            score = SequenceMatcher(None, name_lower, candidate).ratio()
-            if score > best_score:
-                best_score = score
-                best_match = bm
+    # §PASS4: Fuzzy match on name fields (only for names >= 3 chars)
+    if len(name_lower) >= 3:
+        best_match = None
+        best_score = 0
+        for bm in all_biomarkers:
+            for candidate in [bm.name.lower(), bm.name_bg.lower(), bm.abbreviation.lower()]:
+                if not candidate or len(candidate) < 3:
+                    continue
+                score = SequenceMatcher(None, name_lower, candidate).ratio()
+                if score > best_score:
+                    best_score = score
+                    best_match = bm
 
-    if best_score >= 0.7:
-        return (best_match, best_score)
+        if best_score >= 0.75:  # Raised from 0.7 to reduce false positives
+            return (best_match, best_score)
 
     return (None, 0)
 
