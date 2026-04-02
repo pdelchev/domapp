@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
-import { createVehicle, createVehiclePresets, getProperties } from '../../lib/api';
+import { createVehicle, getProperties } from '../../lib/api';
 import NavBar from '../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert } from '../../components/ui';
 
@@ -25,7 +25,6 @@ export default function NewVehiclePage() {
   const [properties, setProperties] = useState<Array<{ id: number; name: string }>>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const [addPresets, setAddPresets] = useState(true);
 
   const [form, setForm] = useState({
     plate_number: '',
@@ -70,12 +69,6 @@ export default function NewVehiclePage() {
       if (form.linked_property) data.linked_property = parseInt(form.linked_property);
 
       const vehicle = await createVehicle(data);
-
-      // Auto-add Bulgarian presets if checked
-      if (addPresets) {
-        await createVehiclePresets(vehicle.id);
-      }
-
       router.push(`/vehicles/${vehicle.id}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to create vehicle';
@@ -190,19 +183,6 @@ export default function NewVehiclePage() {
               />
             </div>
 
-            {/* BG Presets toggle */}
-            <div className="mt-4 flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="presets"
-                checked={addPresets}
-                onChange={(e) => setAddPresets(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-              />
-              <label htmlFor="presets" className="text-sm text-gray-700">
-                {t('vehicles.add_presets', locale)}
-              </label>
-            </div>
           </Card>
 
           <div className="flex gap-3 mt-4">
