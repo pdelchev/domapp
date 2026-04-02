@@ -18,6 +18,7 @@ urlpatterns = [
     path('api/', include('music.urls')),
     path('api/', include('notes.urls')),
     path('api/health/', include('health.urls')),
+    path('api/', include('vehicles.urls')),
 ]
 
 if settings.DEBUG:

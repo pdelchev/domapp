@@ -22,6 +22,7 @@ backend/
   notifications/  # Notification model + API
   notes/          # Notes with block editor, folders, tags, entity linking
   health/         # Blood results tracker: PDF parsing, biomarker analysis, scoring, recommendations
+  vehicles/       # Vehicle obligation tracker: insurance, vignette, MOT, tax, reminders
   dashboard/      # Dashboard summary endpoint (aggregations)
 
 frontend/
@@ -56,6 +57,9 @@ frontend/
     health/page.tsx             # Health dashboard — scores, results, recommendations
     health/upload/page.tsx      # Upload blood test PDFs (single + bulk) or manual entry
     health/report/[id]/page.tsx # Report detail — results table, trends, biomarker education
+    vehicles/page.tsx           # Vehicles — compliance dashboard, traffic-light grid
+    vehicles/new/page.tsx       # Add vehicle form with BG presets option
+    vehicles/[id]/page.tsx      # Vehicle detail — info, obligations CRUD, renew, file uploads
     context/LanguageContext.tsx  # React Context for EN/BG locale
     components/
       ui.tsx                    # Design system — all shared UI components
@@ -207,6 +211,17 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/health/biomarker-history/<id>/` | GET | Trend data for one biomarker (?profile=) |
 | `/api/health/compare/` | GET | Compare two reports (?report_a=&report_b=) |
 | `/api/health/dashboard/` | GET | Health dashboard with scores + recommendations (?profile=) |
+| `/api/vehicles/` | GET, POST | List/create vehicles (?property=&active=) |
+| `/api/vehicles/<id>/` | GET, PUT, DELETE | Vehicle detail/update/delete |
+| `/api/vehicles/summary/` | GET | Compliance dashboard (counts + upcoming expirations) |
+| `/api/vehicles/cost-report/` | GET | Annual cost breakdown by vehicle (?year=) |
+| `/api/vehicles/expiring/` | GET | Obligations expiring within N days (?days=30) |
+| `/api/vehicles/<id>/obligations/` | GET, POST | List/create obligations for vehicle (?type=&current=) |
+| `/api/vehicles/<id>/presets/` | POST | Create Bulgarian preset obligations for vehicle |
+| `/api/vehicles/obligations/<id>/` | GET, PUT, DELETE | Obligation detail/update/delete |
+| `/api/vehicles/obligations/<id>/renew/` | POST | Quick-renew obligation (copies to new period) |
+| `/api/vehicles/obligations/<id>/files/` | GET, POST | List/upload files for obligation |
+| `/api/vehicles/obligations/files/<id>/` | DELETE | Delete uploaded file |
 
 ## Conventions
 - **All data is user-scoped**: Every model has a `user` FK to the manager. Querysets filter by `request.user`.
@@ -240,6 +255,10 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **BloodReport**: user FK, profile FK, test_date, lab_name, lab_type, file, overall_score (0-100), system_scores (JSON), parsed_raw (JSON), parse_warnings (JSON)
 - **BloodResult**: report FK, biomarker FK, value, unit, flag (8 tiers: optimal→critical), deviation_pct
 - **HealthRecommendation**: report FK, category (diet/exercise/supplement/medical/lifestyle), priority, title/description (EN+BG), related_biomarkers (JSON)
+- **Vehicle**: user FK, linked_property FK (optional), plate_number, make, model, year, color, fuel_type, vin, engine_cc, first_registration_date, is_active, notes
+- **VehicleObligation**: vehicle FK, obligation_type (mtpl/kasko/vignette/mot/vehicle_tax/green_card/assistance/custom), custom_type_name, start_date, end_date, provider, policy_number, cost, currency, reminder_days (JSON), is_current, notes
+- **ObligationFile**: obligation FK, file, label, file_size, uploaded_at
+- **VehicleReminder**: obligation FK, remind_at, sent, sent_at, notification_id
 
 ## Roadmap
 - [x] Step 1: Project scaffold
@@ -262,5 +281,6 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - [x] Step 14.7: Problems/Emergencies — issue tracker per property (CRUD, priorities, categories, cost tracking, resolution notes, quick status actions, property view integration)
 - [x] Step 14.8: Notes — Apple Notes-style block editor with folders, tags, checklists, tables, entity linking, auto-save
 - [x] Step 14.9: Health Tracker — blood results tracking, PDF parsing (Ramus/LINA), biomarker analysis, body system scoring, lifestyle recommendations, multi-person profiles
-- [ ] Step 15: Celery tasks (auto-notifications, reminders)
+- [x] Step 15.0: Vehicles — Bulgarian vehicle obligation tracker (insurance, vignette, MOT, tax), compliance dashboard, multi-vehicle, cost analytics, quick-renew, file uploads, multi-tier reminders
+- [ ] Step 15.1: Celery tasks (auto-notifications, reminders)
 - [ ] Step 16: Financial reports & charts

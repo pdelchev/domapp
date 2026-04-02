@@ -973,3 +973,112 @@ export async function compareReports(reportAId: number, reportBId: number) {
   if (!res.ok) throw new Error('Failed to compare reports');
   return res.json();
 }
+
+// --- Vehicles ---
+export async function getVehicles(filters?: string) {
+  const res = await apiFetch(`/api/vehicles/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch vehicles');
+  return res.json();
+}
+
+export async function getVehicle(id: number) {
+  const res = await apiFetch(`/api/vehicles/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch vehicle');
+  return res.json();
+}
+
+export async function createVehicle(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/vehicles/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create vehicle');
+  return res.json();
+}
+
+export async function updateVehicle(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/vehicles/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update vehicle');
+  return res.json();
+}
+
+export async function deleteVehicle(id: number) {
+  const res = await apiFetch(`/api/vehicles/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete vehicle');
+}
+
+export async function getVehicleSummary() {
+  const res = await apiFetch('/api/vehicles/summary/');
+  if (!res.ok) throw new Error('Failed to fetch vehicle summary');
+  return res.json();
+}
+
+export async function getVehicleCostReport(year?: number) {
+  const res = await apiFetch(`/api/vehicles/cost-report/${year ? '?year=' + year : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch cost report');
+  return res.json();
+}
+
+export async function getVehicleObligations(vehicleId: number, filters?: string) {
+  const res = await apiFetch(`/api/vehicles/${vehicleId}/obligations/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch obligations');
+  return res.json();
+}
+
+export async function createObligation(vehicleId: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/vehicles/${vehicleId}/obligations/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create obligation');
+  return res.json();
+}
+
+export async function updateObligation(obligationId: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/vehicles/obligations/${obligationId}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update obligation');
+  return res.json();
+}
+
+export async function deleteObligation(obligationId: number) {
+  const res = await apiFetch(`/api/vehicles/obligations/${obligationId}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete obligation');
+}
+
+export async function renewObligation(obligationId: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/vehicles/obligations/${obligationId}/renew/`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to renew obligation');
+  return res.json();
+}
+
+export async function createVehiclePresets(vehicleId: number) {
+  const res = await apiFetch(`/api/vehicles/${vehicleId}/presets/`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to create presets');
+  return res.json();
+}
+
+export async function uploadObligationFile(obligationId: number, file: File, label?: string) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (label) formData.append('label', label);
+  const res = await apiFetch(`/api/vehicles/obligations/${obligationId}/files/`, {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Failed to upload file');
+  return res.json();
+}
+
+export async function deleteObligationFile(fileId: number) {
+  const res = await apiFetch(`/api/vehicles/obligations/files/${fileId}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete file');
+}
