@@ -110,22 +110,20 @@ class BloodReportViewSet(viewsets.ModelViewSet):
         if report.file:
             self._parse_and_process(report)
 
-    def _parse_and_process(self, report):
+    @staticmethod
+    def _parse_and_process(report):
         """§PIPELINE: Parse PDF → match biomarkers → classify → score → recommend."""
+        file_path = None
+        is_temp = False
         try:
-            # §CLOUD: Always write to temp file — cloud storage (Railway/S3)
-            # doesn't support .path access. Safe for local filesystem too.
-            file_path = None
-            try:
-                file_path = report.file.path
-            except NotImplementedError:
-                pass
-
-            if not file_path:
-                with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
-                    for chunk in report.file.chunks():
-                        tmp.write(chunk)
-                    file_path = tmp.name
+            # §CLOUD: Always write uploaded file to temp — works on local AND cloud storage.
+            # Cloud backends (S3/Railway) don't support .path, local does but temp is safe everywhere.
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+                report.file.seek(0)
+                for chunk in report.file.chunks():
+                    tmp.write(chunk)
+                file_path = tmp.name
+                is_temp = True
 
             # Parse
             parsed = parse_pdf(file_path)
@@ -134,28 +132,31 @@ class BloodReportViewSet(viewsets.ModelViewSet):
             report.parsed_raw = {
                 'lab_type': parsed['lab_type'],
                 'result_count': len(parsed['results']),
-                'preview': parsed.get('raw_text_preview', ''),
+                'warnings': parsed.get('warnings', []),
+                'preview': parsed.get('raw_text_preview', '')[:300],
             }
             if parsed['lab_type'] != 'other':
                 report.lab_type = parsed['lab_type']
-            report.save(update_fields=['parsed_raw', 'lab_type'])
+
+            # Save warnings from parser
+            report.parse_warnings = parsed.get('warnings', [])
+            report.save(update_fields=['parsed_raw', 'lab_type', 'parse_warnings'])
 
             # Process results
             if parsed['results']:
                 sex = report.profile.sex if report.profile else 'male'
                 process_parsed_results(report, parsed['results'], sex)
-
-            # Clean up temp file if we created one
-            try:
-                if file_path != report.file.path:
-                    os.unlink(file_path)
-            except (NotImplementedError, Exception):
-                if file_path and os.path.exists(file_path):
-                    os.unlink(file_path)
+            else:
+                report.parse_warnings = parsed.get('warnings', []) or ['No results extracted from PDF']
+                report.save(update_fields=['parse_warnings'])
 
         except Exception as e:
-            report.parse_warnings = [f'PDF parsing failed: {str(e)}']
+            import traceback
+            report.parse_warnings = [f'PDF parsing failed: {str(e)}', traceback.format_exc()[-500:]]
             report.save(update_fields=['parse_warnings'])
+        finally:
+            if is_temp and file_path and os.path.exists(file_path):
+                os.unlink(file_path)
 
 
 # ── Bulk upload ──────────────────────────────────────────────────────

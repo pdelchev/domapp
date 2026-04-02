@@ -115,11 +115,15 @@ PATTERNS = [
 
 # ── Seasonal context ─────────────────────────────────────────────────
 
-def get_seasonal_context(test_date: date) -> dict:
+def get_seasonal_context(test_date) -> dict:
     """
     §SEASON: Adjust recommendations based on test month.
     Bulgaria: Oct-Mar = winter (low sun), Apr-Sep = summer.
     """
+    # Handle string dates from bulk upload
+    if isinstance(test_date, str):
+        from datetime import datetime
+        test_date = datetime.strptime(test_date[:10], '%Y-%m-%d').date()
     month = test_date.month
     is_winter = month in (10, 11, 12, 1, 2, 3)
     return {
