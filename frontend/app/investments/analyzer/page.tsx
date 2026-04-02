@@ -163,15 +163,24 @@ export default function DealAnalyzerPage() {
     parking_included: true,
     parking_price: '',
     num_bedrooms: '1',
+    num_bathrooms: '1',
     condition: 'good',
     furnishing: 'unfurnished',
     floor: '',
     total_floors: '',
     year_built: '',
+    has_balcony: false,
+    has_garden: false,
+    has_patio: false,
+    has_elevator: false,
+    has_storage: false,
+    has_ac: false,
+    has_heating: false,
   });
+  const [showMethodology, setShowMethodology] = useState(false);
 
   // Sections
-  const [openSections, setOpenSections] = useState({ basic: true, details: false, saved: false });
+  const [openSections, setOpenSections] = useState({ basic: true, details: false, amenities: false, saved: false });
   const toggleSection = (key: keyof typeof openSections) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   // Precomputed area lookup from market data
@@ -226,11 +235,19 @@ export default function DealAnalyzerPage() {
         parking_included: form.parking_included,
         parking_price: form.parking_included ? 0 : Number(form.parking_price || 0),
         num_bedrooms: Number(form.num_bedrooms),
+        num_bathrooms: Number(form.num_bathrooms),
         condition: form.condition,
         furnishing: form.furnishing,
         floor: form.floor ? Number(form.floor) : null,
         total_floors: form.total_floors ? Number(form.total_floors) : null,
         year_built: form.year_built ? Number(form.year_built) : null,
+        has_balcony: form.has_balcony,
+        has_garden: form.has_garden,
+        has_patio: form.has_patio,
+        has_elevator: form.has_elevator,
+        has_storage: form.has_storage,
+        has_ac: form.has_ac,
+        has_heating: form.has_heating,
       };
       const res = await analyzeProperty(payload);
       if (res.error) {
@@ -265,7 +282,41 @@ export default function DealAnalyzerPage() {
           backLabel={t('common.back', locale)}
           onBack={() => router.push('/investments')}
         />
-        <p className="text-sm text-gray-500 -mt-4 mb-6">{t('analyzer.subtitle', locale)}</p>
+        <p className="text-sm text-gray-500 -mt-4 mb-4">{t('analyzer.subtitle', locale)}</p>
+
+        {/* Methodology helper */}
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setShowMethodology(!showMethodology)}
+            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+          >
+            <span>{showMethodology ? '▾' : '▸'}</span>
+            {t('analyzer.how_it_works', locale)}
+          </button>
+          {showMethodology && (
+            <div className="mt-3 p-4 bg-indigo-50 rounded-xl text-xs text-gray-700 space-y-3 border border-indigo-100">
+              <p className="font-semibold text-gray-900">{t('analyzer.methodology_title', locale)}</p>
+              <p>{t('analyzer.methodology_intro', locale)}</p>
+              <div className="space-y-1.5">
+                <p><span className="font-medium text-gray-900">{t('analyzer.price_vs_market', locale)} (30 pts):</span> {t('analyzer.method_price', locale)}</p>
+                <p><span className="font-medium text-gray-900">{t('analyzer.rental_yield_score', locale)} (25 pts):</span> {t('analyzer.method_yield', locale)}</p>
+                <p><span className="font-medium text-gray-900">{t('analyzer.airbnb_potential', locale)} (15 pts):</span> {t('analyzer.method_airbnb', locale)}</p>
+                <p><span className="font-medium text-gray-900">{t('analyzer.area_heat_score', locale)} (15 pts):</span> {t('analyzer.method_area', locale)}</p>
+                <p><span className="font-medium text-gray-900">{t('analyzer.property_quality', locale)} (15 pts):</span> {t('analyzer.method_quality', locale)}</p>
+              </div>
+              <div className="border-t border-indigo-200 pt-2 space-y-1">
+                <p className="font-semibold text-gray-900">{t('analyzer.verdict_scale', locale)}</p>
+                <p>🚀 <span className="font-medium">{t('analyzer.strong_buy', locale)}</span> (80-100) — {t('analyzer.verdict_strong_buy_desc', locale)}</p>
+                <p>✅ <span className="font-medium">{t('analyzer.buy', locale)}</span> (65-79) — {t('analyzer.verdict_buy_desc', locale)}</p>
+                <p>⚡ <span className="font-medium">{t('analyzer.hold', locale)}</span> (50-64) — {t('analyzer.verdict_hold_desc', locale)}</p>
+                <p>⚠️ <span className="font-medium">{t('analyzer.overpriced', locale)}</span> (35-49) — {t('analyzer.verdict_overpriced_desc', locale)}</p>
+                <p>🛑 <span className="font-medium">{t('analyzer.avoid', locale)}</span> (0-34) — {t('analyzer.verdict_avoid_desc', locale)}</p>
+              </div>
+              <p className="text-gray-500 italic">{t('analyzer.methodology_disclaimer', locale)}</p>
+            </div>
+          )}
+        </div>
 
         <Alert type="error" message={error} />
 
@@ -332,6 +383,23 @@ export default function DealAnalyzerPage() {
                     <Input label={t('analyzer.total_floors', locale)} type="number" value={form.total_floors} onChange={(e) => updateForm('total_floors', e.target.value)} />
                     <Input label={t('analyzer.year_built', locale)} type="number" value={form.year_built} onChange={(e) => updateForm('year_built', e.target.value)} />
                   </div>
+                </FormSection>
+              </div>
+
+              <div className="mt-4">
+                <FormSection title={t('analyzer.amenities', locale)} icon="✨" open={openSections.amenities} onToggle={() => toggleSection('amenities')}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label={t('analyzer.bathrooms', locale)} type="number" value={form.num_bathrooms} onChange={(e) => updateForm('num_bathrooms', e.target.value)} min="1" max="10" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    {(['has_balcony', 'has_garden', 'has_patio', 'has_elevator', 'has_storage', 'has_ac', 'has_heating'] as const).map((key) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input type="checkbox" checked={form[key] as boolean} onChange={(e) => updateForm(key, e.target.checked)} className="rounded" />
+                        {t(`analyzer.${key}`, locale)}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-3">{t('analyzer.amenities_hint', locale)}</p>
                 </FormSection>
               </div>
 
@@ -516,7 +584,10 @@ export default function DealAnalyzerPage() {
                           {t(`analyzer.${a.verdict}`, locale)} {a.verdict_score}
                         </Badge>
                       </div>
-                      <p className="text-xs text-gray-500">{a.city}, {a.country} — {a.square_meters}m² — {fmt(a.asking_price)} — {a.gross_rental_yield}% yield</p>
+                      <p className="text-xs text-gray-500">
+                        {a.city}, {a.country} — {a.square_meters}m² — {fmt(a.asking_price)} — {a.gross_rental_yield}% yield
+                        <span className="text-gray-400 ml-2">{new Date(a.created_at).toLocaleDateString()}</span>
+                      </p>
                     </div>
                     <Button variant="danger" size="sm" onClick={() => handleDeleteAnalysis(a.id)}>
                       {t('common.delete', locale)}

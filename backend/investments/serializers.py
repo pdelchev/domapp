@@ -105,6 +105,14 @@ class PropertyAnalysisInputSerializer(serializers.Serializer):
     floor = serializers.IntegerField(required=False, allow_null=True)
     total_floors = serializers.IntegerField(required=False, allow_null=True)
     year_built = serializers.IntegerField(required=False, allow_null=True)
+    num_bathrooms = serializers.IntegerField(default=1, min_value=1, max_value=10)
+    has_balcony = serializers.BooleanField(default=False)
+    has_garden = serializers.BooleanField(default=False)
+    has_patio = serializers.BooleanField(default=False)
+    has_elevator = serializers.BooleanField(default=False)
+    has_storage = serializers.BooleanField(default=False)
+    has_ac = serializers.BooleanField(default=False)
+    has_heating = serializers.BooleanField(default=False)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
 

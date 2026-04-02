@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { href: '/documents', key: 'nav.documents' },
   { href: '/investments', key: 'nav.investments' },
   { href: '/investments/analyzer', key: 'investments.deal_analyzer' },
+  { href: '/notes', key: 'nav.notes' },
   { href: '/music', key: 'nav.music' },
   { href: '/problems', key: 'nav.problems' },
 ];
@@ -42,6 +43,7 @@ const DESKTOP_NAV: DesktopNavItem[] = [
     { href: '/investments', key: 'investments.portfolio_tracker' },
     { href: '/investments/analyzer', key: 'investments.deal_analyzer' },
   ]},
+  { href: '/notes', key: 'nav.notes' },
   { href: '/music', key: 'nav.music' },
   { href: '/documents', key: 'nav.documents' },
   { href: '/problems', key: 'nav.problems' },
@@ -52,6 +54,7 @@ const FAB_ACTIONS = [
   { href: '/tenants/new', key: 'fab.new_tenant', color: 'bg-emerald-500', icon: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z' },
   { href: '/leases/new', key: 'fab.new_lease', color: 'bg-violet-500', icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
   { href: '/problems/new', key: 'fab.new_problem', color: 'bg-amber-500', icon: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
+  { href: '/notes?new=1', key: 'fab.new_note', color: 'bg-indigo-500', icon: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
   { href: '/finance/expenses', key: 'fab.new_expense', color: 'bg-rose-500', icon: 'M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z' },
 ];
 

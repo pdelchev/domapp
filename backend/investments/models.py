@@ -248,6 +248,14 @@ class PropertyAnalysis(models.Model):
     floor = models.IntegerField(null=True, blank=True)
     total_floors = models.IntegerField(null=True, blank=True)
     year_built = models.IntegerField(null=True, blank=True)
+    num_bathrooms = models.IntegerField(default=1)
+    has_balcony = models.BooleanField(default=False)
+    has_garden = models.BooleanField(default=False)
+    has_patio = models.BooleanField(default=False)
+    has_elevator = models.BooleanField(default=False)
+    has_storage = models.BooleanField(default=False)
+    has_ac = models.BooleanField(default=False)
+    has_heating = models.BooleanField(default=False)
 
     # ── Computed results (filled by analysis engine) ──
     total_cost = models.DecimalField(

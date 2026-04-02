@@ -115,28 +115,44 @@ def _score_area_heat(appr_pct: float, high_value: bool) -> int:
     return base
 
 
-def _score_property_quality(condition: str, furnishing: str, floor: int | None, total_floors: int | None) -> int:
-    """§SCORING:quality — 15 points max"""
+def _score_property_quality(condition: str, furnishing: str, floor: int | None, total_floors: int | None, extras: dict | None = None) -> int:
+    """§SCORING:quality — 15 points max
+    Base: condition (up to 5) + furnishing (up to 4) + floor (up to 3) + amenities (up to 3)
+    """
     score = 0
-    # Condition
-    cond_scores = {'new': 6, 'renovated': 5, 'good': 3, 'needs_work': 1}
+    # Condition (0-5)
+    cond_scores = {'new': 5, 'renovated': 4, 'good': 3, 'needs_work': 1}
     score += cond_scores.get(condition, 3)
-    # Furnishing
-    furn_scores = {'fully': 5, 'semi': 3, 'unfurnished': 2}
+    # Furnishing (0-4)
+    furn_scores = {'fully': 4, 'semi': 3, 'unfurnished': 2}
     score += furn_scores.get(furnishing, 2)
-    # Floor premium (higher floors generally better, penthouse floor = max)
+    # Floor premium (0-3)
     if floor and total_floors and total_floors > 1:
         floor_ratio = floor / total_floors
         if floor_ratio >= 0.8:
-            score += 4
-        elif floor_ratio >= 0.5:
             score += 3
-        elif floor_ratio >= 0.2:
+        elif floor_ratio >= 0.5:
             score += 2
         else:
             score += 1
     else:
-        score += 2  # neutral if unknown
+        score += 1  # neutral if unknown
+    # Amenities bonus (0-3): garden, balcony/patio, elevator, AC/heating, storage, extra bathrooms
+    if extras:
+        amenity_pts = 0
+        if extras.get('has_garden'):
+            amenity_pts += 1
+        if extras.get('has_balcony') or extras.get('has_patio'):
+            amenity_pts += 0.5
+        if extras.get('has_elevator'):
+            amenity_pts += 0.5
+        if extras.get('has_ac') or extras.get('has_heating'):
+            amenity_pts += 0.5
+        if extras.get('has_storage'):
+            amenity_pts += 0.5
+        if extras.get('num_bathrooms', 1) >= 2:
+            amenity_pts += 0.5
+        score += min(int(amenity_pts), 3)
     return min(score, 15)
 
 
@@ -222,7 +238,18 @@ def analyze_property(data: dict) -> dict:
     base_rent_sqm = Decimal(str(market['rent_sqm']))
     furn_mult = FURNISHING_RENT_MULT.get(furnishing, Decimal('1.0'))
     cond_mult = CONDITION_RENT_MULT.get(condition, Decimal('1.0'))
-    monthly_rent = sqm * base_rent_sqm * furn_mult * cond_mult
+    # Amenity premium for rent (garden, extra bathrooms, AC/heating add value)
+    amenity_mult = Decimal('1.0')
+    if data.get('has_garden'):
+        amenity_mult += Decimal('0.08')
+    if data.get('has_balcony') or data.get('has_patio'):
+        amenity_mult += Decimal('0.03')
+    if int(data.get('num_bathrooms', 1)) >= 2:
+        amenity_mult += Decimal('0.05')
+    if data.get('has_ac'):
+        amenity_mult += Decimal('0.03')
+
+    monthly_rent = sqm * base_rent_sqm * furn_mult * cond_mult * amenity_mult
     annual_rent = monthly_rent * 12
 
     # §STEP:4 — Airbnb revenue estimate
@@ -287,7 +314,17 @@ def analyze_property(data: dict) -> dict:
     s_yield = _score_rental_yield(gross_rental_yield)
     s_airbnb = _score_airbnb(airbnb_yield_pct)
     s_area = _score_area_heat(float(market['appr_pct']), market.get('high_value', False))
-    s_quality = _score_property_quality(condition, furnishing, floor, total_floors)
+    extras = {
+        'has_garden': data.get('has_garden', False),
+        'has_balcony': data.get('has_balcony', False),
+        'has_patio': data.get('has_patio', False),
+        'has_elevator': data.get('has_elevator', False),
+        'has_storage': data.get('has_storage', False),
+        'has_ac': data.get('has_ac', False),
+        'has_heating': data.get('has_heating', False),
+        'num_bathrooms': int(data.get('num_bathrooms', 1)),
+    }
+    s_quality = _score_property_quality(condition, furnishing, floor, total_floors, extras)
 
     verdict_score = s_price + s_yield + s_airbnb + s_area + s_quality
     verdict = _verdict_from_score(verdict_score)

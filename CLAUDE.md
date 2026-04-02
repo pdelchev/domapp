@@ -20,6 +20,7 @@ backend/
   documents/      # Document model (file uploads) + API
   problems/       # Problem/emergency tracking per property + CRUD API
   notifications/  # Notification model + API
+  notes/          # Notes with block editor, folders, tags, entity linking
   dashboard/      # Dashboard summary endpoint (aggregations)
 
 frontend/
@@ -46,6 +47,7 @@ frontend/
     finance/payments/page.tsx   # Rent payments list with filters + mark paid
     finance/expenses/page.tsx   # Expenses list with filters + inline add/edit
     documents/page.tsx          # Document Vault — cross-property compliance dashboard + searchable list
+    notes/page.tsx              # Notes — 3-panel Apple Notes-style (sidebar, list, block editor)
     problems/page.tsx           # Problems list (card-based with filters, quick status change)
     problems/new/page.tsx       # Report new problem form
     problems/[id]/page.tsx      # Edit problem + resolution tracking
@@ -180,6 +182,15 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/problems/` | GET, POST | List/create problems (?property=&status=&priority=&category=) |
 | `/api/problems/<id>/` | GET, PUT, DELETE | Problem detail/update/delete |
 | `/api/problems/summary/` | GET | Problem counts by status and priority |
+| `/api/notes/folders/` | GET, POST | List/create note folders |
+| `/api/notes/folders/<id>/` | GET, PUT, DELETE | Folder detail/update/delete |
+| `/api/notes/tags/` | GET, POST | List/create note tags |
+| `/api/notes/tags/<id>/` | GET, PUT, DELETE | Tag detail/update/delete |
+| `/api/notes/` | GET, POST | List/create notes (?folder=&tag=&search=&pinned=&archived=&trashed=&property=&tenant=) |
+| `/api/notes/<id>/` | GET, PUT, PATCH, DELETE | Note detail/update/delete |
+| `/api/notes/<id>/duplicate/` | POST | Clone a note |
+| `/api/notes/summary/` | GET | Note counts (total, pinned, archived, trashed, checklist stats) |
+| `/api/notes/quick-capture/` | POST | Minimal note creation (title + optional body + entity link) |
 
 ## Conventions
 - **All data is user-scoped**: Every model has a `user` FK to the manager. Querysets filter by `request.user`.
@@ -204,6 +215,9 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **Document**: property FK, document_type (19 types), file, label, expiry_date, file_size, uploaded_at, replaces (version chain FK), reminders
 - **Notification**: user FK, notification_type, title, message, related_property, read_status
 - **Problem**: user FK, property FK, title, description, category (12 types), priority (emergency/high/medium/low), status (open/in_progress/resolved/closed), reported_by, assigned_to, estimated_cost, actual_cost, resolution_notes, resolved_at
+- **NoteFolder**: user FK, name, color, icon, parent (self FK for nesting), position
+- **NoteTag**: user FK, name, color (unique_together: user + name)
+- **Note**: user FK, folder FK, title, content (JSONField — block array), color, is_pinned, is_archived, is_trashed, trashed_at, linked_property FK, linked_tenant FK, linked_lease FK, linked_problem FK, tags M2M, checklist_stats (denormalized JSON), word_count, is_template, template_name
 
 ## Roadmap
 - [x] Step 1: Project scaffold
@@ -224,5 +238,6 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - [x] Step 14: Notifications center (list with type/read filters, mark read, mark all read, dismiss, unread badge in NavBar)
 - [x] Step 14.5: Document Vault — smart folders, compliance dashboard, version chain, expanded document types
 - [x] Step 14.7: Problems/Emergencies — issue tracker per property (CRUD, priorities, categories, cost tracking, resolution notes, quick status actions, property view integration)
+- [x] Step 14.8: Notes — Apple Notes-style block editor with folders, tags, checklists, tables, entity linking, auto-save
 - [ ] Step 15: Celery tasks (auto-notifications, reminders)
 - [ ] Step 16: Financial reports & charts

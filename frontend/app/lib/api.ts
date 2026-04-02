@@ -786,3 +786,101 @@ export async function getMusicStats() {
   if (!res.ok) throw new Error('Failed to fetch music stats');
   return res.json();
 }
+
+// --- Notes: Folders ---
+export async function getNoteFolders() {
+  const res = await apiFetch('/api/notes/folders/');
+  if (!res.ok) throw new Error('Failed to fetch folders');
+  return res.json();
+}
+
+export async function createNoteFolder(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/notes/folders/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create folder');
+  return res.json();
+}
+
+export async function updateNoteFolder(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/notes/folders/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update folder');
+  return res.json();
+}
+
+export async function deleteNoteFolder(id: number) {
+  const res = await apiFetch(`/api/notes/folders/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete folder');
+}
+
+// --- Notes: Tags ---
+export async function getNoteTags() {
+  const res = await apiFetch('/api/notes/tags/');
+  if (!res.ok) throw new Error('Failed to fetch tags');
+  return res.json();
+}
+
+export async function createNoteTag(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/notes/tags/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create tag');
+  return res.json();
+}
+
+export async function updateNoteTag(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/notes/tags/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update tag');
+  return res.json();
+}
+
+export async function deleteNoteTag(id: number) {
+  const res = await apiFetch(`/api/notes/tags/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete tag');
+}
+
+// --- Notes: CRUD ---
+export async function getNotes(filters?: Record<string, string>) {
+  const params = new URLSearchParams(filters || {});
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/notes/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch notes');
+  return res.json();
+}
+
+export async function getNote(id: number) {
+  const res = await apiFetch(`/api/notes/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch note');
+  return res.json();
+}
+
+export async function createNote(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/notes/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create note');
+  return res.json();
+}
+
+export async function updateNote(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/notes/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update note');
+  return res.json();
+}
+
+export async function deleteNote(id: number) {
+  const res = await apiFetch(`/api/notes/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete note');
+}
+
+export async function duplicateNote(id: number) {
+  const res = await apiFetch(`/api/notes/${id}/duplicate/`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to duplicate note');
+  return res.json();
+}
+
+export async function quickCaptureNote(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/notes/quick-capture/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create quick note');
+  return res.json();
+}
+
+export async function getNoteSummary() {
+  const res = await apiFetch('/api/notes/summary/');
+  if (!res.ok) throw new Error('Failed to fetch note summary');
+  return res.json();
+}
