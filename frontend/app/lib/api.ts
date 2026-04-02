@@ -884,3 +884,92 @@ export async function getNoteSummary() {
   if (!res.ok) throw new Error('Failed to fetch note summary');
   return res.json();
 }
+
+// --- Health Tracker ---
+
+export async function getHealthDashboard(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/dashboard/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch health dashboard');
+  return res.json();
+}
+
+export async function getHealthProfiles() {
+  const res = await apiFetch('/api/health/profiles/');
+  if (!res.ok) throw new Error('Failed to fetch health profiles');
+  return res.json();
+}
+
+export async function createHealthProfile(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/profiles/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create profile');
+  return res.json();
+}
+
+export async function updateHealthProfile(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/profiles/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update profile');
+  return res.json();
+}
+
+export async function deleteHealthProfile(id: number) {
+  const res = await apiFetch(`/api/health/profiles/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete profile');
+}
+
+export async function getBloodReports(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/reports/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch reports');
+  return res.json();
+}
+
+export async function getBloodReport(id: number) {
+  const res = await apiFetch(`/api/health/reports/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch report');
+  return res.json();
+}
+
+export async function createBloodReport(formData: FormData) {
+  const res = await apiFetch('/api/health/reports/', { method: 'POST', body: formData });
+  if (!res.ok) throw new Error('Failed to create report');
+  return res.json();
+}
+
+export async function deleteBloodReport(id: number) {
+  const res = await apiFetch(`/api/health/reports/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete report');
+}
+
+export async function bulkUploadReports(formData: FormData) {
+  const res = await apiFetch('/api/health/reports/bulk-upload/', { method: 'POST', body: formData });
+  if (!res.ok) throw new Error('Failed to bulk upload');
+  return res.json();
+}
+
+export async function saveManualResults(reportId: number, results: Array<{biomarker: number; value: number; unit?: string}>) {
+  const res = await apiFetch(`/api/health/reports/${reportId}/results/`, {
+    method: 'POST', body: JSON.stringify({ results }),
+  });
+  if (!res.ok) throw new Error('Failed to save results');
+  return res.json();
+}
+
+export async function getBiomarkers(category?: string) {
+  const query = category ? `?category=${category}` : '';
+  const res = await apiFetch(`/api/health/biomarkers/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch biomarkers');
+  return res.json();
+}
+
+export async function getBiomarkerHistory(biomarkerId: number, profileId: number) {
+  const res = await apiFetch(`/api/health/biomarker-history/${biomarkerId}/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch biomarker history');
+  return res.json();
+}
+
+export async function compareReports(reportAId: number, reportBId: number) {
+  const res = await apiFetch(`/api/health/compare/?report_a=${reportAId}&report_b=${reportBId}`);
+  if (!res.ok) throw new Error('Failed to compare reports');
+  return res.json();
+}

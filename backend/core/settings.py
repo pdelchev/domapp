@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     'investments',
     'music',
     'notes',
+    'health',
 ]
 
 # --- Middleware ---
