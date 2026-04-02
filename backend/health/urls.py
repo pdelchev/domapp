@@ -12,10 +12,11 @@ router.register(r'biomarkers', views.BiomarkerViewSet, basename='biomarker')
 router.register(r'biomarker-categories', views.BiomarkerCategoryViewSet, basename='biomarker-category')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    # Custom paths BEFORE router — otherwise router catches "bulk-upload" as a report pk
     path('reports/bulk-upload/', views.BulkUploadView.as_view(), name='bulk-upload'),
     path('reports/<int:report_id>/results/', views.ManualResultsView.as_view(), name='manual-results'),
     path('biomarker-history/<int:biomarker_id>/', views.BiomarkerHistoryView.as_view(), name='biomarker-history'),
     path('compare/', views.CompareReportsView.as_view(), name='compare-reports'),
     path('dashboard/', views.HealthDashboardView.as_view(), name='health-dashboard'),
+    path('', include(router.urls)),
 ]
