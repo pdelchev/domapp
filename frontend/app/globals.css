@@ -62,3 +62,10 @@ input, textarea, select {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Safe area for bottom tab bar on notched phones */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom-tabs {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

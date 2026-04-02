@@ -18,6 +18,10 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.documents': { en: 'Documents', bg: 'Документи' },
   'nav.notifications': { en: 'Notifications', bg: 'Известия' },
   'nav.logout': { en: 'Logout', bg: 'Изход' },
+  'nav.property_mgmt': { en: 'Property', bg: 'Имоти' },
+  'nav.life': { en: 'Life', bg: 'Живот' },
+  'nav.apps': { en: 'Apps', bg: 'Всичко' },
+  'nav.other': { en: 'Other', bg: 'Други' },
   'nav.more': { en: 'More', bg: 'Още' },
 
   // Dashboard
