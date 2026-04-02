@@ -48,12 +48,12 @@ const MODULES: Module[] = [
   // Personal / Life
   { id: 'health', icon: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z', color: 'bg-rose-500', href: '/health', key: 'nav.health', section: 'life' },
   { id: 'vehicles', icon: 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0H6.375c-.621 0-1.125-.504-1.125-1.125V14.25m16.5 0V6.169a2.25 2.25 0 00-1.244-2.013l-5.25-2.625A2.25 2.25 0 0014.172 1.5H9.828a2.25 2.25 0 00-1.114.294L3.464 4.406A2.25 2.25 0 002.25 6.42V14.25', color: 'bg-cyan-500', href: '/vehicles', key: 'nav.vehicles', section: 'life' },
-  { id: 'notes', icon: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10', color: 'bg-indigo-400', href: '/notes', key: 'nav.notes', section: 'life' },
   // Investments
   { id: 'investments', icon: 'M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941', color: 'bg-emerald-600', href: '/investments', key: 'nav.investments', section: 'invest' },
   // Other
   { id: 'music', icon: 'M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.34A1.125 1.125 0 0017.48 1.29l-3.346.956A1.125 1.125 0 0013.125 3.34V15', color: 'bg-purple-500', href: '/music', key: 'nav.music', section: 'other' },
   { id: 'notifications', icon: 'M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0', color: 'bg-red-500', href: '/notifications', key: 'nav.notifications', section: 'other' },
+  { id: 'notes', icon: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10', color: 'bg-indigo-400', href: '/notes', key: 'nav.notes', section: 'other' },
 ];
 
 // Quick-add actions for the + button
@@ -82,7 +82,6 @@ const DESKTOP_NAV = [
   { key: 'nav.life', href: '/health', sub: [
     { href: '/health', key: 'nav.health' },
     { href: '/vehicles', key: 'nav.vehicles' },
-    { href: '/notes', key: 'nav.notes' },
   ]},
   { key: 'nav.investments', href: '/investments', sub: [
     { href: '/investments', key: 'investments.portfolio_tracker' },
@@ -111,7 +110,6 @@ function useIsStandalone() {
 function getActiveSection(pathname: string): string {
   if (pathname.startsWith('/health')) return 'life';
   if (pathname.startsWith('/vehicles')) return 'life';
-  if (pathname.startsWith('/notes')) return 'life';
   if (pathname.startsWith('/investments')) return 'invest';
   if (pathname.startsWith('/music')) return 'other';
   if (pathname.startsWith('/notifications')) return 'other';
@@ -234,6 +232,15 @@ export default function NavBar() {
 
             <div className="flex items-center gap-2">
               <a
+                href="/notes"
+                className={`p-1.5 rounded-lg transition-colors ${
+                  isActive('/notes') ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                title={t('nav.notes', locale)}
+              >
+                <Icon d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" className="w-5 h-5" />
+              </a>
+              <a
                 href="/notifications"
                 className={`relative p-1.5 rounded-lg transition-colors ${
                   isActive('/notifications') ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
@@ -272,7 +279,15 @@ export default function NavBar() {
             <Logo size={24} />
             <span className="text-base font-semibold text-gray-900">DomApp</span>
           </a>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
+            <a
+              href="/notes"
+              className={`p-1.5 rounded-lg transition-colors ${
+                isActive('/notes') ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500'
+              }`}
+            >
+              <Icon d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" className="w-5 h-5" />
+            </a>
             <a
               href="/notifications"
               className={`relative p-1.5 rounded-lg transition-colors ${
