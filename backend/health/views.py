@@ -113,11 +113,15 @@ class BloodReportViewSet(viewsets.ModelViewSet):
     def _parse_and_process(self, report):
         """§PIPELINE: Parse PDF → match biomarkers → classify → score → recommend."""
         try:
-            # Write to temp file for pdfplumber
-            file_path = report.file.path if hasattr(report.file, 'path') else None
+            # §CLOUD: Always write to temp file — cloud storage (Railway/S3)
+            # doesn't support .path access. Safe for local filesystem too.
+            file_path = None
+            try:
+                file_path = report.file.path
+            except NotImplementedError:
+                pass
 
             if not file_path:
-                # Handle in-memory file (e.g., during tests or cloud storage)
                 with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
                     for chunk in report.file.chunks():
                         tmp.write(chunk)
@@ -141,9 +145,13 @@ class BloodReportViewSet(viewsets.ModelViewSet):
                 sex = report.profile.sex if report.profile else 'male'
                 process_parsed_results(report, parsed['results'], sex)
 
-            # Clean up temp file
-            if file_path != getattr(report.file, 'path', None):
-                os.unlink(file_path)
+            # Clean up temp file if we created one
+            try:
+                if file_path != report.file.path:
+                    os.unlink(file_path)
+            except (NotImplementedError, Exception):
+                if file_path and os.path.exists(file_path):
+                    os.unlink(file_path)
 
         except Exception as e:
             report.parse_warnings = [f'PDF parsing failed: {str(e)}']
