@@ -118,7 +118,7 @@ export default function VehiclesPage() {
         )}
 
         {vehicles.length === 0 ? (
-          <EmptyState icon="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0H6.375c-.621 0-1.125-.504-1.125-1.125V14.25m16.5 0V6.169a2.25 2.25 0 00-1.244-2.013l-5.25-2.625A2.25 2.25 0 0014.172 1.5H9.828a2.25 2.25 0 00-1.114.294L3.464 4.406A2.25 2.25 0 002.25 6.42V14.25" message={t('vehicles.no_vehicles', locale)} />
+          <EmptyState icon="🚗" message={t('vehicles.no_vehicles', locale)} />
         ) : (
           <>
             {/* Compliance Grid */}
