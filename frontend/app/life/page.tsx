@@ -258,9 +258,16 @@ export default function LifePage() {
         <PageHeader
           title={t('life.title', locale)}
           action={
-            <Button onClick={() => setShowForm((v) => !v)}>
-              {showForm ? t('common.cancel', locale) : `+ ${t('life.add_intervention', locale)}`}
-            </Button>
+            <div className="flex gap-2">
+              <Link href="/life/lab-order">
+                <Button variant="secondary">
+                  📋 {t('life.lab_order', locale)}
+                </Button>
+              </Link>
+              <Button onClick={() => setShowForm((v) => !v)}>
+                {showForm ? t('common.cancel', locale) : `+ ${t('life.add_intervention', locale)}`}
+              </Button>
+            </div>
           }
         />
 

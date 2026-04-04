@@ -860,6 +860,7 @@ const translations: Record<string, Record<Locale, string>> = {
   'life.bio_age': { en: 'Bio-age', bg: 'Био-възраст' },
   'life.chron_age': { en: 'Chronological', bg: 'Хронологична' },
   'life.age_accel': { en: 'Age accel', bg: 'Ускорение' },
+  'life.lab_order': { en: 'Lab order', bg: 'За лабораторията' },
   'common.deleted': { en: 'Deleted successfully', bg: 'Изтрито успешно' },
   'common.error': { en: 'An error occurred', bg: 'Възникна грешка' },
 

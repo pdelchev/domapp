@@ -13,6 +13,7 @@ from .life_serializers import InterventionSerializer, HealthScoreSnapshotSeriali
 from .life_services import compute_health_score, get_deltas
 from .phenoage import compute_phenoage
 from .briefing import compute_briefing
+from .lab_order import generate_lab_order
 
 
 def _primary_profile(user):
@@ -122,6 +123,27 @@ class PhenoAgeView(APIView):
         if not profile:
             return Response({'detail': 'No HealthProfile found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(compute_phenoage(profile))
+
+
+class LabOrderView(APIView):
+    """
+    GET /api/health/lab-order/[?profile=<id>]
+    Returns a printable follow-up lab order based on the profile's latest blood
+    report: abnormal results → recommended follow-up tests (EN+BG) grouped by
+    priority, fasting instructions, receptionist phrase.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        pid = request.query_params.get('profile')
+        if pid:
+            profile = HealthProfile.objects.filter(user=user, id=pid).first()
+        else:
+            profile = _primary_profile(user)
+        if not profile:
+            return Response({'detail': 'No HealthProfile found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(generate_lab_order(profile))
 
 
 class MorningBriefingView(APIView):

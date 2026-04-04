@@ -16,5 +16,6 @@ urlpatterns = [
     path('life-summary/', life_views.LifeSummaryView.as_view(), name='life-summary'),
     path('phenoage/', life_views.PhenoAgeView.as_view(), name='phenoage'),
     path('briefing/', life_views.MorningBriefingView.as_view(), name='morning-briefing'),
+    path('lab-order/', life_views.LabOrderView.as_view(), name='lab-order'),
     path('', include(router.urls)),
 ]

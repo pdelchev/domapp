@@ -1338,3 +1338,10 @@ export async function deleteIntervention(id: number) {
   const res = await apiFetch(`/api/health/interventions/${id}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete intervention');
 }
+
+export async function getLabOrder(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/lab-order/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch lab order');
+  return res.json();
+}
