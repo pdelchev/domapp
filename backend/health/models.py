@@ -250,3 +250,104 @@ class HealthRecommendation(models.Model):
 
     def __str__(self):
         return f"[{self.priority}] {self.title}"
+
+
+# ── Unified HealthScore snapshots ────────────────────────────────────
+
+class HealthScoreSnapshot(models.Model):
+    """
+    §SCORE: Daily snapshot of the composite HealthScore (0-100) + sub-scores.
+    One row per (user, profile, date) — enables deltas, sparklines, trend analysis
+    without recomputing from raw data every request.
+
+    §BLEND: composite = weighted mean of present sub-scores.
+       weights: blood .30 | bp .30 | recovery .25 | lifestyle .15
+       missing components: their weight redistributes over present ones.
+       `confidence` = fraction of total weight that had data (0-1).
+
+    §INPUTS: `inputs` JSON stores the raw values used — for audit/debug and so
+    deltas stay explainable ("score dropped because systolic avg rose 8 mmHg").
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='health_snapshots')
+    profile = models.ForeignKey(HealthProfile, on_delete=models.CASCADE, related_name='snapshots')
+    date = models.DateField()
+
+    composite_score = models.IntegerField(null=True, blank=True)   # 0-100
+    blood_score = models.IntegerField(null=True, blank=True)
+    bp_score = models.IntegerField(null=True, blank=True)
+    recovery_score = models.IntegerField(null=True, blank=True)
+    lifestyle_score = models.IntegerField(null=True, blank=True)
+
+    confidence = models.FloatField(default=0.0)                    # 0-1, fraction of weight present
+    inputs = models.JSONField(default=dict, blank=True)            # raw values used
+    computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-date']
+        unique_together = ('user', 'profile', 'date')
+        indexes = [models.Index(fields=['user', 'profile', '-date'])]
+
+    def __str__(self):
+        return f"{self.profile.full_name} · {self.date} · {self.composite_score}"
+
+
+# ── Intervention log (user-tracked changes for before/after analysis) ─
+
+class Intervention(models.Model):
+    """
+    §LOG: User-logged change to test against biometrics. Supplement starts, med changes,
+    diet shifts, new habits. System can compute before/after deltas on target_metrics
+    using HealthScoreSnapshot + raw data around `started_on` / `ended_on`.
+
+    §EVIDENCE: `evidence_grade` asks the user how confident the underlying research is.
+    App shows this grade on recommendations — honesty is the moat vs influencer health.
+
+    §TARGET: `target_metrics` is a free JSON list of metric keys (e.g. "bp_systolic",
+    "hrv", "sleep_efficiency", "ldl") — kept flexible so we can add new metrics later
+    without a migration.
+    """
+    CATEGORY_CHOICES = [
+        ('supplement', 'Supplement'),
+        ('medication', 'Medication'),
+        ('diet', 'Diet'),
+        ('exercise', 'Exercise'),
+        ('sleep', 'Sleep'),
+        ('habit', 'Habit'),
+        ('other', 'Other'),
+    ]
+    EVIDENCE_CHOICES = [
+        ('A', 'A — Strong (RCTs / meta-analysis)'),
+        ('B', 'B — Moderate (small trials / consistent observational)'),
+        ('C', 'C — Preliminary (animal / mechanistic / early human)'),
+        ('anecdote', 'Anecdote / self-experiment'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='interventions')
+    profile = models.ForeignKey(HealthProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='interventions')
+    name = models.CharField(max_length=200)                         # "Magnesium glycinate 400mg"
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    dose = models.CharField(max_length=100, blank=True, default='') # "400 mg/day"
+
+    started_on = models.DateField()
+    ended_on = models.DateField(null=True, blank=True)              # null = still ongoing
+
+    hypothesis = models.TextField(blank=True, default='')           # what do you expect to change?
+    target_metrics = models.JSONField(default=list, blank=True)     # ["bp_systolic", "hrv"]
+    evidence_grade = models.CharField(max_length=10, choices=EVIDENCE_CHOICES, default='B')
+    source_url = models.URLField(blank=True, default='')
+    notes = models.TextField(blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-started_on', '-created_at']
+        indexes = [models.Index(fields=['user', '-started_on'])]
+
+    def __str__(self):
+        active = '' if self.ended_on else ' · active'
+        return f"{self.name} ({self.category}){active}"
+
+    @property
+    def is_active(self):
+        return self.ended_on is None

@@ -2,6 +2,7 @@ from django.contrib import admin
 from .models import (
     BiomarkerCategory, Biomarker, HealthProfile,
     BloodReport, BloodResult, HealthRecommendation,
+    HealthScoreSnapshot, Intervention,
 )
 from .whoop_models import (
     WhoopConnection, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout,
@@ -57,6 +58,22 @@ class BloodReportAdmin(admin.ModelAdmin):
 class BloodResultAdmin(admin.ModelAdmin):
     list_display = ('report', 'biomarker', 'value', 'unit', 'flag', 'deviation_pct')
     list_filter = ('flag', 'biomarker__category')
+
+
+@admin.register(HealthScoreSnapshot)
+class HealthScoreSnapshotAdmin(admin.ModelAdmin):
+    list_display = ('date', 'profile', 'composite_score', 'blood_score', 'bp_score', 'recovery_score', 'confidence')
+    list_filter = ('profile',)
+    date_hierarchy = 'date'
+    readonly_fields = ('computed_at',)
+
+
+@admin.register(Intervention)
+class InterventionAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'profile', 'started_on', 'ended_on', 'evidence_grade')
+    list_filter = ('category', 'evidence_grade')
+    search_fields = ('name', 'hypothesis', 'notes')
+    date_hierarchy = 'started_on'
 
 
 # ── WHOOP integration admin ───────────────────────────────────────

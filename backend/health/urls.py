@@ -18,6 +18,8 @@ urlpatterns = [
     path('bp/', include('health.bp_urls')),
     # §WHOOP: WHOOP wearable integration sub-module
     path('whoop/', include('health.whoop_urls')),
+    # §LIFE: Unified HealthScore + Intervention log
+    path('', include('health.life_urls')),
     # Custom paths BEFORE router — otherwise router catches "bulk-upload" as a report pk
     path('reports/bulk-upload/', views.BulkUploadView.as_view(), name='bulk-upload'),
     path('reports/<int:report_id>/results/', views.ManualResultsView.as_view(), name='manual-results'),
