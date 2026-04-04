@@ -110,25 +110,27 @@ export default function PlaylistsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {playlists.map((pl) => (
-              <Card key={pl.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => router.push(`/music/playlists/${pl.id}`)}>
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl">🎵</span>
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">{pl.name}</h3>
+              <div key={pl.id} onClick={() => router.push(`/music/playlists/${pl.id}`)} className="cursor-pointer">
+                <Card className="hover:shadow-md transition-shadow">
+                  <div className="flex items-start justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl">🎵</span>
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">{pl.name}</h3>
+                      </div>
+                      {pl.description && (
+                        <p className="text-xs text-gray-500 line-clamp-2 mb-2">{pl.description}</p>
+                      )}
+                      <p className="text-xs text-gray-400">{pl.song_count} {t('music.tracks', locale)}</p>
                     </div>
-                    {pl.description && (
-                      <p className="text-xs text-gray-500 line-clamp-2 mb-2">{pl.description}</p>
-                    )}
-                    <p className="text-xs text-gray-400">{pl.song_count} {t('music.tracks', locale)}</p>
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Button variant="danger" size="sm" onClick={() => handleDelete(pl.id)}>
+                        {t('common.delete', locale)}
+                      </Button>
+                    </div>
                   </div>
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <Button variant="danger" size="sm" onClick={() => handleDelete(pl.id)}>
-                      {t('common.delete', locale)}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
+                </Card>
+              </div>
             ))}
           </div>
         )}

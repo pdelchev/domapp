@@ -149,33 +149,39 @@ export default function LifestylePage() {
 
         {/* Quick navigation cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => router.push('/lifestyle/tests')}>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🧪</span>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.follow_up', locale)}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Tests to repeat in 3 months' : 'Тестове за повторение след 3 месеца'}</p>
+          <div onClick={() => router.push('/lifestyle/tests')} className="cursor-pointer group">
+            <Card className="hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🧪</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.follow_up', locale)}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Tests to repeat in 3 months' : 'Тестове за повторение след 3 месеца'}</p>
+                </div>
               </div>
-            </div>
-          </Card>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => router.push('/lifestyle/meals')}>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🥗</span>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.meal_plan', locale)}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? '30-day rotating daily menus' : '30-дневно ротиращо меню'}</p>
+            </Card>
+          </div>
+          <div onClick={() => router.push('/lifestyle/meals')} className="cursor-pointer group">
+            <Card className="hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🥗</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.meal_plan', locale)}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? '30-day rotating daily menus' : '30-дневно ротиращо меню'}</p>
+                </div>
               </div>
-            </div>
-          </Card>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer group" onClick={() => router.push('/lifestyle/gym')}>
-            <div className="flex items-center gap-3">
-              <span className="text-3xl">🏋️</span>
-              <div>
-                <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.gym_routine', locale)}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Gym, sports & recovery plan' : 'Фитнес, спорт и възстановяване'}</p>
+            </Card>
+          </div>
+          <div onClick={() => router.push('/lifestyle/gym')} className="cursor-pointer group">
+            <Card className="hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🏋️</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.gym_routine', locale)}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Gym, sports & recovery plan' : 'Фитнес, спорт и възстановяване'}</p>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          </div>
         </div>
 
         {/* Blood Test Results Table */}
