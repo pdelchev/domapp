@@ -256,6 +256,12 @@ class PropertyAnalysis(models.Model):
     has_storage = models.BooleanField(default=False)
     has_ac = models.BooleanField(default=False)
     has_heating = models.BooleanField(default=False)
+    has_pool = models.BooleanField(default=False)
+    has_gym = models.BooleanField(default=False)
+    has_view = models.BooleanField(default=False)
+    view_type = models.CharField(max_length=20, blank=True, default='', help_text='none/city/sea/mountain/garden')
+    renovation_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Estimated renovation cost in EUR')
+    monthly_fees = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text='Monthly condo/maintenance fees')
 
     # ── Computed results (filled by analysis engine) ──
     total_cost = models.DecimalField(

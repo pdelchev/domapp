@@ -517,6 +517,12 @@ class AnalyzePropertyView(APIView):
             has_storage=data.get('has_storage', False),
             has_ac=data.get('has_ac', False),
             has_heating=data.get('has_heating', False),
+            has_pool=data.get('has_pool', False),
+            has_gym=data.get('has_gym', False),
+            has_view=data.get('has_view', False),
+            view_type=data.get('view_type', ''),
+            renovation_cost=data.get('renovation_cost', 0),
+            monthly_fees=data.get('monthly_fees', 0),
             notes=data.get('notes', ''),
             # Computed fields
             total_cost=result['total_cost'],

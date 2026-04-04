@@ -150,6 +150,12 @@ def _score_property_quality(condition: str, furnishing: str, floor: int | None, 
             amenity_pts += 0.5
         if extras.get('has_storage'):
             amenity_pts += 0.5
+        if extras.get('has_pool'):
+            amenity_pts += 1
+        if extras.get('has_gym'):
+            amenity_pts += 0.5
+        if extras.get('has_view'):
+            amenity_pts += 1
         if extras.get('num_bathrooms', 1) >= 2:
             amenity_pts += 0.5
         score += min(int(amenity_pts), 3)
@@ -196,6 +202,8 @@ def analyze_property(data: dict) -> dict:
     floor = data.get('floor')
     total_floors = data.get('total_floors')
     num_bedrooms = int(data.get('num_bedrooms', 1))
+    renovation_cost = Decimal(str(data.get('renovation_cost', 0)))
+    monthly_fees = Decimal(str(data.get('monthly_fees', 0)))
 
     # §STEP:1 — Look up market data
     market = get_market_data(country, city, area)
@@ -229,7 +237,7 @@ def analyze_property(data: dict) -> dict:
         }
 
     # §STEP:2 — Price calculations
-    total_cost = asking_price + parking_price
+    total_cost = asking_price + parking_price + renovation_cost
     price_per_sqm = asking_price / sqm
     market_avg = Decimal(str(market['avg_sqm']))
     price_vs_market_pct = float(((price_per_sqm - market_avg) / market_avg) * 100)
@@ -248,6 +256,20 @@ def analyze_property(data: dict) -> dict:
         amenity_mult += Decimal('0.05')
     if data.get('has_ac'):
         amenity_mult += Decimal('0.03')
+    if data.get('has_pool'):
+        amenity_mult += Decimal('0.10')
+    if data.get('has_gym'):
+        amenity_mult += Decimal('0.03')
+    if data.get('has_view'):
+        vt = data.get('view_type', '')
+        if vt == 'sea':
+            amenity_mult += Decimal('0.15')
+        elif vt == 'mountain':
+            amenity_mult += Decimal('0.08')
+        elif vt == 'city':
+            amenity_mult += Decimal('0.05')
+        else:
+            amenity_mult += Decimal('0.03')
 
     monthly_rent = sqm * base_rent_sqm * furn_mult * cond_mult * amenity_mult
     annual_rent = monthly_rent * 12
@@ -273,8 +295,9 @@ def analyze_property(data: dict) -> dict:
 
     # §STEP:5 — Yield calculations
     opex_pct = OPERATING_EXPENSE_PCT.get(country, Decimal('0.20'))
+    annual_fees = monthly_fees * 12
     gross_rental_yield = float((annual_rent / total_cost) * 100) if total_cost > 0 else 0
-    net_operating_income = annual_rent * (1 - opex_pct)
+    net_operating_income = annual_rent * (1 - opex_pct) - annual_fees
     net_rental_yield = float((net_operating_income / total_cost) * 100) if total_cost > 0 else 0
 
     airbnb_net = airbnb_annual * (1 - AIRBNB_EXPENSE_PCT)
@@ -322,6 +345,9 @@ def analyze_property(data: dict) -> dict:
         'has_storage': data.get('has_storage', False),
         'has_ac': data.get('has_ac', False),
         'has_heating': data.get('has_heating', False),
+        'has_pool': data.get('has_pool', False),
+        'has_gym': data.get('has_gym', False),
+        'has_view': data.get('has_view', False),
         'num_bathrooms': int(data.get('num_bathrooms', 1)),
     }
     s_quality = _score_property_quality(condition, furnishing, floor, total_floors, extras)
@@ -388,4 +414,9 @@ def analyze_property(data: dict) -> dict:
             float(parking_price / total_cost * 100) if total_cost > 0 and parking_price > 0 else 0, 1
         ),
         'market_parking_premium_pct': market.get('parking_premium', 0) * 100,
+
+        # New cost fields
+        'renovation_cost': float(renovation_cost),
+        'monthly_fees': float(monthly_fees),
+        'annual_fees': float(annual_fees),
     }

@@ -6,16 +6,18 @@
  * AI-NAV: Form → POST /api/analyze-property/ → results with verdict.
  * AI-NAV: Market data loaded from /api/market-data/ for cascading dropdowns.
  * AI-NAV: Saved analyses from /api/property-analyses/ shown in history.
- * AI-NAV: Score breakdown with visual bar charts.
+ * AI-NAV: Re-analyze: load saved analysis inputs back into form with new price.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getMarketData, analyzeProperty, getPropertyAnalyses, deletePropertyAnalysis } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Badge, Alert, Spinner, FormSection } from '../../components/ui';
+
+// ── Types ──────────────────────────────────────────────────────────
 
 interface MarketAreaRaw {
   country: string;
@@ -32,7 +34,6 @@ interface MarketDataResponse {
   areas: MarketAreaRaw[];
 }
 
-// Transform flat areas list into lookup: "Country:City" → ["Area1", "Area2", ...]
 function buildAreaLookup(areas: MarketAreaRaw[]): Record<string, string[]> {
   const lookup: Record<string, string[]> = {};
   for (const a of areas) {
@@ -44,6 +45,7 @@ function buildAreaLookup(areas: MarketAreaRaw[]): Record<string, string[]> {
 }
 
 interface AnalysisResult {
+  id?: number;
   country: string;
   city: string;
   area: string;
@@ -76,6 +78,9 @@ interface AnalysisResult {
   verdict: string;
   verdict_score: number;
   score_breakdown: Record<string, { score: number; max: number }>;
+  renovation_cost?: number;
+  monthly_fees?: number;
+  annual_fees?: number;
 }
 
 interface SavedAnalysis {
@@ -87,32 +92,85 @@ interface SavedAnalysis {
   property_type: string;
   square_meters: number;
   asking_price: number;
+  parking_included: boolean;
+  parking_price: number;
+  num_bedrooms: number;
+  num_bathrooms: number;
+  condition: string;
+  furnishing: string;
+  floor: number | null;
+  total_floors: number | null;
+  year_built: number | null;
+  has_balcony: boolean;
+  has_garden: boolean;
+  has_patio: boolean;
+  has_elevator: boolean;
+  has_storage: boolean;
+  has_ac: boolean;
+  has_heating: boolean;
+  has_pool: boolean;
+  has_gym: boolean;
+  has_view: boolean;
+  view_type: string;
+  renovation_cost: number;
+  monthly_fees: number;
   verdict: string;
   verdict_score: number;
   price_per_sqm: number;
   gross_rental_yield: number;
+  net_rental_yield: number;
+  estimated_monthly_rent: number;
+  cap_rate: number;
+  break_even_months: number;
+  area_heat_score: number;
   created_at: string;
 }
+
+// ── Constants ──────────────────────────────────────────────────────
 
 const PROPERTY_TYPES = ['apartment', 'house', 'studio', 'penthouse', 'commercial', 'villa'];
 const CONDITIONS = ['new_build', 'renovated', 'good', 'needs_work'];
 const FURNISHINGS = ['unfurnished', 'semi', 'fully'];
+const VIEW_TYPES = ['none', 'city', 'sea', 'mountain', 'garden'];
 
 const VERDICT_COLORS: Record<string, string> = {
-  strong_buy: 'green',
-  buy: 'blue',
-  hold: 'yellow',
-  overpriced: 'red',
-  avoid: 'red',
+  strong_buy: 'green', buy: 'blue', hold: 'yellow', overpriced: 'red', avoid: 'red',
 };
 
 const VERDICT_EMOJIS: Record<string, string> = {
-  strong_buy: '🚀',
-  buy: '✅',
-  hold: '⚡',
-  overpriced: '⚠️',
-  avoid: '🛑',
+  strong_buy: '🚀', buy: '✅', hold: '⚡', overpriced: '⚠️', avoid: '🛑',
 };
+
+const VERDICT_BG: Record<string, string> = {
+  strong_buy: 'from-emerald-50 to-emerald-100/50 border-emerald-200',
+  buy: 'from-blue-50 to-blue-100/50 border-blue-200',
+  hold: 'from-amber-50 to-amber-100/50 border-amber-200',
+  overpriced: 'from-red-50 to-red-100/50 border-red-200',
+  avoid: 'from-red-100 to-red-200/50 border-red-300',
+};
+
+// Research links per country
+const RESEARCH_LINKS: Record<string, { name: string; url: string; icon: string }[]> = {
+  'Bulgaria': [
+    { name: 'imot.bg', url: 'https://imot.bg', icon: '🏠' },
+    { name: 'imoti.net', url: 'https://imoti.net', icon: '🏢' },
+    { name: 'address.bg', url: 'https://address.bg', icon: '📍' },
+    { name: 'NSI Statistics', url: 'https://nsi.bg', icon: '📊' },
+  ],
+  'UAE': [
+    { name: 'Property Finder', url: 'https://propertyfinder.ae', icon: '🏠' },
+    { name: 'Bayut', url: 'https://bayut.com', icon: '🏢' },
+    { name: 'Dubizzle', url: 'https://dubizzle.com', icon: '📍' },
+  ],
+  'United Kingdom': [
+    { name: 'Rightmove', url: 'https://rightmove.co.uk', icon: '🏠' },
+    { name: 'Zoopla', url: 'https://zoopla.co.uk', icon: '🏢' },
+    { name: 'OnTheMarket', url: 'https://onthemarket.com', icon: '📍' },
+    { name: 'Land Registry', url: 'https://landregistry.data.gov.uk', icon: '📊' },
+  ],
+};
+
+// ── Helpers ─────────────────────────────────────────────────────────
 
 function fmt(v: number, currency = 'EUR'): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v);
@@ -122,71 +180,139 @@ function fmtPct(v: number): string {
   return `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`;
 }
 
-// Score bar component
-function ScoreBar({ label, score, max, locale }: { label: string; score: number; max: number; locale: 'en' | 'bg' }) {
+// ── Score Bar ──────────────────────────────────────────────────────
+
+function ScoreBar({ label, score, max }: { label: string; score: number; max: number }) {
   const pct = (score / max) * 100;
-  const color = pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+  const color = pct >= 70 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
   return (
-    <div className="mb-3">
+    <div className="mb-2.5">
       <div className="flex justify-between text-xs mb-1">
         <span className="text-gray-600">{label}</span>
-        <span className="font-medium text-gray-900">{score}/{max}</span>
+        <span className="font-semibold text-gray-900">{score}/{max}</span>
       </div>
       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${color} rounded-full transition-all duration-700`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   );
 }
 
+// ── Verdict Ring ───────────────────────────────────────────────────
+
+function VerdictRing({ score, size = 100 }: { score: number; size?: number }) {
+  const r = (size - 10) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 80 ? '#10b981' : score >= 65 ? '#3b82f6' : score >= 50 ? '#f59e0b' : '#ef4444';
+
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
+      </svg>
+      <span className="absolute text-2xl font-bold" style={{ color }}>{score}</span>
+    </div>
+  );
+}
+
+// ── Price Position Bar ─────────────────────────────────────────────
+
+function PricePositionBar({ value, min, avg, max }: { value: number; min: number; avg: number; max: number }) {
+  const totalRange = max - min;
+  if (totalRange <= 0) return null;
+  const vizMin = min * 0.85;
+  const vizMax = max * 1.15;
+  const vizRange = vizMax - vizMin;
+  const toPos = (v: number) => Math.max(2, Math.min(98, ((v - vizMin) / vizRange) * 100));
+
+  const valuePos = toPos(value);
+  const minPos = toPos(min);
+  const avgPos = toPos(avg);
+  const maxPos = toPos(max);
+  const isBelow = value <= avg;
+
+  return (
+    <div className="mt-3">
+      <div className="relative h-3 rounded-full bg-gray-100">
+        {/* Market range */}
+        <div className="absolute top-0 h-full rounded-full bg-gradient-to-r from-emerald-200 via-amber-200 to-red-200"
+          style={{ left: `${minPos}%`, width: `${maxPos - minPos}%` }} />
+        {/* Average tick */}
+        <div className="absolute top-0 h-full w-0.5 bg-gray-400" style={{ left: `${avgPos}%` }} />
+        {/* Value marker */}
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: `${valuePos}%` }}>
+          <div className={`w-4 h-4 rounded-full border-2 border-white shadow-md ${isBelow ? 'bg-emerald-500' : 'bg-red-500'}`} />
+        </div>
+      </div>
+      <div className="relative h-4 mt-1 text-[10px] text-gray-400">
+        <span className="absolute -translate-x-1/2" style={{ left: `${minPos}%` }}>€{min}</span>
+        <span className="absolute -translate-x-1/2 font-medium text-gray-500" style={{ left: `${avgPos}%` }}>avg</span>
+        <span className="absolute -translate-x-1/2" style={{ left: `${maxPos}%` }}>€{max}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Default form state ─────────────────────────────────────────────
+
+const EMPTY_FORM = {
+  name: '',
+  country: '',
+  city: '',
+  area: '',
+  property_type: 'apartment',
+  square_meters: '',
+  asking_price: '',
+  parking_included: true,
+  parking_price: '',
+  num_bedrooms: '1',
+  num_bathrooms: '1',
+  condition: 'good',
+  furnishing: 'unfurnished',
+  floor: '',
+  total_floors: '',
+  year_built: '',
+  has_balcony: false,
+  has_garden: false,
+  has_patio: false,
+  has_elevator: false,
+  has_storage: false,
+  has_ac: false,
+  has_heating: false,
+  has_pool: false,
+  has_gym: false,
+  has_view: false,
+  view_type: '',
+  renovation_cost: '',
+  monthly_fees: '',
+};
+
+// ── Main Component ─────────────────────────────────────────────────
+
 export default function DealAnalyzerPage() {
   const router = useRouter();
   const { locale } = useLanguage();
 
-  // Market data for cascading dropdowns
   const [marketData, setMarketData] = useState<MarketDataResponse | null>(null);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [loadedFromSaved, setLoadedFromSaved] = useState(false);
 
-  // Form
-  const [form, setForm] = useState({
-    name: '',
-    country: '',
-    city: '',
-    area: '',
-    property_type: 'apartment',
-    square_meters: '',
-    asking_price: '',
-    parking_included: true,
-    parking_price: '',
-    num_bedrooms: '1',
-    num_bathrooms: '1',
-    condition: 'good',
-    furnishing: 'unfurnished',
-    floor: '',
-    total_floors: '',
-    year_built: '',
-    has_balcony: false,
-    has_garden: false,
-    has_patio: false,
-    has_elevator: false,
-    has_storage: false,
-    has_ac: false,
-    has_heating: false,
-  });
+  const [form, setForm] = useState({ ...EMPTY_FORM });
   const [showMethodology, setShowMethodology] = useState(false);
 
-  // Sections
-  const [openSections, setOpenSections] = useState({ basic: true, details: false, amenities: false, saved: false });
+  const [openSections, setOpenSections] = useState({ basic: true, financial: false, details: false, amenities: false });
   const toggleSection = (key: keyof typeof openSections) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
-  // Precomputed area lookup from market data
   const [areaLookup, setAreaLookup] = useState<Record<string, string[]>>({});
 
-  // Load market data + saved analyses
   useEffect(() => {
     Promise.all([getMarketData(), getPropertyAnalyses()])
       .then(([md, sa]) => {
@@ -194,28 +320,78 @@ export default function DealAnalyzerPage() {
         setAreaLookup(buildAreaLookup(md.areas || []));
         setSavedAnalyses(sa);
       })
-      .catch((err) => {
-        console.error('Failed to load analyzer data:', err);
-        setError('Failed to load market data. Please refresh.');
-      })
+      .catch(() => setError('Failed to load market data. Please refresh.'))
       .finally(() => setLoading(false));
   }, []);
 
   // Cascading dropdown values
   const countries = marketData ? Object.keys(marketData.countries) : [];
   const cities = form.country && marketData?.cities ? (marketData.cities[form.country] || []) : [];
-  const areas = form.country && form.city
-    ? (areaLookup[`${form.country}:${form.city}`] || [])
-    : [];
+  const areas = form.country && form.city ? (areaLookup[`${form.country}:${form.city}`] || []) : [];
+
+  // Current area benchmark data
+  const selectedAreaData = useMemo(() => {
+    if (!marketData?.areas || !form.country || !form.city) return null;
+    const match = marketData.areas.find(a => a.country === form.country && a.city === form.city && a.area === form.area);
+    return match || null;
+  }, [marketData, form.country, form.city, form.area]);
+
+  // Nearby areas for comparison
+  const nearbyAreas = useMemo(() => {
+    if (!marketData?.areas || !form.country || !form.city) return [];
+    return marketData.areas
+      .filter(a => a.country === form.country && a.city === form.city)
+      .sort((a, b) => a.avg_sqm - b.avg_sqm);
+  }, [marketData, form.country, form.city]);
 
   const updateForm = (field: string, value: string | boolean) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
-      // Reset cascading dropdowns
       if (field === 'country') { next.city = ''; next.area = ''; }
       if (field === 'city') { next.area = ''; }
       return next;
     });
+    setLoadedFromSaved(false);
+  };
+
+  // Load saved analysis back into form for re-analysis
+  const handleLoadSaved = (a: SavedAnalysis) => {
+    setForm({
+      name: a.name || '',
+      country: a.country,
+      city: a.city,
+      area: a.area || '',
+      property_type: a.property_type || 'apartment',
+      square_meters: String(a.square_meters),
+      asking_price: String(a.asking_price),
+      parking_included: a.parking_included ?? true,
+      parking_price: a.parking_price ? String(a.parking_price) : '',
+      num_bedrooms: String(a.num_bedrooms || 1),
+      num_bathrooms: String(a.num_bathrooms || 1),
+      condition: a.condition || 'good',
+      furnishing: a.furnishing || 'unfurnished',
+      floor: a.floor ? String(a.floor) : '',
+      total_floors: a.total_floors ? String(a.total_floors) : '',
+      year_built: a.year_built ? String(a.year_built) : '',
+      has_balcony: a.has_balcony ?? false,
+      has_garden: a.has_garden ?? false,
+      has_patio: a.has_patio ?? false,
+      has_elevator: a.has_elevator ?? false,
+      has_storage: a.has_storage ?? false,
+      has_ac: a.has_ac ?? false,
+      has_heating: a.has_heating ?? false,
+      has_pool: a.has_pool ?? false,
+      has_gym: a.has_gym ?? false,
+      has_view: a.has_view ?? false,
+      view_type: a.view_type || '',
+      renovation_cost: a.renovation_cost ? String(a.renovation_cost) : '',
+      monthly_fees: a.monthly_fees ? String(a.monthly_fees) : '',
+    });
+    setLoadedFromSaved(true);
+    setResult(null);
+    setOpenSections({ basic: true, financial: true, details: false, amenities: false });
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAnalyze = async (e: React.FormEvent) => {
@@ -225,7 +401,7 @@ export default function DealAnalyzerPage() {
     setResult(null);
     try {
       const payload = {
-        name: form.name || `${form.city} ${form.area}`,
+        name: form.name || `${form.city} ${form.area}`.trim(),
         country: form.country,
         city: form.city,
         area: form.area,
@@ -248,15 +424,21 @@ export default function DealAnalyzerPage() {
         has_storage: form.has_storage,
         has_ac: form.has_ac,
         has_heating: form.has_heating,
+        has_pool: form.has_pool,
+        has_gym: form.has_gym,
+        has_view: form.has_view,
+        view_type: form.has_view ? form.view_type : '',
+        renovation_cost: Number(form.renovation_cost || 0),
+        monthly_fees: Number(form.monthly_fees || 0),
       };
       const res = await analyzeProperty(payload);
       if (res.error) {
         setError(res.error);
       } else {
         setResult(res);
-        // Refresh saved analyses list
         const updated = await getPropertyAnalyses();
         setSavedAnalyses(updated);
+        setLoadedFromSaved(false);
       }
     } catch {
       setError(t('common.error', locale));
@@ -271,7 +453,9 @@ export default function DealAnalyzerPage() {
     setSavedAnalyses((prev) => prev.filter((a) => a.id !== id));
   };
 
-  if (loading) return <PageShell><NavBar /><Spinner message={t('common.loading', locale)} /></PageShell>;
+  if (loading) return <PageShell><NavBar /><PageContent size="lg"><Spinner message={t('common.loading', locale)} /></PageContent></PageShell>;
+
+  const researchLinks = RESEARCH_LINKS[form.country] || [];
 
   return (
     <PageShell>
@@ -284,13 +468,10 @@ export default function DealAnalyzerPage() {
         />
         <p className="text-sm text-gray-500 -mt-4 mb-4">{t('analyzer.subtitle', locale)}</p>
 
-        {/* Methodology helper */}
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={() => setShowMethodology(!showMethodology)}
-            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
-          >
+        {/* Methodology */}
+        <div className="mb-5">
+          <button type="button" onClick={() => setShowMethodology(!showMethodology)}
+            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1">
             <span>{showMethodology ? '▾' : '▸'}</span>
             {t('analyzer.how_it_works', locale)}
           </button>
@@ -320,9 +501,16 @@ export default function DealAnalyzerPage() {
 
         <Alert type="error" message={error} />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* LEFT: Form */}
-          <div className="space-y-4">
+        {/* Loaded from saved banner */}
+        {loadedFromSaved && (
+          <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-700 flex items-center gap-2">
+            <span>✏️</span> {t('analyzer.loaded_from_saved', locale)}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          {/* LEFT: Form (3 cols) */}
+          <div className="lg:col-span-3 space-y-4">
             <form onSubmit={handleAnalyze}>
               <FormSection title={t('properties.section.basic', locale)} icon="📍" open={openSections.basic} onToggle={() => toggleSection('basic')}>
                 <Input
@@ -349,13 +537,14 @@ export default function DealAnalyzerPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Input label={t('analyzer.square_meters', locale)} type="number" value={form.square_meters} onChange={(e) => updateForm('square_meters', e.target.value)} required />
-                  <Input label={t('analyzer.asking_price', locale)} type="number" value={form.asking_price} onChange={(e) => updateForm('asking_price', e.target.value)} required />
+                  <Input label={`${t('analyzer.asking_price', locale)} (€)`} type="number" value={form.asking_price} onChange={(e) => updateForm('asking_price', e.target.value)} required />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <Select label={t('analyzer.property_type', locale)} value={form.property_type} onChange={(e) => updateForm('property_type', e.target.value)}>
                     {PROPERTY_TYPES.map((pt) => <option key={pt} value={pt}>{t(`analyzer.${pt}`, locale)}</option>)}
                   </Select>
                   <Input label={t('analyzer.bedrooms', locale)} type="number" value={form.num_bedrooms} onChange={(e) => updateForm('num_bedrooms', e.target.value)} min="0" max="10" />
+                  <Input label={t('analyzer.bathrooms', locale)} type="number" value={form.num_bathrooms} onChange={(e) => updateForm('num_bathrooms', e.target.value)} min="1" max="10" />
                 </div>
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -367,6 +556,20 @@ export default function DealAnalyzerPage() {
                   <Input label={t('analyzer.parking_price', locale)} type="number" value={form.parking_price} onChange={(e) => updateForm('parking_price', e.target.value)} />
                 )}
               </FormSection>
+
+              <div className="mt-4">
+                <FormSection title={t('analyzer.financial_details', locale)} icon="💰" open={openSections.financial} onToggle={() => toggleSection('financial')}>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label={t('analyzer.renovation_cost', locale)} type="number" value={form.renovation_cost} onChange={(e) => updateForm('renovation_cost', e.target.value)} placeholder="0" />
+                    <Input label={t('analyzer.monthly_fees', locale)} type="number" value={form.monthly_fees} onChange={(e) => updateForm('monthly_fees', e.target.value)} placeholder="0" />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {locale === 'bg'
+                      ? 'Ремонтът се добавя към общата цена. Месечните такси се изваждат от нетния наем.'
+                      : 'Renovation is added to total cost. Monthly fees are deducted from net rental income.'}
+                  </p>
+                </FormSection>
+              </div>
 
               <div className="mt-4">
                 <FormSection title={t('analyzer.condition', locale)} icon="🏠" open={openSections.details} onToggle={() => toggleSection('details')}>
@@ -388,16 +591,24 @@ export default function DealAnalyzerPage() {
 
               <div className="mt-4">
                 <FormSection title={t('analyzer.amenities', locale)} icon="✨" open={openSections.amenities} onToggle={() => toggleSection('amenities')}>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input label={t('analyzer.bathrooms', locale)} type="number" value={form.num_bathrooms} onChange={(e) => updateForm('num_bathrooms', e.target.value)} min="1" max="10" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    {(['has_balcony', 'has_garden', 'has_patio', 'has_elevator', 'has_storage', 'has_ac', 'has_heating'] as const).map((key) => (
-                      <label key={key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {(['has_balcony', 'has_garden', 'has_patio', 'has_elevator', 'has_storage', 'has_ac', 'has_heating', 'has_pool', 'has_gym'] as const).map((key) => (
+                      <label key={key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer py-1">
                         <input type="checkbox" checked={form[key] as boolean} onChange={(e) => updateForm(key, e.target.checked)} className="rounded" />
                         {t(`analyzer.${key}`, locale)}
                       </label>
                     ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={form.has_view} onChange={(e) => updateForm('has_view', e.target.checked)} className="rounded" />
+                      {t('analyzer.has_view', locale)}
+                    </label>
+                    {form.has_view && (
+                      <Select value={form.view_type} onChange={(e) => updateForm('view_type', e.target.value)}>
+                        {VIEW_TYPES.map((vt) => <option key={vt} value={vt}>{t(`analyzer.view_${vt}`, locale)}</option>)}
+                      </Select>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-3">{t('analyzer.amenities_hint', locale)}</p>
                 </FormSection>
@@ -409,89 +620,158 @@ export default function DealAnalyzerPage() {
             </form>
           </div>
 
-          {/* RIGHT: Results */}
-          <div>
+          {/* RIGHT: Results / Area Info (2 cols) */}
+          <div className="lg:col-span-2 space-y-4">
+            {/* Area benchmarks — shown when location selected */}
+            {form.country && form.city && nearbyAreas.length > 0 && !result && (
+              <Card>
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+                  📊 {t('analyzer.area_benchmarks', locale)}
+                </h3>
+                <div className="space-y-2">
+                  {nearbyAreas.map((a) => {
+                    const isSelected = a.area === form.area;
+                    return (
+                      <div key={a.area} className={`p-2.5 rounded-lg text-xs transition-colors ${isSelected ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50 border border-transparent'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`font-medium ${isSelected ? 'text-indigo-700' : 'text-gray-700'}`}>
+                            {a.area} {a.high_value && <span className="text-amber-500">★</span>}
+                          </span>
+                          <span className="font-semibold text-gray-900">€{a.avg_sqm}/m²</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Research links */}
+                {researchLinks.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <h4 className="text-xs font-medium text-gray-500 mb-2">{t('analyzer.research_links', locale)}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {researchLinks.map((link) => (
+                        <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-colors text-gray-600">
+                          <span>{link.icon}</span> {link.name}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </Card>
+            )}
+
             {result ? (
               <div className="space-y-4">
-                {/* Verdict card */}
-                <Card>
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">{VERDICT_EMOJIS[result.verdict] || '📊'}</span>
+                {/* Verdict hero card */}
+                <div className={`bg-gradient-to-b ${VERDICT_BG[result.verdict] || 'from-gray-50 to-gray-100/50 border-gray-200'} border rounded-xl p-5`}>
+                  <div className="flex items-center gap-4">
+                    <VerdictRing score={result.verdict_score} />
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">{t(`analyzer.${result.verdict}`, locale)}</h2>
-                      <p className="text-sm text-gray-500">{t('analyzer.verdict', locale)} — {result.verdict_score}/100</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-2xl">{VERDICT_EMOJIS[result.verdict] || '📊'}</span>
+                        <h2 className="text-xl font-bold text-gray-900">{t(`analyzer.${result.verdict}`, locale)}</h2>
+                      </div>
+                      <p className="text-sm text-gray-600">{t(`analyzer.verdict_${result.verdict}_desc`, locale)}</p>
                     </div>
-                    <Badge color={VERDICT_COLORS[result.verdict] as 'green' | 'blue' | 'yellow' | 'red'}>
-                      {result.verdict_score}/100
-                    </Badge>
-                  </div>
-
-                  {/* Overall score bar */}
-                  <div className="h-3 bg-gray-100 rounded-full overflow-hidden mb-4">
-                    <div
-                      className={`h-full rounded-full transition-all duration-700 ${
-                        result.verdict_score >= 80 ? 'bg-green-500' :
-                        result.verdict_score >= 65 ? 'bg-blue-500' :
-                        result.verdict_score >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${result.verdict_score}%` }}
-                    />
                   </div>
 
                   {/* Score breakdown */}
-                  {result.score_breakdown && Object.entries(result.score_breakdown).map(([key, { score, max }]) => (
-                    <ScoreBar key={key} label={t(`analyzer.${key === 'property_quality' ? 'property_quality' : key === 'area_heat' ? 'area_heat_score' : key === 'rental_yield' ? 'rental_yield_score' : key === 'airbnb_potential' ? 'airbnb_potential' : 'price_vs_market'}`, locale)} score={score} max={max} locale={locale} />
-                  ))}
-                </Card>
+                  <div className="mt-4 pt-4 border-t border-black/5">
+                    {result.score_breakdown && Object.entries(result.score_breakdown).map(([key, { score, max }]) => (
+                      <ScoreBar
+                        key={key}
+                        label={t(`analyzer.${key === 'property_quality' ? 'property_quality' : key === 'area_heat' ? 'area_heat_score' : key === 'rental_yield' ? 'rental_yield_score' : key === 'airbnb_potential' ? 'airbnb_potential' : 'price_vs_market'}`, locale)}
+                        score={score} max={max}
+                      />
+                    ))}
+                  </div>
+                </div>
 
-                {/* Price analysis */}
+                {/* Price analysis with position bar */}
                 <Card>
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('analyzer.price_per_sqm', locale)}</h3>
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div>
                       <p className="text-lg font-bold text-gray-900">{fmt(result.price_per_sqm)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.price_per_sqm', locale)}</p>
+                      <p className="text-[11px] text-gray-500">{t('analyzer.price_per_sqm', locale)}</p>
                     </div>
                     <div>
                       <p className="text-lg font-bold text-gray-500">{fmt(result.market_avg_sqm)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.market_avg', locale)}</p>
+                      <p className="text-[11px] text-gray-500">{t('analyzer.market_avg', locale)}</p>
                     </div>
                     <div>
-                      <p className={`text-lg font-bold ${result.price_vs_market_pct <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <p className={`text-lg font-bold ${result.price_vs_market_pct <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                         {fmtPct(result.price_vs_market_pct)}
                       </p>
-                      <p className="text-xs text-gray-500">{t('analyzer.vs_market', locale)}</p>
+                      <p className="text-[11px] text-gray-500">{t('analyzer.vs_market', locale)}</p>
                     </div>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">{t('analyzer.total_cost', locale)}: {fmt(result.total_cost)}</p>
+                  <PricePositionBar
+                    value={result.price_per_sqm}
+                    min={result.market_min_sqm}
+                    avg={result.market_avg_sqm}
+                    max={result.market_max_sqm}
+                  />
+                  <p className="text-xs text-gray-400 mt-3">
+                    {t('analyzer.total_cost', locale)}: {fmt(result.total_cost)}
+                    {(result.renovation_cost ?? 0) > 0 && ` (incl. €${result.renovation_cost} renovation)`}
+                  </p>
                 </Card>
 
                 {/* Rental analysis */}
                 <Card>
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('analyzer.standard_rent', locale)}</h3>
-                  <div className="grid grid-cols-2 gap-3 text-center mb-4">
-                    <div>
-                      <p className="text-lg font-bold text-green-600">{fmt(result.estimated_monthly_rent)}/mo</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.monthly_rent', locale)}</p>
+                  <div className="grid grid-cols-3 gap-3 text-center mb-3">
+                    <div className="p-2 bg-emerald-50 rounded-lg">
+                      <p className="text-base font-bold text-emerald-700">{fmt(result.estimated_monthly_rent)}</p>
+                      <p className="text-[10px] text-gray-500">/mo</p>
                     </div>
-                    <div>
-                      <p className="text-lg font-bold text-green-600">{result.gross_rental_yield}%</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.gross_yield', locale)}</p>
+                    <div className="p-2 bg-emerald-50 rounded-lg">
+                      <p className="text-base font-bold text-emerald-700">{result.gross_rental_yield}%</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.gross_yield', locale)}</p>
+                    </div>
+                    <div className="p-2 bg-emerald-50 rounded-lg">
+                      <p className="text-base font-bold text-emerald-700">{result.net_rental_yield}%</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.net_yield', locale)}</p>
                     </div>
                   </div>
+
+                  {/* Net income breakdown */}
+                  {(result.monthly_fees ?? 0) > 0 && (
+                    <div className="text-xs text-gray-500 space-y-0.5 mb-3 p-2 bg-gray-50 rounded-lg">
+                      <div className="flex justify-between">
+                        <span>{t('analyzer.monthly_rent', locale)}</span>
+                        <span className="text-emerald-600">+{fmt(result.estimated_monthly_rent)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('analyzer.operating_expenses', locale)} ({result.operating_expenses_pct}%)</span>
+                        <span className="text-red-500">-{fmt(result.estimated_monthly_rent * result.operating_expenses_pct / 100)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>{t('analyzer.monthly_fees', locale)}</span>
+                        <span className="text-red-500">-{fmt(result.monthly_fees || 0)}</span>
+                      </div>
+                      <div className="flex justify-between pt-1 border-t border-gray-200 font-medium text-gray-900">
+                        <span>{t('analyzer.net_monthly_income', locale)}</span>
+                        <span>{fmt(result.estimated_monthly_rent * (1 - result.operating_expenses_pct / 100) - (result.monthly_fees || 0))}</span>
+                      </div>
+                    </div>
+                  )}
+
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('analyzer.airbnb_rent', locale)}</h3>
                   <div className="grid grid-cols-3 gap-3 text-center">
-                    <div>
-                      <p className="text-base font-bold text-purple-600">{fmt(result.estimated_airbnb_daily)}/day</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.airbnb_daily', locale)}</p>
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <p className="text-base font-bold text-purple-700">{fmt(result.estimated_airbnb_daily)}</p>
+                      <p className="text-[10px] text-gray-500">/day</p>
                     </div>
-                    <div>
-                      <p className="text-base font-bold text-purple-600">{fmt(result.estimated_airbnb_monthly)}/mo</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.airbnb_monthly', locale)}</p>
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <p className="text-base font-bold text-purple-700">{fmt(result.estimated_airbnb_monthly)}</p>
+                      <p className="text-[10px] text-gray-500">/mo</p>
                     </div>
-                    <div>
-                      <p className="text-base font-bold text-purple-600">{result.airbnb_yield}%</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.airbnb_yield', locale)}</p>
+                    <div className="p-2 bg-purple-50 rounded-lg">
+                      <p className="text-base font-bold text-purple-700">{result.airbnb_yield}%</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.airbnb_yield', locale)}</p>
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">{t('analyzer.occupancy', locale)}: {result.airbnb_occupancy_pct.toFixed(0)}%</p>
@@ -500,103 +780,167 @@ export default function DealAnalyzerPage() {
                 {/* Investment metrics */}
                 <Card>
                   <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('analyzer.investment_metrics', locale)}</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <p className="text-lg font-bold text-gray-900">{result.cap_rate}%</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.cap_rate', locale)}</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.cap_rate', locale)}</p>
                     </div>
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <p className="text-lg font-bold text-gray-900">{Math.round(result.break_even_months / 12)}y {result.break_even_months % 12}m</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.break_even', locale)}</p>
+                      <p className="text-lg font-bold text-gray-900">{Math.floor(result.break_even_months / 12)}y {result.break_even_months % 12}m</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.break_even', locale)}</p>
                     </div>
                     <div className="text-center p-3 bg-blue-50 rounded-lg">
                       <p className="text-lg font-bold text-blue-700">{fmtPct(result.roi_5_year)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.roi_5y', locale)}</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.roi_5y', locale)}</p>
                     </div>
                     <div className="text-center p-3 bg-blue-50 rounded-lg">
                       <p className="text-lg font-bold text-blue-700">{fmtPct(result.roi_10_year)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.roi_10y', locale)}</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.roi_10y', locale)}</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 mt-3">
-                    <div className="text-center">
+                  <div className="grid grid-cols-2 gap-3 mt-3 text-center">
+                    <div>
                       <p className="text-sm font-medium text-gray-700">{fmt(result.projected_value_5y)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.projected_5y', locale)}</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.projected_5y', locale)}</p>
                     </div>
-                    <div className="text-center">
+                    <div>
                       <p className="text-sm font-medium text-gray-700">{fmt(result.projected_value_10y)}</p>
-                      <p className="text-xs text-gray-500">{t('analyzer.projected_10y', locale)}</p>
+                      <p className="text-[10px] text-gray-500">{t('analyzer.projected_10y', locale)}</p>
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">{t('analyzer.appreciation', locale)}: {result.annual_appreciation_pct}%/yr</p>
                 </Card>
 
-                {/* Area heat */}
+                {/* Area heat + research links */}
                 <Card>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-semibold text-gray-900">{t('analyzer.area_heat', locale)}</h3>
                     {result.high_value_area && <Badge color="purple">{t('analyzer.high_value_area', locale)}</Badge>}
                   </div>
-                  <div className="mt-2">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${result.area_heat_score}%`,
-                            background: `linear-gradient(90deg, #3b82f6, ${result.area_heat_score >= 70 ? '#ef4444' : '#f59e0b'})`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-sm font-bold text-gray-900">{result.area_heat_score}/100</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${result.area_heat_score}%`,
+                          background: `linear-gradient(90deg, #3b82f6, ${result.area_heat_score >= 70 ? '#ef4444' : '#f59e0b'})`,
+                        }}
+                      />
                     </div>
+                    <span className="text-sm font-bold text-gray-900">{result.area_heat_score}/100</span>
                   </div>
+
+                  {/* Compare nearby areas */}
+                  {nearbyAreas.length > 1 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-medium text-gray-500 mb-2">{t('analyzer.compare_areas', locale)}</h4>
+                      <div className="space-y-1">
+                        {nearbyAreas.map((a) => (
+                          <div key={a.area} className={`flex items-center justify-between text-xs py-1 ${a.area === result.area ? 'font-semibold text-indigo-700' : 'text-gray-600'}`}>
+                            <span>{a.area} {a.high_value && '★'}</span>
+                            <span>€{a.avg_sqm}/m²</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Research links */}
+                  {researchLinks.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-medium text-gray-500 mb-2">{t('analyzer.research_links', locale)}</h4>
+                      <div className="flex flex-wrap gap-2">
+                        {researchLinks.map((link) => (
+                          <a key={link.name} href={link.url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600">
+                            <span>{link.icon}</span> {link.name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </Card>
               </div>
-            ) : (
+            ) : !form.country || nearbyAreas.length === 0 ? (
               <Card className="text-center py-16">
                 <span className="text-5xl block mb-4">🏠</span>
                 <p className="text-gray-500 text-sm">{t('analyzer.subtitle', locale)}</p>
-                <p className="text-gray-400 text-xs mt-2">Fill in the form and click "{t('analyzer.analyze', locale)}"</p>
+                <p className="text-gray-400 text-xs mt-2">
+                  {locale === 'bg' ? 'Попълнете формуляра и натиснете' : 'Fill in the form and click'} "{t('analyzer.analyze', locale)}"
+                </p>
               </Card>
-            )}
+            ) : null}
           </div>
         </div>
 
         {/* Saved analyses */}
         <div className="mt-8">
-          <FormSection
-            title={`${t('analyzer.saved_analyses', locale)} (${savedAnalyses.length})`}
-            icon="📋"
-            open={openSections.saved}
-            onToggle={() => toggleSection('saved')}
-          >
-            {savedAnalyses.length === 0 ? (
-              <p className="text-sm text-gray-500 py-4">{t('analyzer.no_analyses', locale)}</p>
-            ) : (
-              <div className="space-y-2">
-                {savedAnalyses.map((a) => (
-                  <div key={a.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-gray-100">
-                    <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            📋 {t('analyzer.saved_analyses', locale)} ({savedAnalyses.length})
+          </h2>
+          {savedAnalyses.length === 0 ? (
+            <Card>
+              <p className="text-sm text-gray-500 py-4 text-center">{t('analyzer.no_analyses', locale)}</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {savedAnalyses.map((a) => {
+                const vColor = VERDICT_COLORS[a.verdict] || 'gray';
+                const vEmoji = VERDICT_EMOJIS[a.verdict] || '📊';
+                const vBg = VERDICT_BG[a.verdict] || 'from-gray-50 to-gray-100/50 border-gray-200';
+                return (
+                  <div key={a.id} className={`bg-gradient-to-b ${vBg} border rounded-xl p-4 transition-shadow hover:shadow-md`}>
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-gray-900 truncate">{a.name || `${a.city} ${a.area}`}</p>
-                        <Badge color={VERDICT_COLORS[a.verdict] as 'green' | 'blue' | 'yellow' | 'red'}>
+                        <span className="text-xl">{vEmoji}</span>
+                        <div>
+                          <h3 className="font-semibold text-sm text-gray-900 truncate max-w-[200px]">
+                            {a.name || `${a.city} ${a.area}`}
+                          </h3>
+                          <p className="text-[11px] text-gray-500">{a.city}, {a.country}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge color={vColor as 'green' | 'blue' | 'yellow' | 'red'}>
                           {t(`analyzer.${a.verdict}`, locale)} {a.verdict_score}
                         </Badge>
+                        <p className="text-[10px] text-gray-400 mt-1">{new Date(a.created_at).toLocaleDateString()}</p>
                       </div>
-                      <p className="text-xs text-gray-500">
-                        {a.city}, {a.country} — {a.square_meters}m² — {fmt(a.asking_price)} — {a.gross_rental_yield}% yield
-                        <span className="text-gray-400 ml-2">{new Date(a.created_at).toLocaleDateString()}</span>
-                      </p>
                     </div>
-                    <Button variant="danger" size="sm" onClick={() => handleDeleteAnalysis(a.id)}>
-                      {t('common.delete', locale)}
-                    </Button>
+
+                    {/* Key metrics */}
+                    <div className="grid grid-cols-4 gap-2 text-center mt-3 mb-3">
+                      <div className="bg-white/60 rounded-lg py-1.5 px-1">
+                        <p className="text-xs font-bold text-gray-900">{fmt(a.asking_price)}</p>
+                        <p className="text-[9px] text-gray-500">{locale === 'bg' ? 'Цена' : 'Price'}</p>
+                      </div>
+                      <div className="bg-white/60 rounded-lg py-1.5 px-1">
+                        <p className="text-xs font-bold text-gray-900">{a.square_meters}m²</p>
+                        <p className="text-[9px] text-gray-500">€{Math.round(a.price_per_sqm)}/m²</p>
+                      </div>
+                      <div className="bg-white/60 rounded-lg py-1.5 px-1">
+                        <p className="text-xs font-bold text-emerald-700">{a.gross_rental_yield}%</p>
+                        <p className="text-[9px] text-gray-500">{locale === 'bg' ? 'Доходн.' : 'Yield'}</p>
+                      </div>
+                      <div className="bg-white/60 rounded-lg py-1.5 px-1">
+                        <p className="text-xs font-bold text-gray-900">{a.cap_rate}%</p>
+                        <p className="text-[9px] text-gray-500">Cap rate</p>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2">
+                      <Button variant="secondary" size="sm" className="flex-1" onClick={() => handleLoadSaved(a)}>
+                        ✏️ {t('analyzer.re_analyze', locale)}
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteAnalysis(a.id)}>
+                        {t('common.delete', locale)}
+                      </Button>
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </FormSection>
+                );
+              })}
+            </div>
+          )}
         </div>
       </PageContent>
     </PageShell>

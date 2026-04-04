@@ -147,6 +147,12 @@ MARKET_DATA = {
         'yield_pct': 6.0, 'appr_pct': 5.0, 'high_value': False,
         'parking_premium': 0.05,
     },
+    ('Bulgaria', 'Plovdiv', 'Grebna Baza'): {
+        'avg_sqm': 1100, 'min_sqm': 850, 'max_sqm': 1500,
+        'rent_sqm': 6.5, 'airbnb_adr': 38, 'airbnb_occ': 0.52,
+        'yield_pct': 6.5, 'appr_pct': 5.0, 'high_value': False,
+        'parking_premium': 0.04,
+    },
 
     # ─── VARNA ───────────────────────────────────────────
     ('Bulgaria', 'Varna', 'Center'): {

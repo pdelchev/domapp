@@ -113,6 +113,12 @@ class PropertyAnalysisInputSerializer(serializers.Serializer):
     has_storage = serializers.BooleanField(default=False)
     has_ac = serializers.BooleanField(default=False)
     has_heating = serializers.BooleanField(default=False)
+    has_pool = serializers.BooleanField(default=False)
+    has_gym = serializers.BooleanField(default=False)
+    has_view = serializers.BooleanField(default=False)
+    view_type = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
+    renovation_cost = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
+    monthly_fees = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, default=0)
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
 
