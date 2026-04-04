@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../context/LanguageContext';
-import { t } from '../lib/i18n';
+import { t, Locale } from '../lib/i18n';
 import { getHealthDashboard, createHealthProfile } from '../lib/api';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Alert, Spinner, Input, Select, EmptyState } from '../components/ui';
+import { PageShell, PageContent, Card, Button, Badge, Alert, Spinner, Input, Select, EmptyState } from '../components/ui';
 
-// ── Types ───────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────
 
 interface Profile {
   id: number; full_name: string; sex: string; is_primary: boolean;
@@ -56,24 +56,17 @@ interface DashboardData {
   top_recommendations?: Recommendation[];
 }
 
-// ── Flag colors ─────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────
 
-const FLAG_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  optimal: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
-  normal: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
-  borderline_low: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  borderline_high: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
-  low: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  high: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  critical_low: { bg: 'bg-red-100', text: 'text-red-900', border: 'border-red-400' },
-  critical_high: { bg: 'bg-red-100', text: 'text-red-900', border: 'border-red-400' },
-};
-
-const FLAG_LABELS: Record<string, string> = {
-  optimal: 'health.optimal', normal: 'health.normal',
-  borderline_low: 'health.borderline', borderline_high: 'health.borderline',
-  low: 'health.abnormal', high: 'health.abnormal',
-  critical_low: 'health.critical', critical_high: 'health.critical',
+const FLAG_META: Record<string, { bg: string; text: string; dot: string; label: string; badgeColor: string }> = {
+  optimal:        { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'health.optimal', badgeColor: 'green' },
+  normal:         { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500',    label: 'health.normal',  badgeColor: 'blue' },
+  borderline_low: { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'health.borderline', badgeColor: 'yellow' },
+  borderline_high:{ bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'health.borderline', badgeColor: 'yellow' },
+  low:            { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'health.abnormal', badgeColor: 'red' },
+  high:           { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'health.abnormal', badgeColor: 'red' },
+  critical_low:   { bg: 'bg-red-100',    text: 'text-red-900',     dot: 'bg-red-700',     label: 'health.critical', badgeColor: 'red' },
+  critical_high:  { bg: 'bg-red-100',    text: 'text-red-900',     dot: 'bg-red-700',     label: 'health.critical', badgeColor: 'red' },
 };
 
 const SYSTEM_ICONS: Record<string, string> = {
@@ -81,161 +74,204 @@ const SYSTEM_ICONS: Record<string, string> = {
   kidney: '🫘', thyroid: '🦋', nutrition: '💊', immune: '🔥', hormonal: '⚖️',
 };
 
-const PRIORITY_COLORS: Record<string, string> = {
-  high: 'red', medium: 'yellow', low: 'blue',
-};
-
-const REC_CATEGORY_ICONS: Record<string, string> = {
+const REC_ICONS: Record<string, string> = {
   diet: '🥗', exercise: '🏃', supplement: '💊', medical: '🏥', lifestyle: '🌱',
 };
 
-// ── Score color helper ──────────────────────────────────────────────
-
-function scoreColor(score: number | null): string {
-  if (score === null) return 'text-gray-400';
-  if (score >= 85) return 'text-emerald-600';
-  if (score >= 70) return 'text-amber-600';
-  if (score >= 50) return 'text-orange-600';
+function scoreColor(s: number | null) {
+  if (s === null) return 'text-gray-400';
+  if (s >= 85) return 'text-emerald-600';
+  if (s >= 70) return 'text-amber-600';
   return 'text-red-600';
 }
 
-function scoreBg(score: number | null): string {
-  if (score === null) return 'bg-gray-100';
-  if (score >= 85) return 'bg-emerald-50 border-emerald-200';
-  if (score >= 70) return 'bg-amber-50 border-amber-200';
-  if (score >= 50) return 'bg-orange-50 border-orange-200';
-  return 'bg-red-50 border-red-200';
+function scoreBgGradient(s: number | null) {
+  if (s === null) return 'from-gray-100 to-gray-50';
+  if (s >= 85) return 'from-emerald-50 to-emerald-100/50';
+  if (s >= 70) return 'from-amber-50 to-amber-100/50';
+  return 'from-red-50 to-red-100/50';
 }
 
-// ── Reference range bar ─────────────────────────────────────────────
+// ── Score Ring ─────────────────────────────────────────────────────
 
-function RangeBar({ value, refMin, refMax, optMin, optMax, unit }: {
-  value: number; refMin: number | null; refMax: number | null;
-  optMin: number | null; optMax: number | null; unit: string;
-}) {
-  if (refMin === null || refMax === null) return null;
-  const range = refMax - refMin;
-  const padding = range * 0.3;
-  const totalMin = refMin - padding;
-  const totalMax = refMax + padding;
-  const totalRange = totalMax - totalMin;
-  if (totalRange <= 0) return null;
-
-  const pct = (v: number) => Math.max(0, Math.min(100, ((v - totalMin) / totalRange) * 100));
-
-  const refStartPct = pct(refMin);
-  const refEndPct = pct(refMax);
-  const valuePct = pct(value);
+function ScoreRing({ score, size = 100, label }: { score: number | null; size?: number; label?: string }) {
+  if (score === null) return <span className="text-4xl font-bold text-gray-300">—</span>;
+  const r = (size - 10) / 2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference - (score / 100) * circumference;
+  const color = score >= 85 ? '#10b981' : score >= 70 ? '#f59e0b' : '#ef4444';
 
   return (
-    <div className="w-full mt-1.5">
-      <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
-        {/* Reference range (green zone) */}
-        <div
-          className="absolute h-full bg-emerald-200 rounded-full"
-          style={{ left: `${refStartPct}%`, width: `${refEndPct - refStartPct}%` }}
-        />
-        {/* Optimal range (darker green) */}
-        {optMin !== null && optMax !== null && (
-          <div
-            className="absolute h-full bg-emerald-400 rounded-full opacity-50"
-            style={{ left: `${pct(optMin)}%`, width: `${pct(optMax) - pct(optMin)}%` }}
-          />
-        )}
-        {/* Value marker */}
-        <div
-          className="absolute top-0 w-1 h-full bg-gray-900 rounded-full"
-          style={{ left: `${valuePct}%`, transform: 'translateX(-50%)' }}
-        />
+    <div className="flex flex-col items-center">
+      <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7"
+            strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+            style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
+        </svg>
+        <span className="absolute text-3xl font-bold" style={{ color }}>{score}</span>
       </div>
-      <div className="flex justify-between text-[10px] text-gray-400 mt-0.5">
-        <span>{refMin}</span>
-        <span>{refMax} {unit}</span>
+      {label && <span className="text-[10px] text-gray-400 mt-1">{label}</span>}
+    </div>
+  );
+}
+
+// ── Range Bar ──────────────────────────────────────────────────────
+
+function RangeBar({ value, refMin, refMax, optMin, optMax, flag }: {
+  value: number; refMin: number | null; refMax: number | null;
+  optMin: number | null; optMax: number | null; flag: string;
+}) {
+  const rMin = refMin ?? 0;
+  const rMax = refMax ?? value * 2;
+  const range = rMax - rMin;
+  const padding = range * 0.25;
+  const vizMin = Math.min(rMin - padding, value - range * 0.1);
+  const vizMax = Math.max(rMax + padding, value + range * 0.1);
+  const vizRange = vizMax - vizMin;
+
+  const toPos = (v: number) => Math.max(0, Math.min(100, ((v - vizMin) / vizRange) * 100));
+
+  const refMinPos = toPos(rMin);
+  const refMaxPos = toPos(rMax);
+  const valuePos = toPos(value);
+  const hasOptimal = optMin !== null && optMax !== null;
+  const optMinPos = hasOptimal ? toPos(optMin!) : 0;
+  const optMaxPos = hasOptimal ? toPos(optMax!) : 0;
+
+  const fc = FLAG_META[flag] || FLAG_META.normal;
+
+  return (
+    <div className="w-full">
+      <div className="relative h-2.5 rounded-full bg-gray-100 overflow-visible">
+        {/* Out-of-range zones */}
+        <div className="absolute top-0 h-full rounded-l-full bg-red-200/40" style={{ left: '0%', width: `${refMinPos}%` }} />
+        <div className="absolute top-0 h-full rounded-r-full bg-red-200/40" style={{ left: `${refMaxPos}%`, width: `${100 - refMaxPos}%` }} />
+        {/* Reference range */}
+        <div className="absolute top-0 h-full rounded-full bg-emerald-200/60" style={{ left: `${refMinPos}%`, width: `${refMaxPos - refMinPos}%` }} />
+        {/* Optimal range */}
+        {hasOptimal && (
+          <div className="absolute top-0 h-full rounded-full bg-emerald-300/60" style={{ left: `${optMinPos}%`, width: `${optMaxPos - optMinPos}%` }} />
+        )}
+        {/* Ref boundary ticks */}
+        <div className="absolute top-0 h-full w-px bg-gray-300/80" style={{ left: `${refMinPos}%` }} />
+        <div className="absolute top-0 h-full w-px bg-gray-300/80" style={{ left: `${refMaxPos}%` }} />
+        {/* Value marker */}
+        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: `${valuePos}%` }}>
+          <div className={`w-3.5 h-3.5 rounded-full border-2 border-white shadow-md ${fc.dot}`} />
+        </div>
+      </div>
+      {/* Labels */}
+      <div className="relative h-4 mt-0.5 text-[9px] text-gray-400">
+        <span className="absolute -translate-x-1/2" style={{ left: `${refMinPos}%` }}>{rMin}</span>
+        <span className="absolute -translate-x-1/2" style={{ left: `${refMaxPos}%` }}>{rMax}</span>
       </div>
     </div>
   );
 }
 
-// ── Expandable result row ───────────────────────────────────────────
+// ── Biomarker Row ──────────────────────────────────────────────────
 
-function ResultRow({ result, sex, locale }: { result: BloodResult; sex: string; locale: 'en' | 'bg' }) {
+function BiomarkerRow({ result, sex, locale }: { result: BloodResult; sex: string; locale: Locale }) {
   const [expanded, setExpanded] = useState(false);
   const bm = result.biomarker_detail;
-  const fc = FLAG_COLORS[result.flag] || FLAG_COLORS.normal;
-  const isHigh = result.flag.includes('high');
+  const fc = FLAG_META[result.flag] || FLAG_META.normal;
+  const isGood = result.flag === 'optimal' || result.flag === 'normal';
   const refMin = sex === 'female' ? (bm.ref_min_female ?? bm.ref_min_male) : bm.ref_min_male;
   const refMax = sex === 'female' ? (bm.ref_max_female ?? bm.ref_max_male) : bm.ref_max_male;
 
   return (
-    <div className={`border ${fc.border} rounded-lg mb-2 overflow-hidden transition-all`}>
-      <button
-        className={`w-full flex items-center gap-3 px-4 py-3 ${fc.bg} hover:opacity-90 transition-opacity text-left`}
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <span className="text-lg">{bm.category_icon}</span>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium text-sm text-gray-900 truncate">
-              {locale === 'bg' && bm.name_bg ? bm.name_bg : bm.name}
-            </span>
-            <span className="text-xs text-gray-500">{bm.abbreviation}</span>
+    <div className={`border-b border-gray-100 last:border-0 transition-colors ${expanded ? 'bg-gray-50/50' : 'hover:bg-gray-50/50'}`}>
+      <button className="w-full text-left px-4 py-3" onClick={() => setExpanded(v => !v)}>
+        <div className="flex items-center gap-3">
+          {/* Status dot */}
+          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${fc.dot}`} />
+
+          {/* Name + range bar */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm text-gray-900 truncate">
+                {locale === 'bg' && bm.name_bg ? bm.name_bg : bm.name}
+              </span>
+              <span className="text-[11px] text-gray-400 font-mono shrink-0">{bm.abbreviation}</span>
+            </div>
+            <div className="mt-1 max-w-[220px] sm:max-w-[300px]">
+              <RangeBar
+                value={result.value} refMin={refMin} refMax={refMax}
+                optMin={bm.optimal_min} optMax={bm.optimal_max} flag={result.flag}
+              />
+            </div>
           </div>
-          <RangeBar
-            value={result.value} refMin={refMin} refMax={refMax}
-            optMin={bm.optimal_min} optMax={bm.optimal_max} unit={result.unit}
-          />
+
+          {/* Value */}
+          <div className="text-right shrink-0 ml-2">
+            <div className={`text-lg font-bold tabular-nums ${isGood ? 'text-gray-900' : fc.text}`}>
+              {result.value}
+            </div>
+            <div className="text-[10px] text-gray-400 -mt-0.5">{result.unit}</div>
+          </div>
+
+          {/* Status badge */}
+          <Badge color={fc.badgeColor as 'green' | 'blue' | 'yellow' | 'red'}>
+            {t(fc.label, locale)}
+          </Badge>
+
+          {/* Chevron */}
+          <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
-        <div className="text-right shrink-0">
-          <div className={`text-lg font-semibold ${fc.text}`}>{result.value}</div>
-          <div className="text-xs text-gray-500">{result.unit}</div>
-        </div>
-        <Badge color={
-          result.flag === 'optimal' ? 'green' : result.flag === 'normal' ? 'blue' :
-          result.flag.includes('borderline') ? 'yellow' : result.flag.includes('critical') ? 'red' : 'red'
-        }>
-          {t(FLAG_LABELS[result.flag] || 'health.normal', locale)}
-        </Badge>
-        <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
       </button>
 
+      {/* Expanded detail */}
       {expanded && (
-        <div className="px-4 py-3 bg-white space-y-3 text-sm">
-          {/* What is this? */}
-          <div>
-            <div className="font-medium text-gray-700 mb-1">{t('health.what_is_this', locale)}</div>
-            <p className="text-gray-600">{locale === 'bg' && bm.description_bg ? bm.description_bg : bm.description}</p>
+        <div className="px-4 pb-4 space-y-3">
+          {/* Large value + range */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <div>
+                <span className={`text-3xl font-bold ${isGood ? 'text-gray-900' : fc.text}`}>{result.value}</span>
+                <span className="text-sm text-gray-400 ml-1">{result.unit}</span>
+              </div>
+              <div className="text-right text-xs text-gray-500">
+                <div>{t('health.ref_range', locale)}: <span className="font-medium text-gray-700">{refMin} — {refMax}</span> {result.unit}</div>
+                {bm.optimal_min !== null && (
+                  <div>{t('health.optimal_range', locale)}: <span className="font-medium text-emerald-600">{bm.optimal_min} — {bm.optimal_max}</span></div>
+                )}
+                {result.deviation_pct !== null && result.deviation_pct !== 0 && (
+                  <div className={`font-medium ${fc.text}`}>{result.deviation_pct > 0 ? '+' : ''}{result.deviation_pct}% {t('health.deviation', locale)}</div>
+                )}
+              </div>
+            </div>
+            <RangeBar value={result.value} refMin={refMin} refMax={refMax} optMin={bm.optimal_min} optMax={bm.optimal_max} flag={result.flag} />
           </div>
 
-          {/* What it means */}
-          <div>
-            <div className="font-medium text-gray-700 mb-1">{t('health.what_means', locale)}</div>
-            <p className={fc.text}>
-              {isHigh
-                ? (locale === 'bg' && bm.high_meaning_bg ? bm.high_meaning_bg : bm.high_meaning)
-                : (locale === 'bg' && bm.low_meaning_bg ? bm.low_meaning_bg : bm.low_meaning)
-              }
-            </p>
+          {/* Info grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{t('health.what_is_this', locale)}</h4>
+              <p className="text-sm text-gray-600 leading-relaxed">{locale === 'bg' && bm.description_bg ? bm.description_bg : bm.description}</p>
+            </div>
+            <div className={`rounded-lg border p-3 ${fc.bg}`} style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
+              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{t('health.what_means', locale)}</h4>
+              <p className={`text-sm leading-relaxed ${fc.text}`}>
+                {result.flag.includes('high') || result.flag === 'critical_high'
+                  ? (locale === 'bg' && bm.high_meaning_bg ? bm.high_meaning_bg : bm.high_meaning)
+                  : (locale === 'bg' && bm.low_meaning_bg ? bm.low_meaning_bg : bm.low_meaning)
+                }
+              </p>
+            </div>
           </div>
 
-          {/* Reference range */}
-          <div className="flex gap-4 text-xs text-gray-500">
-            <span>{t('health.reference_range', locale)}: {refMin} — {refMax} {result.unit}</span>
-            {bm.optimal_min !== null && <span>Optimal: {bm.optimal_min} — {bm.optimal_max}</span>}
-            {result.deviation_pct !== null && result.deviation_pct !== 0 && (
-              <span className={fc.text}>{result.deviation_pct > 0 ? '+' : ''}{result.deviation_pct}% from range</span>
-            )}
-          </div>
-
-          {/* How to improve */}
-          {(result.flag !== 'optimal' && result.flag !== 'normal') && (
-            <div>
-              <div className="font-medium text-gray-700 mb-1">{t('health.how_to_improve', locale)}</div>
-              <ul className="space-y-1">
+          {/* Improvement tips */}
+          {!isGood && (
+            <div className="bg-white rounded-lg border border-gray-200 p-3">
+              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('health.how_to_improve', locale)}</h4>
+              <ul className="space-y-1.5">
                 {(locale === 'bg' && bm.improve_tips_bg?.length ? bm.improve_tips_bg : bm.improve_tips || []).map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-gray-600">
-                    <span className="text-emerald-500 mt-0.5">&#10003;</span>
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                    <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
                     <span>{tip}</span>
                   </li>
                 ))}
@@ -248,8 +284,7 @@ function ResultRow({ result, sex, locale }: { result: BloodResult; sex: string; 
   );
 }
 
-
-// ── Main Page Component ─────────────────────────────────────────────
+// ── Main Page ──────────────────────────────────────────────────────
 
 export default function HealthPage() {
   const router = useRouter();
@@ -310,8 +345,8 @@ export default function HealthPage() {
       (resultsByCategory[cat] ??= []).push(r);
     }
   }
-
   const categories = Object.keys(resultsByCategory);
+  const issueCount = report?.results.filter(r => !['optimal', 'normal'].includes(r.flag)).length || 0;
 
   return (
     <PageShell>
@@ -326,7 +361,6 @@ export default function HealthPage() {
             )}
           </div>
           <div className="flex items-center gap-3">
-            {/* Profile selector */}
             {profiles.length > 1 && (
               <select
                 value={selectedProfile || data?.current_profile?.id || ''}
@@ -372,56 +406,61 @@ export default function HealthPage() {
           </Card>
         )}
 
-        {/* Empty state */}
+        {/* Empty states */}
         {!hasData && profiles.length === 0 && (
-          <EmptyState
-            icon="🩸"
-            message={t('health.no_profiles', locale)}
-          />
+          <EmptyState icon="🩸" message={t('health.no_profiles', locale)} />
         )}
-
         {!hasData && profiles.length > 0 && (
-          <EmptyState
-            icon="📋"
-            message={t('health.no_reports', locale)}
-          />
+          <EmptyState icon="📋" message={t('health.no_reports', locale)} />
         )}
 
         {/* Dashboard content */}
         {hasData && report && (
           <>
-            {/* Overall score + system scores */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
-              {/* Overall score card */}
-              <Card className={`text-center ${scoreBg(report.overall_score)}`}>
-                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{t('health.overall_score', locale)}</div>
-                <div className={`text-5xl font-bold ${scoreColor(report.overall_score)}`}>
-                  {report.overall_score ?? '—'}
+            {/* Score header */}
+            <Card>
+              <div className="flex flex-col sm:flex-row items-center gap-6">
+                {/* Overall score ring */}
+                <div className="flex flex-col items-center">
+                  <ScoreRing score={report.overall_score} size={100} />
+                  <div className="text-[11px] text-gray-400 mt-1.5">{report.test_date} · {report.lab_name || report.lab_type}</div>
+                  {data.score_change !== null && data.score_change !== undefined && (
+                    <div className={`text-xs mt-1 font-medium ${data.score_change > 0 ? 'text-emerald-600' : data.score_change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                      {data.score_change > 0 ? '↑' : data.score_change < 0 ? '↓' : '→'} {Math.abs(data.score_change)} {t('health.score_change', locale)}
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500 mt-1">/100</div>
-                {data.score_change !== null && data.score_change !== undefined && (
-                  <div className={`text-sm mt-2 ${data.score_change > 0 ? 'text-emerald-600' : data.score_change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                    {data.score_change > 0 ? '↑' : data.score_change < 0 ? '↓' : '→'} {Math.abs(data.score_change)} {t('health.score_change', locale)}
-                  </div>
-                )}
-                <div className="text-xs text-gray-400 mt-2">{report.test_date} · {report.lab_name || report.lab_type}</div>
-              </Card>
 
-              {/* Body system score cards */}
-              <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {Object.entries(report.system_scores).map(([system, score]) => (
-                  <div key={system} className={`rounded-xl border p-3 text-center ${scoreBg(score)}`}>
-                    <div className="text-2xl mb-1">{SYSTEM_ICONS[system] || '📊'}</div>
-                    <div className={`text-2xl font-bold ${scoreColor(score)}`}>{score}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{t(`system.${system}`, locale)}</div>
-                  </div>
-                ))}
+                {/* System scores */}
+                <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 w-full">
+                  {Object.entries(report.system_scores).map(([sys, score]) => (
+                    <div
+                      key={sys}
+                      className={`rounded-xl p-2.5 text-center bg-gradient-to-b ${scoreBgGradient(score)} border border-gray-100`}
+                    >
+                      <div className="text-lg">{SYSTEM_ICONS[sys] || '📊'}</div>
+                      <div className={`text-xl font-bold ${scoreColor(score)}`}>{score}</div>
+                      <div className="text-[10px] text-gray-500 leading-tight">{t(`system.${sys}`, locale)}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+
+              {/* Quick stats */}
+              <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                <span>{report.results.length} {t('health.results', locale).toLowerCase()}</span>
+                {issueCount > 0 && (
+                  <span className="text-amber-600 font-medium">{issueCount} {locale === 'bg' ? 'извън нормата' : 'out of range'}</span>
+                )}
+                {data.report_count && data.report_count > 1 && (
+                  <span>{data.report_count} {t('health.reports', locale).toLowerCase()}</span>
+                )}
+              </div>
+            </Card>
 
             {/* Fasting warnings */}
             {report.fasting_warnings?.length > 0 && (
-              <div className="mb-4">
+              <div className="mt-3">
                 {report.fasting_warnings.map((w, i) => (
                   <Alert key={i} type="error" message={`⚠️ ${w}`} />
                 ))}
@@ -430,79 +469,90 @@ export default function HealthPage() {
 
             {/* Retest suggestion */}
             {report.retest_suggestion && (
-              <div className="mb-6 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-800">
+              <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-800">
                 📅 {t('health.retest_in', locale)} <strong>{report.retest_suggestion.months} {t('health.months', locale)}</strong>
                 {' — '}{locale === 'bg' ? report.retest_suggestion.note_bg : report.retest_suggestion.note}
               </div>
             )}
 
-            {/* Category filter pills */}
-            {categories.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                    !categoryFilter ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                  onClick={() => setCategoryFilter('')}
-                >
-                  All ({report.results.length})
-                </button>
-                {categories.map((cat) => (
+            {/* Category filter tabs */}
+            <div className="flex gap-1.5 mt-6 mb-4 overflow-x-auto pb-1">
+              <button
+                onClick={() => setCategoryFilter('')}
+                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                  !categoryFilter ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                }`}
+              >
+                {t('health.all_categories', locale)} ({report.results.length})
+              </button>
+              {categories.map((cat) => {
+                const icon = resultsByCategory[cat][0]?.biomarker_detail.category_icon || '';
+                const catLabel = locale === 'bg' ? (resultsByCategory[cat][0]?.biomarker_detail.category_name_bg || cat) : cat;
+                return (
                   <button
                     key={cat}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-                      categoryFilter === cat ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
                     onClick={() => setCategoryFilter(cat === categoryFilter ? '' : cat)}
+                    className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      categoryFilter === cat ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                    }`}
                   >
-                    {cat} ({resultsByCategory[cat].length})
+                    {icon} {catLabel} ({resultsByCategory[cat].length})
                   </button>
-                ))}
-              </div>
-            )}
-
-            {/* Results list */}
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('health.results', locale)}</h2>
-              {(categoryFilter ? [categoryFilter] : categories).map((cat) => (
-                <div key={cat} className="mb-4">
-                  <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide mb-2">{cat}</h3>
-                  {resultsByCategory[cat].map((result) => (
-                    <ResultRow key={result.id} result={result} sex={data.current_profile?.sex || 'male'} locale={locale} />
-                  ))}
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {/* Results by category */}
+            {(categoryFilter ? [categoryFilter] : categories).map((cat) => {
+              const results = resultsByCategory[cat];
+              const icon = results[0]?.biomarker_detail.category_icon || '';
+              const catLabel = locale === 'bg' ? (results[0]?.biomarker_detail.category_name_bg || cat) : cat;
+              return (
+                <div key={cat} className="mb-4">
+                  <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                    <span>{icon}</span> {catLabel}
+                  </h3>
+                  <Card padding={false}>
+                    {results.map((result) => (
+                      <BiomarkerRow key={result.id} result={result} sex={data.current_profile?.sex || 'male'} locale={locale as Locale} />
+                    ))}
+                  </Card>
+                </div>
+              );
+            })}
 
             {/* Recommendations */}
             {report.recommendations && report.recommendations.length > 0 && (
-              <div className="mb-6">
+              <div className="mb-6 mt-8">
                 <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('health.recommendations', locale)}</h2>
                 <div className="space-y-3">
-                  {report.recommendations.map((rec) => (
-                    <Card key={rec.id} className="flex gap-3">
-                      <span className="text-2xl shrink-0">{REC_CATEGORY_ICONS[rec.category] || '💡'}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-sm text-gray-900">
-                            {locale === 'bg' && rec.title_bg ? rec.title_bg : rec.title}
-                          </span>
-                          <Badge color={PRIORITY_COLORS[rec.priority] as 'red' | 'yellow' | 'blue' || 'gray'}>
-                            {rec.priority}
-                          </Badge>
+                  {report.recommendations.map((rec) => {
+                    const priorityColor = rec.priority === 'high' ? 'red' : rec.priority === 'medium' ? 'yellow' : 'blue';
+                    return (
+                      <Card key={rec.id}>
+                        <div className="flex gap-3">
+                          <span className="text-2xl shrink-0">{REC_ICONS[rec.category] || '💡'}</span>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm text-gray-900">
+                                {locale === 'bg' && rec.title_bg ? rec.title_bg : rec.title}
+                              </span>
+                              <Badge color={priorityColor as 'red' | 'yellow' | 'blue'}>{rec.priority}</Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
+                              {locale === 'bg' && rec.description_bg ? rec.description_bg : rec.description}
+                            </p>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 whitespace-pre-line">
-                          {locale === 'bg' && rec.description_bg ? rec.description_bg : rec.description}
-                        </p>
-                      </div>
-                    </Card>
-                  ))}
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            {/* Report history link */}
-            <div className="flex gap-3">
+            {/* Report links */}
+            <div className="flex gap-3 mt-6">
               <Button variant="secondary" onClick={() => router.push(`/health/report/${report.id}`)}>
                 {t('health.report', locale)} — {report.test_date}
               </Button>
