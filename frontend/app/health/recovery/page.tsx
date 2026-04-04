@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
@@ -56,6 +56,14 @@ interface CvFactor {
   available: boolean;
 }
 
+interface CycleEntry {
+  date: string;
+  strain: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  calories: number | null;
+}
+
 interface DashboardData {
   connected: boolean;
   last_sync: string | null;
@@ -68,6 +76,15 @@ interface DashboardData {
   latest_workout: Workout | null;
   cv_fitness: { score: number | null; factors: CvFactor[]; has_bp: boolean } | null;
   recent_history: RecoveryEntry[];
+  // Cycle-based data (available without recovery/sleep/workout API access)
+  cycles_count?: number;
+  latest_cycle?: CycleEntry | null;
+  strain_trend_7d?: number[];
+  hr_trend_7d?: number[];
+  recent_cycles?: CycleEntry[];
+  avg_strain_30d?: number | null;
+  avg_hr_30d?: number | null;
+  total_calories_7d?: number | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -377,6 +394,7 @@ export default function RecoveryPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const callbackProcessed = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -384,8 +402,18 @@ export default function RecoveryPage() {
       setError('');
       const status = await getWhoopStatus();
       if (status.connected) {
-        const dashboard = await getWhoopDashboard();
-        setData({ ...dashboard, connected: true, last_sync: status.last_sync });
+        try {
+          const dashboard = await getWhoopDashboard();
+          setData({ ...dashboard, connected: true, last_sync: status.connection?.last_sync_at || null });
+        } catch {
+          // Dashboard fetch failed but connection exists — show connected state with no data
+          setData({
+            connected: true, last_sync: status.connection?.last_sync_at || null,
+            recovery: null, yesterday_recovery: null,
+            hrv_sparkline: [], rhr_sparkline: [], sleep: null, strain: null,
+            latest_workout: null, cv_fitness: null, recent_history: [],
+          });
+        }
       } else {
         setData({
           connected: false, last_sync: null, recovery: null, yesterday_recovery: null,
@@ -393,29 +421,43 @@ export default function RecoveryPage() {
           latest_workout: null, cv_fitness: null, recent_history: [],
         });
       }
-    } catch {
-      router.push('/login');
+    } catch (err) {
+      // Only redirect to login on auth errors, not on other failures
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/login');
+      } else {
+        setError('Failed to load WHOOP data');
+      }
     } finally {
       setLoading(false);
     }
   }, [router]);
 
-  // Handle OAuth callback
+  // Handle OAuth callback — only process code once (React strict mode calls useEffect twice)
   useEffect(() => {
     const code = searchParams.get('code');
-    if (code) {
+    if (code && !callbackProcessed.current) {
+      callbackProcessed.current = true;
+      // Clear URL immediately to prevent double-processing
+      window.history.replaceState({}, '', '/health/recovery');
       setConnecting(true);
+      setLoading(true);
       whoopCallback(code)
-        .then(() => {
-          window.history.replaceState({}, '', '/health/recovery');
-          loadData();
+        .then(async () => {
+          setConnecting(false);
+          await loadData();
         })
-        .catch(() => setError('Failed to connect WHOOP'))
-        .finally(() => setConnecting(false));
+        .catch(async (err) => {
+          console.error('WHOOP callback failed:', err);
+          setConnecting(false);
+          setError(typeof err === 'object' && err.message ? err.message : 'Failed to connect WHOOP. Please try again.');
+          setLoading(false);
+        });
     } else {
       loadData();
     }
-  }, [searchParams, loadData]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleConnect = async () => {
     try {
@@ -787,9 +829,82 @@ export default function RecoveryPage() {
           </>
         )}
 
-        {/* Connected but no data yet */}
-        {data?.connected && !rec && (
-          <EmptyState icon="&#x23F3;" message={locale === 'bg' ? 'Очакваме данни от WHOOP...' : 'Waiting for WHOOP data...'} />
+        {/* Connected but no recovery data — show cycle data if available */}
+        {data?.connected && !rec && data?.latest_cycle && (
+          <>
+            {/* Cycle-based metrics (available without recovery/sleep/workout API access) */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <Card>
+                <p className="text-xs text-gray-500 mb-1">{locale === 'bg' ? 'Дневен стрейн' : 'Day Strain'}</p>
+                <p className="text-3xl font-bold text-indigo-600">{data?.latest_cycle?.strain ?? '—'}</p>
+                <p className="text-xs text-gray-400">{locale === 'bg' ? 'от 21' : 'of 21'}</p>
+              </Card>
+              <Card>
+                <p className="text-xs text-gray-500 mb-1">{locale === 'bg' ? 'Ср. пулс' : 'Avg HR'}</p>
+                <p className="text-3xl font-bold text-rose-500">{data?.latest_cycle?.avg_hr ?? '—'}</p>
+                <p className="text-xs text-gray-400">BPM</p>
+              </Card>
+              <Card>
+                <p className="text-xs text-gray-500 mb-1">{locale === 'bg' ? 'Макс пулс' : 'Max HR'}</p>
+                <p className="text-3xl font-bold text-orange-500">{data?.latest_cycle?.max_hr ?? '—'}</p>
+                <p className="text-xs text-gray-400">BPM</p>
+              </Card>
+              <Card>
+                <p className="text-xs text-gray-500 mb-1">{locale === 'bg' ? 'Калории' : 'Calories'}</p>
+                <p className="text-3xl font-bold text-green-600">{data?.latest_cycle?.calories ?? '—'}</p>
+                <p className="text-xs text-gray-400">kcal</p>
+              </Card>
+            </div>
+
+            {/* Strain trend sparkline */}
+            {data?.strain_trend_7d && data.strain_trend_7d.length > 1 && (
+              <Card className="mb-6">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">{locale === 'bg' ? 'Стрейн тенденция (7 дни)' : 'Strain Trend (7 days)'}</h3>
+                <Sparkline data={data?.strain_trend_7d ?? []} color="#6366f1" height={48} width={300} />
+              </Card>
+            )}
+
+            {/* Recent cycles table */}
+            {data?.recent_cycles && data.recent_cycles.length > 0 && (
+              <Card padding={false} className="mb-6">
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <h3 className="text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Последни цикли' : 'Recent Cycles'}</h3>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 text-gray-500 text-xs">
+                      <th className="text-left px-4 py-2">{locale === 'bg' ? 'Дата' : 'Date'}</th>
+                      <th className="text-right px-4 py-2">{locale === 'bg' ? 'Стрейн' : 'Strain'}</th>
+                      <th className="text-right px-4 py-2">{locale === 'bg' ? 'Ср. пулс' : 'Avg HR'}</th>
+                      <th className="text-right px-4 py-2">{locale === 'bg' ? 'Макс' : 'Max HR'}</th>
+                      <th className="text-right px-4 py-2">{locale === 'bg' ? 'Калории' : 'Calories'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.recent_cycles ?? []).map((c, i) => (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-2 text-gray-700">{c.date ? new Date(c.date).toLocaleDateString() : '—'}</td>
+                        <td className="px-4 py-2 text-right font-medium">{c.strain ?? '—'}</td>
+                        <td className="px-4 py-2 text-right text-gray-600">{c.avg_hr ?? '—'}</td>
+                        <td className="px-4 py-2 text-right text-gray-600">{c.max_hr ?? '—'}</td>
+                        <td className="px-4 py-2 text-right text-gray-600">{c.calories ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+
+            <Alert type="success" message={locale === 'bg'
+              ? 'Данните за възстановяване, сън и тренировки ще бъдат налични след одобрение на приложението от WHOOP.'
+              : 'Recovery, sleep, and workout data will be available once the app is approved by WHOOP. Currently showing cycle data (strain, heart rate, calories).'
+            } />
+          </>
+        )}
+
+        {/* Connected but truly no data at all */}
+        {data?.connected && !rec && !data?.latest_cycle && (
+          <EmptyState icon="&#x23F3;" message={locale === 'bg' ? 'Очакваме данни от WHOOP...' : 'Waiting for WHOOP data... Try clicking Sync Now.'} />
         )}
       </PageContent>
     </PageShell>

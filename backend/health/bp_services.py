@@ -640,6 +640,57 @@ def compute_cardiovascular_risk(profile) -> dict:
             risk_points += 2
             factors.append({'factor': 'glucose', 'detail': f'Glucose {glu:.1f} mmol/L (pre-diabetic)', 'points': 2})
 
+    # §WHOOP: Incorporate WHOOP wearable data if available (resting HR, HRV, strain)
+    has_whoop_data = False
+    try:
+        from .whoop_models import WhoopConnection, WhoopCycle, WhoopRecovery
+        whoop_conn = WhoopConnection.objects.filter(user=profile.user, is_active=True).first()
+        if whoop_conn:
+            # Resting HR from recovery data (best source) or avg HR from cycles
+            recovery_agg = WhoopRecovery.objects.filter(
+                user=profile.user, score_state='SCORED',
+                cycle__start__gte=cutoff,
+            ).aggregate(
+                avg_rhr=Avg('resting_heart_rate'),
+                avg_hrv=Avg('hrv_rmssd_milli'),
+            )
+            rhr = recovery_agg.get('avg_rhr')
+            hrv = recovery_agg.get('avg_hrv')
+
+            # Fall back to cycle avg HR if no recovery data
+            if rhr is None:
+                cycle_agg = WhoopCycle.objects.filter(
+                    user=profile.user, score_state='SCORED',
+                    start__gte=cutoff,
+                ).aggregate(avg_hr=Avg('average_heart_rate'))
+                rhr = cycle_agg.get('avg_hr')
+
+            if rhr is not None:
+                has_whoop_data = True
+                if rhr > 80:
+                    risk_points += 3
+                    factors.append({'factor': 'resting_hr', 'detail': f'Resting HR {rhr:.0f} BPM (elevated, WHOOP)', 'points': 3})
+                elif rhr > 70:
+                    risk_points += 1
+                    factors.append({'factor': 'resting_hr', 'detail': f'Resting HR {rhr:.0f} BPM (above optimal, WHOOP)', 'points': 1})
+                elif rhr <= 60:
+                    risk_points -= 2
+                    factors.append({'factor': 'resting_hr', 'detail': f'Resting HR {rhr:.0f} BPM (athletic, WHOOP)', 'points': -2})
+
+            if hrv is not None:
+                has_whoop_data = True
+                if hrv < 20:
+                    risk_points += 3
+                    factors.append({'factor': 'hrv', 'detail': f'HRV {hrv:.0f} ms (very low, WHOOP)', 'points': 3})
+                elif hrv < 40:
+                    risk_points += 1
+                    factors.append({'factor': 'hrv', 'detail': f'HRV {hrv:.0f} ms (below average, WHOOP)', 'points': 1})
+                elif hrv >= 80:
+                    risk_points -= 2
+                    factors.append({'factor': 'hrv', 'detail': f'HRV {hrv:.0f} ms (excellent, WHOOP)', 'points': -2})
+    except ImportError:
+        pass  # WHOOP module not installed
+
     # §CONVERT: Convert points to approximate 10-year risk percentage
     # Simplified mapping: points → risk %
     risk_pct = min(max(risk_points * 1.5, 1), 50)  # Clamp between 1% and 50%
@@ -660,6 +711,7 @@ def compute_cardiovascular_risk(profile) -> dict:
         'risk_level': risk_level,
         'factors': factors,
         'has_blood_data': has_blood_data,
+        'has_whoop_data': has_whoop_data,
         'insufficient_bp_data': False,
         'avg_systolic': round(avg_sys, 1),
         'avg_diastolic': round(avg_dia, 1),
@@ -1154,5 +1206,53 @@ def generate_bp_recommendations(profile) -> list:
             'category': 'medical',
             'priority': 'medium',
         })
+
+    # §WHOOP: WHOOP-informed recommendations if data available
+    try:
+        from .whoop_models import WhoopConnection, WhoopCycle
+        whoop_conn = WhoopConnection.objects.filter(user=profile.user, is_active=True).first()
+        if whoop_conn:
+            recent_cutoff = timezone.now() - timedelta(days=7)
+            avg_strain = WhoopCycle.objects.filter(
+                user=profile.user, score_state='SCORED', start__gte=recent_cutoff,
+            ).aggregate(avg=Avg('strain'))['avg']
+
+            if avg_strain is not None:
+                if avg_strain < 8 and stage in ('elevated', 'stage_1', 'stage_2'):
+                    recommendations.append({
+                        'title': 'Increase Physical Activity (WHOOP data)',
+                        'title_bg': 'Увеличете физическата активност (данни от WHOOP)',
+                        'description': (
+                            f'Your 7-day average strain is {avg_strain:.1f} (low). With {stage} BP, '
+                            f'increasing to moderate strain (10-14) through Zone 2 cardio can lower '
+                            f'systolic BP by 5-8 mmHg. Aim for 30+ min brisk walking or cycling daily.'
+                        ),
+                        'description_bg': (
+                            f'Средният ви стрейн за 7 дни е {avg_strain:.1f} (нисък). При {stage} КН, '
+                            f'увеличаването до умерен стрейн (10-14) чрез зона 2 кардио може да понижи '
+                            f'систоличното КН с 5-8 mmHg. Целете 30+ мин бързо ходене или колоездене дневно.'
+                        ),
+                        'category': 'exercise',
+                        'priority': 'high',
+                    })
+                elif avg_strain > 16 and stage in ('stage_1', 'stage_2'):
+                    recommendations.append({
+                        'title': 'Reduce Exercise Intensity (WHOOP data)',
+                        'title_bg': 'Намалете интензивността на упражненията (данни от WHOOP)',
+                        'description': (
+                            f'Your 7-day average strain is {avg_strain:.1f} (very high). With {stage} BP, '
+                            f'excessive high-intensity exercise can temporarily spike BP dangerously. '
+                            f'Focus on moderate Zone 2 cardio and avoid heavy lifting until BP is controlled.'
+                        ),
+                        'description_bg': (
+                            f'Средният ви стрейн за 7 дни е {avg_strain:.1f} (много висок). При {stage} КН, '
+                            f'прекомерните високоинтензивни упражнения могат временно опасно да покачат КН. '
+                            f'Фокусирайте се на умерено зона 2 кардио и избягвайте тежки тежести.'
+                        ),
+                        'category': 'exercise',
+                        'priority': 'high',
+                    })
+    except ImportError:
+        pass
 
     return recommendations

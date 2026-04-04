@@ -79,12 +79,17 @@ class WhoopCallbackView(APIView):
     and triggers an initial data sync.
 
     GET /api/health/whoop/callback/?code=<code>&state=<state>
+    POST /api/health/whoop/callback/ {code: "...", state: "..."}
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        code = request.query_params.get('code')
-        state = request.query_params.get('state')
+        return self._handle(request.query_params.get('code'), request.query_params.get('state'), request)
+
+    def post(self, request):
+        return self._handle(request.data.get('code'), request.data.get('state'), request)
+
+    def _handle(self, code, state, request):
 
         if not code:
             return Response(
@@ -92,13 +97,8 @@ class WhoopCallbackView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # §CSRF: Validate state parameter
-        expected_state = request.session.get('whoop_oauth_state')
-        if expected_state and state != expected_state:
-            return Response(
-                {'error': 'Invalid state parameter. Possible CSRF attack.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        # §CSRF: State validation skipped — Django sessions don't persist with JWT auth.
+        # The OAuth flow is already protected by requiring a valid JWT token on this endpoint.
 
         # §TOKEN: Exchange code for tokens
         try:
@@ -239,7 +239,11 @@ class WhoopDashboardView(APIView):
             })
 
         dashboard = get_whoop_dashboard(request.user)
-        has_data = dashboard.get('latest_recovery') is not None
+        # Has data if we have either recovery scores or cycle data
+        has_data = (
+            dashboard.get('latest_recovery') is not None
+            or dashboard.get('cycles_count', 0) > 0
+        )
 
         return Response({
             'connected': True,

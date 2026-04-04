@@ -292,6 +292,95 @@ def generate_recommendations(report: BloodReport):
         related_biomarkers=[],
     ))
 
+    # §WHOOP: Add WHOOP-informed recommendations if user has connected wearable
+    try:
+        from .whoop_models import WhoopConnection, WhoopCycle
+        from django.db.models import Avg
+        from datetime import timedelta
+        from django.utils import timezone
+
+        whoop_conn = WhoopConnection.objects.filter(user=report.user, is_active=True).first()
+        if whoop_conn:
+            cutoff_7d = timezone.now() - timedelta(days=7)
+            cycle_agg = WhoopCycle.objects.filter(
+                user=report.user, score_state='SCORED', start__gte=cutoff_7d,
+            ).aggregate(avg_strain=Avg('strain'), avg_hr=Avg('average_heart_rate'))
+
+            avg_strain = cycle_agg.get('avg_strain')
+            avg_hr = cycle_agg.get('avg_hr')
+
+            # High glucose + low activity → strong exercise recommendation
+            glu_data = result_map.get('GLU', {})
+            if glu_data.get('flag') in ('high', 'borderline_high') and avg_strain and avg_strain < 10:
+                recommendations.append(HealthRecommendation(
+                    report=report,
+                    category='exercise',
+                    priority='high',
+                    title='Increase Activity to Lower Glucose (WHOOP data)',
+                    title_bg='Увеличете активността за понижаване на глюкозата (WHOOP данни)',
+                    description=(
+                        f'Your fasting glucose is elevated and your WHOOP shows low 7-day average strain ({avg_strain:.1f}). '
+                        f'Moderate exercise (Zone 2 cardio, 30+ min daily) can improve insulin sensitivity by 20-30%. '
+                        f'Aim for strain 10-14 on your WHOOP.'
+                    ),
+                    description_bg=(
+                        f'Кръвната ви захар на гладно е повишена, а WHOOP показва нисък среден стрейн ({avg_strain:.1f}). '
+                        f'Умерените упражнения (зона 2 кардио, 30+ мин дневно) могат да подобрят инсулиновата чувствителност с 20-30%. '
+                        f'Целете стрейн 10-14 на WHOOP.'
+                    ),
+                    related_biomarkers=[glu_data['biomarker_id']] if 'biomarker_id' in glu_data else [],
+                ))
+
+            # High cholesterol + high average HR → cardio recommendation
+            ldl_data = result_map.get('LDL', result_map.get('LDL-C', {}))
+            if ldl_data.get('flag') in ('high', 'borderline_high') and avg_hr and avg_hr > 85:
+                recommendations.append(HealthRecommendation(
+                    report=report,
+                    category='exercise',
+                    priority='medium',
+                    title='Cardiovascular Training for Cholesterol (WHOOP data)',
+                    title_bg='Кардио тренировка за холестерол (WHOOP данни)',
+                    description=(
+                        f'Your LDL cholesterol is elevated and WHOOP shows average heart rate of {avg_hr:.0f} BPM '
+                        f'(could be improved). Regular Zone 2 cardio (60-70% max HR) for 150+ min/week '
+                        f'can lower LDL by 5-10% and improve cardiovascular efficiency.'
+                    ),
+                    description_bg=(
+                        f'LDL холестеролът ви е повишен, а WHOOP показва среден пулс {avg_hr:.0f} BPM. '
+                        f'Редовно зона 2 кардио (60-70% макс пулс) за 150+ мин/седмица '
+                        f'може да понижи LDL с 5-10% и да подобри сърдечно-съдовата ефективност.'
+                    ),
+                    related_biomarkers=[ldl_data['biomarker_id']] if 'biomarker_id' in ldl_data else [],
+                ))
+
+            # Elevated liver enzymes + high strain → recovery recommendation
+            alt_flag = result_map.get('ALT', {}).get('flag', '')
+            ast_flag = result_map.get('AST', {}).get('flag', '')
+            if (alt_flag in ('high', 'borderline_high') or ast_flag in ('high', 'borderline_high')) and avg_strain and avg_strain > 14:
+                recommendations.append(HealthRecommendation(
+                    report=report,
+                    category='lifestyle',
+                    priority='medium',
+                    title='Prioritize Recovery — Elevated Liver Enzymes (WHOOP data)',
+                    title_bg='Приоритизирайте възстановяването — повишени чернодробни ензими (WHOOP данни)',
+                    description=(
+                        f'Your liver enzymes are elevated and WHOOP shows high average strain ({avg_strain:.1f}). '
+                        f'Intense exercise can temporarily raise ALT/AST. Ensure adequate rest days, '
+                        f'target green recovery zones on WHOOP, and retest liver enzymes after 2 weeks of lighter training.'
+                    ),
+                    description_bg=(
+                        f'Чернодробните ви ензими са повишени, а WHOOP показва висок стрейн ({avg_strain:.1f}). '
+                        f'Интензивните упражнения могат временно да повишат АЛТ/АСТ. Осигурете достатъчно почивка, '
+                        f'целете зелени зони на възстановяване в WHOOP и повторете тестовете след 2 седмици по-лека тренировка.'
+                    ),
+                    related_biomarkers=[
+                        r['biomarker_id'] for abbr, r in result_map.items()
+                        if abbr in ('ALT', 'AST') and 'biomarker_id' in r
+                    ],
+                ))
+    except ImportError:
+        pass  # WHOOP module not available
+
     # Bulk create all recommendations
     HealthRecommendation.objects.bulk_create(recommendations)
 

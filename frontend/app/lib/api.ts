@@ -1222,7 +1222,10 @@ export async function whoopCallback(code: string) {
     method: 'POST',
     body: JSON.stringify({ code }),
   });
-  if (!res.ok) throw new Error('Failed to complete WHOOP callback');
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `WHOOP callback failed (${res.status})`);
+  }
   return res.json();
 }
 

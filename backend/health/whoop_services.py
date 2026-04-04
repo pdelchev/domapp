@@ -107,11 +107,16 @@ def exchange_code(code: str) -> dict:
         'client_secret': WHOOP_CLIENT_SECRET,
     }
 
-    resp = requests.post(WHOOP_TOKEN_URL, data=payload, timeout=30)
+    logger.info('WHOOP token exchange: redirect_uri=%s client_id=%s code_len=%d', WHOOP_REDIRECT_URI, WHOOP_CLIENT_ID, len(code))
+    try:
+        resp = requests.post(WHOOP_TOKEN_URL, data=payload, timeout=30)
+    except requests.RequestException as e:
+        logger.error('WHOOP token exchange request failed: %s', e)
+        raise WhoopAPIError(f'Token exchange request failed: {e}')
     if resp.status_code != 200:
         logger.error('WHOOP token exchange failed: %s %s', resp.status_code, resp.text)
         raise WhoopAPIError(
-            f'Token exchange failed: {resp.status_code}',
+            f'Token exchange failed: {resp.status_code} — {resp.text[:200]}',
             status_code=resp.status_code,
             response_body=resp.text,
         )
@@ -274,23 +279,21 @@ def sync_whoop_data(user, days: int = 7) -> dict:
         result['errors'].append(f'Cycles: {e}')
         logger.error('WHOOP cycle sync error for user %s: %s', user.id, e)
 
-    try:
-        result['recoveries_synced'] = _sync_recoveries(connection, start_date, end_date)
-    except WhoopAPIError as e:
-        result['errors'].append(f'Recoveries: {e}')
-        logger.error('WHOOP recovery sync error for user %s: %s', user.id, e)
-
-    try:
-        result['sleeps_synced'] = _sync_sleep(connection, start_date, end_date)
-    except WhoopAPIError as e:
-        result['errors'].append(f'Sleep: {e}')
-        logger.error('WHOOP sleep sync error for user %s: %s', user.id, e)
-
-    try:
-        result['workouts_synced'] = _sync_workouts(connection, start_date, end_date)
-    except WhoopAPIError as e:
-        result['errors'].append(f'Workouts: {e}')
-        logger.error('WHOOP workout sync error for user %s: %s', user.id, e)
+    # §NOTE: Recovery, sleep, and workout endpoints return 404 for apps in development mode.
+    # These are enabled once the app is approved by WHOOP. Skip them to avoid slow sync.
+    # Uncomment when app is approved:
+    # try:
+    #     result['recoveries_synced'] = _sync_recoveries(connection, start_date, end_date)
+    # except WhoopAPIError as e:
+    #     result['errors'].append(f'Recoveries: {e}')
+    # try:
+    #     result['sleeps_synced'] = _sync_sleep(connection, start_date, end_date)
+    # except WhoopAPIError as e:
+    #     result['errors'].append(f'Sleep: {e}')
+    # try:
+    #     result['workouts_synced'] = _sync_workouts(connection, start_date, end_date)
+    # except WhoopAPIError as e:
+    #     result['errors'].append(f'Workouts: {e}')
 
     # §STATE: Update connection sync timestamp
     if not result['errors']:
@@ -535,7 +538,7 @@ def get_whoop_dashboard(user) -> dict:
     # §LATEST: Most recent recovery
     latest_recovery = (
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored')
+        .filter(user=user, score_state='SCORED')
         .select_related('cycle')
         .order_by('-cycle__start')
         .first()
@@ -545,7 +548,7 @@ def get_whoop_dashboard(user) -> dict:
     cutoff_7d = now - timedelta(days=7)
     recoveries_7d = list(
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored', cycle__start__gte=cutoff_7d)
+        .filter(user=user, score_state='SCORED', cycle__start__gte=cutoff_7d)
         .select_related('cycle')
         .order_by('cycle__start')
         .values_list('recovery_score', flat=True)
@@ -554,7 +557,7 @@ def get_whoop_dashboard(user) -> dict:
     # §AVG: Averages over last 7 days
     avg_7d = (
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored', cycle__start__gte=cutoff_7d)
+        .filter(user=user, score_state='SCORED', cycle__start__gte=cutoff_7d)
         .aggregate(
             avg_hrv=Avg('hrv_rmssd_milli'),
             avg_resting_hr=Avg('resting_heart_rate'),
@@ -565,21 +568,21 @@ def get_whoop_dashboard(user) -> dict:
     # §SLEEP: Average sleep performance (7d)
     avg_sleep = (
         WhoopSleep.objects
-        .filter(user=user, score_state='scored', nap=False, start__gte=cutoff_7d)
+        .filter(user=user, score_state='SCORED', nap=False, start__gte=cutoff_7d)
         .aggregate(avg_perf=Avg('sleep_performance_pct'))
     )
 
     # §STRAIN: Average strain (7d)
     avg_strain = (
         WhoopCycle.objects
-        .filter(user=user, score_state='scored', start__gte=cutoff_7d)
+        .filter(user=user, score_state='SCORED', start__gte=cutoff_7d)
         .aggregate(avg_strain=Avg('strain'))
     )
 
     # §DEBT: Latest sleep debt
     latest_sleep = (
         WhoopSleep.objects
-        .filter(user=user, score_state='scored', nap=False)
+        .filter(user=user, score_state='SCORED', nap=False)
         .order_by('-start')
         .first()
     )
@@ -591,7 +594,7 @@ def get_whoop_dashboard(user) -> dict:
     cutoff_30d = now - timedelta(days=30)
     recoveries_30d = (
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored', cycle__start__gte=cutoff_30d)
+        .filter(user=user, score_state='SCORED', cycle__start__gte=cutoff_30d)
         .values_list('recovery_score', flat=True)
     )
     distribution = {'green': 0, 'yellow': 0, 'red': 0}
@@ -604,6 +607,36 @@ def get_whoop_dashboard(user) -> dict:
             distribution['yellow'] += 1
         else:
             distribution['red'] += 1
+
+    # §CYCLES: Cycle-based data (always available even without recovery endpoints)
+    cycles_7d = list(
+        WhoopCycle.objects
+        .filter(user=user, score_state='SCORED', start__gte=cutoff_7d)
+        .order_by('start')
+        .values('start', 'strain', 'average_heart_rate', 'max_heart_rate', 'kilojoule')
+    )
+    cycles_30d = list(
+        WhoopCycle.objects
+        .filter(user=user, score_state='SCORED', start__gte=cutoff_30d)
+        .order_by('start')
+        .values('start', 'strain', 'average_heart_rate', 'max_heart_rate', 'kilojoule')
+    )
+    cycles_count = WhoopCycle.objects.filter(user=user).count()
+
+    # Latest cycle
+    latest_cycle = WhoopCycle.objects.filter(user=user, score_state='SCORED').order_by('-start').first()
+
+    # Recent history from cycles (for the table)
+    recent_cycles = [
+        {
+            'date': c['start'].isoformat() if c['start'] else None,
+            'strain': round(c['strain'], 1) if c['strain'] else None,
+            'avg_hr': c['average_heart_rate'],
+            'max_hr': c['max_heart_rate'],
+            'calories': round(c['kilojoule'] * 0.239006, 0) if c['kilojoule'] else None,  # kJ to kcal
+        }
+        for c in cycles_7d
+    ]
 
     return {
         'latest_recovery': {
@@ -622,6 +655,25 @@ def get_whoop_dashboard(user) -> dict:
         'avg_strain_7d': _round_or_none(avg_strain['avg_strain'], 1),
         'sleep_debt_hours': sleep_debt_hours,
         'recovery_distribution_30d': distribution,
+        # §CYCLE_DATA: Always available — even without recovery/sleep/workout endpoints
+        'cycles_count': cycles_count,
+        'latest_cycle': {
+            'date': latest_cycle.start.isoformat() if latest_cycle else None,
+            'strain': round(latest_cycle.strain, 1) if latest_cycle and latest_cycle.strain else None,
+            'avg_hr': latest_cycle.average_heart_rate if latest_cycle else None,
+            'max_hr': latest_cycle.max_heart_rate if latest_cycle else None,
+            'calories': round(latest_cycle.kilojoule * 0.239006, 0) if latest_cycle and latest_cycle.kilojoule else None,
+        } if latest_cycle else None,
+        'strain_trend_7d': [round(c['strain'], 1) for c in cycles_7d if c['strain']],
+        'hr_trend_7d': [c['average_heart_rate'] for c in cycles_7d if c['average_heart_rate']],
+        'recent_cycles': recent_cycles,
+        'avg_strain_30d': _round_or_none(
+            sum(c['strain'] for c in cycles_30d if c['strain']) / max(len([c for c in cycles_30d if c['strain']]), 1), 1
+        ) if cycles_30d else None,
+        'avg_hr_30d': _round_or_none(
+            sum(c['average_heart_rate'] for c in cycles_30d if c['average_heart_rate']) / max(len([c for c in cycles_30d if c['average_heart_rate']]), 1), 0
+        ) if cycles_30d else None,
+        'total_calories_7d': round(sum(c['kilojoule'] * 0.239006 for c in cycles_7d if c['kilojoule']), 0) if cycles_7d else None,
     }
 
 
@@ -635,7 +687,7 @@ def get_recovery_stats(user, days: int = 30) -> dict:
     cutoff = timezone.now() - timedelta(days=days)
     qs = (
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored', cycle__start__gte=cutoff)
+        .filter(user=user, score_state='SCORED', cycle__start__gte=cutoff)
         .select_related('cycle')
         .order_by('cycle__start')
     )
@@ -712,7 +764,7 @@ def get_sleep_stats(user, days: int = 30) -> dict:
     cutoff = timezone.now() - timedelta(days=days)
     qs = (
         WhoopSleep.objects
-        .filter(user=user, score_state='scored', nap=False, start__gte=cutoff)
+        .filter(user=user, score_state='SCORED', nap=False, start__gte=cutoff)
         .order_by('start')
     )
 
@@ -796,14 +848,14 @@ def get_strain_stats(user, days: int = 30) -> dict:
     # §CYCLE: Cycle-level strain
     cycles = (
         WhoopCycle.objects
-        .filter(user=user, score_state='scored', start__gte=cutoff)
+        .filter(user=user, score_state='SCORED', start__gte=cutoff)
         .order_by('start')
     )
 
     # §WORKOUT: Individual workouts
     workouts = (
         WhoopWorkout.objects
-        .filter(user=user, score_state='scored', start__gte=cutoff)
+        .filter(user=user, score_state='SCORED', start__gte=cutoff)
         .order_by('start')
     )
 
@@ -894,7 +946,7 @@ def compute_cardiovascular_fitness(user) -> dict:
     # §RHR: Resting heart rate assessment
     latest_recoveries = (
         WhoopRecovery.objects
-        .filter(user=user, score_state='scored')
+        .filter(user=user, score_state='SCORED')
         .order_by('-cycle__start')[:14]
     )
 

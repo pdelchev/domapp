@@ -158,7 +158,18 @@ export default function LifestylePage() {
         <p className="text-sm text-gray-500 -mt-4 mb-6">{t('lifestyle.subtitle', locale)}</p>
 
         {/* Quick navigation cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div onClick={() => router.push('/health/recovery')} className="cursor-pointer group">
+            <Card className="hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">💚</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'en' ? 'WHOOP Recovery' : 'WHOOP Възстановяване'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Strain, HR & recovery' : 'Стрейн, пулс и възстановяване'}</p>
+                </div>
+              </div>
+            </Card>
+          </div>
           <div onClick={() => router.push('/health/bp')} className="cursor-pointer group">
             <Card className="hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3">
