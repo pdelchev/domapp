@@ -982,6 +982,119 @@ export async function compareReports(reportAId: number, reportBId: number) {
   return res.json();
 }
 
+// --- Blood Pressure ---
+export async function getBPDashboard(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/bp/dashboard/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch BP dashboard');
+  return res.json();
+}
+
+export async function getBPReadings(filters?: string) {
+  const res = await apiFetch(`/api/health/bp/readings/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch BP readings');
+  return res.json();
+}
+
+export async function createBPReading(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/bp/readings/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create BP reading');
+  return res.json();
+}
+
+export async function deleteBPReading(id: number) {
+  const res = await apiFetch(`/api/health/bp/readings/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete BP reading');
+}
+
+export async function getBPSessions(filters?: string) {
+  const res = await apiFetch(`/api/health/bp/sessions/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch BP sessions');
+  return res.json();
+}
+
+export async function createBPSession(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/bp/sessions/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create BP session');
+  return res.json();
+}
+
+export async function getBPStatistics(profileId: number, days?: number) {
+  const params = [`profile=${profileId}`];
+  if (days) params.push(`days=${days}`);
+  const res = await apiFetch(`/api/health/bp/statistics/?${params.join('&')}`);
+  if (!res.ok) throw new Error('Failed to fetch BP statistics');
+  return res.json();
+}
+
+export async function getCardiovascularRisk(profileId: number) {
+  const res = await apiFetch(`/api/health/bp/cardiovascular-risk/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch cardiovascular risk');
+  return res.json();
+}
+
+export async function getBPMedications(filters?: string) {
+  const res = await apiFetch(`/api/health/bp/medications/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch BP medications');
+  return res.json();
+}
+
+export async function createBPMedication(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/bp/medications/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create BP medication');
+  return res.json();
+}
+
+export async function updateBPMedication(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/bp/medications/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update BP medication');
+  return res.json();
+}
+
+export async function deleteBPMedication(id: number) {
+  const res = await apiFetch(`/api/health/bp/medications/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete BP medication');
+}
+
+export async function createBPMedLog(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/bp/med-logs/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create med log');
+  return res.json();
+}
+
+export async function getBPMedLogs(filters?: string) {
+  const res = await apiFetch(`/api/health/bp/med-logs/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch med logs');
+  return res.json();
+}
+
+export async function getBPAlerts(filters?: string) {
+  const res = await apiFetch(`/api/health/bp/alerts/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch BP alerts');
+  return res.json();
+}
+
+export async function markBPAlertRead(id: number) {
+  const res = await apiFetch(`/api/health/bp/alerts/${id}/mark_read/`, { method: 'PATCH' });
+  if (!res.ok) throw new Error('Failed to mark alert as read');
+  return res.json();
+}
+
+export async function markAllBPAlertsRead(profileId?: number) {
+  const res = await apiFetch('/api/health/bp/alerts/mark_all_read/', {
+    method: 'POST',
+    body: JSON.stringify(profileId ? { profile: profileId } : {}),
+  });
+  if (!res.ok) throw new Error('Failed to mark all alerts as read');
+  return res.json();
+}
+
+export async function getMedicationEffectiveness(medicationId: number) {
+  const res = await apiFetch(`/api/health/bp/medication-effectiveness/?medication=${medicationId}`);
+  if (!res.ok) throw new Error('Failed to fetch medication effectiveness');
+  return res.json();
+}
+
 // --- Vehicles ---
 export async function getVehicles(filters?: string) {
   const res = await apiFetch(`/api/vehicles/${filters ? '?' + filters : ''}`);
@@ -1089,4 +1202,99 @@ export async function uploadObligationFile(obligationId: number, file: File, lab
 export async function deleteObligationFile(fileId: number) {
   const res = await apiFetch(`/api/vehicles/obligations/files/${fileId}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete file');
+}
+
+// --- WHOOP Recovery ---
+export async function getWhoopStatus() {
+  const res = await apiFetch('/api/health/whoop/status/');
+  if (!res.ok) throw new Error('Failed to fetch WHOOP status');
+  return res.json();
+}
+
+export async function getWhoopConnectUrl() {
+  const res = await apiFetch('/api/health/whoop/connect/');
+  if (!res.ok) throw new Error('Failed to get WHOOP connect URL');
+  return res.json();
+}
+
+export async function whoopCallback(code: string) {
+  const res = await apiFetch('/api/health/whoop/callback/', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) throw new Error('Failed to complete WHOOP callback');
+  return res.json();
+}
+
+export async function whoopSync() {
+  const res = await apiFetch('/api/health/whoop/sync/', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to sync WHOOP data');
+  return res.json();
+}
+
+export async function whoopDisconnect() {
+  const res = await apiFetch('/api/health/whoop/disconnect/', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to disconnect WHOOP');
+  return res.json();
+}
+
+export async function getWhoopDashboard() {
+  const res = await apiFetch('/api/health/whoop/dashboard/');
+  if (!res.ok) throw new Error('Failed to fetch WHOOP dashboard');
+  return res.json();
+}
+
+export async function getWhoopRecoveryHistory(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/recoveries/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch recovery history');
+  return res.json();
+}
+
+export async function getWhoopSleepHistory(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/sleeps/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch sleep history');
+  return res.json();
+}
+
+export async function getWhoopWorkouts(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/workouts/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch workouts');
+  return res.json();
+}
+
+export async function getWhoopRecoveryStats(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/recovery-stats/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch recovery stats');
+  return res.json();
+}
+
+// Combined stats for the stats page — fetches all 3 endpoints, merges into flat structure
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function getWhoopStats(filters?: string): Promise<any> {
+  const qs = filters ? '?' + filters : '';
+  const [recovery, sleep, strain] = await Promise.all([
+    apiFetch(`/api/health/whoop/recovery-stats/${qs}`).then(r => r.ok ? r.json() : {}),
+    apiFetch(`/api/health/whoop/sleep-stats/${qs}`).then(r => r.ok ? r.json() : {}),
+    apiFetch(`/api/health/whoop/strain-stats/${qs}`).then(r => r.ok ? r.json() : {}),
+  ]);
+  // Merge into the flat shape the stats page expects
+  return { ...recovery, ...sleep, ...strain };
+}
+
+export async function getWhoopSleepStats(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/sleep-stats/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch sleep stats');
+  return res.json();
+}
+
+export async function getWhoopStrainStats(filters?: string) {
+  const res = await apiFetch(`/api/health/whoop/strain-stats/${filters ? '?' + filters : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch strain stats');
+  return res.json();
+}
+
+export async function getWhoopCVFitness() {
+  const res = await apiFetch('/api/health/whoop/cardiovascular-fitness/');
+  if (!res.ok) throw new Error('Failed to fetch CV fitness');
+  return res.json();
 }

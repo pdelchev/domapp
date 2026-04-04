@@ -216,3 +216,8 @@ LOGGING = {
 
 # --- Custom User Model ---
 AUTH_USER_MODEL = 'accounts.User'
+
+# --- WHOOP Integration ---
+WHOOP_CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID', '')
+WHOOP_CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET', '')
+WHOOP_REDIRECT_URI = os.environ.get('WHOOP_REDIRECT_URI', '')

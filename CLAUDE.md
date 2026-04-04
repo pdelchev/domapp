@@ -21,7 +21,7 @@ backend/
   problems/       # Problem/emergency tracking per property + CRUD API
   notifications/  # Notification model + API
   notes/          # Notes with block editor, folders, tags, entity linking
-  health/         # Blood results tracker: PDF parsing, biomarker analysis, scoring, recommendations
+  health/         # Blood results tracker + BP monitoring: PDF parsing, biomarker analysis, scoring, recommendations, BP sessions, cardiovascular risk
   vehicles/       # Vehicle obligation tracker: insurance, vignette, MOT, tax, reminders
   dashboard/      # Dashboard summary endpoint (aggregations)
 
@@ -57,6 +57,19 @@ frontend/
     health/page.tsx             # Health dashboard — scores, results, recommendations
     health/upload/page.tsx      # Upload blood test PDFs (single + bulk) or manual entry
     health/report/[id]/page.tsx # Report detail — results table, trends, biomarker education
+    health/bp/page.tsx          # Blood pressure dashboard — readings, sessions, staging, trends
+    health/bp/readings/page.tsx # Full BP readings history with filters + export
+    health/bp/medications/page.tsx # BP medication tracking + adherence calendar
+    health/bp/statistics/page.tsx  # Deep BP stats — variability, circadian, context correlations
+    health/recovery/page.tsx    # WHOOP Recovery dashboard — scores, HRV, sleep, strain, CV fitness
+    health/recovery/history/page.tsx  # Recovery history with trend charts
+    health/recovery/sleep/page.tsx    # Sleep analysis — stages, efficiency, debt, trends
+    health/recovery/workouts/page.tsx # Workout history — strain, HR zones, activities
+    health/recovery/stats/page.tsx    # Deep stats — HRV analysis, correlations, CV fitness
+    health/lifestyle/page.tsx   # Lifestyle hub — blood results, recommendations, quick nav (moved from /lifestyle)
+    health/lifestyle/tests/page.tsx   # Follow-up test recommendations by priority
+    health/lifestyle/meals/page.tsx   # 15-day meal plan (DASH + Mediterranean)
+    health/lifestyle/gym/page.tsx     # Weekly workout plan + supplements
     vehicles/page.tsx           # Vehicles — compliance dashboard, traffic-light grid
     vehicles/new/page.tsx       # Add vehicle form with BG presets option
     vehicles/[id]/page.tsx      # Vehicle detail — info, obligations CRUD, renew, file uploads
@@ -211,6 +224,34 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/health/biomarker-history/<id>/` | GET | Trend data for one biomarker (?profile=) |
 | `/api/health/compare/` | GET | Compare two reports (?report_a=&report_b=) |
 | `/api/health/dashboard/` | GET | Health dashboard with scores + recommendations (?profile=) |
+| `/api/health/bp/readings/` | GET, POST | List/create BP readings (?profile=&days=&stage=) |
+| `/api/health/bp/readings/<id>/` | GET, PUT, DELETE | BP reading detail/update/delete |
+| `/api/health/bp/sessions/` | GET, POST | List/create BP sessions with nested readings |
+| `/api/health/bp/sessions/<id>/` | GET, DELETE | Session detail with readings |
+| `/api/health/bp/dashboard/` | GET | BP dashboard: latest, averages, staging, trend (?profile=) |
+| `/api/health/bp/statistics/` | GET | Deep BP stats: circadian, variability, correlations (?profile=&days=) |
+| `/api/health/bp/cardiovascular-risk/` | GET | Combined BP + blood biomarker risk score (?profile=) |
+| `/api/health/bp/medications/` | GET, POST | List/create BP medications (?profile=&active=) |
+| `/api/health/bp/medications/<id>/` | GET, PUT, DELETE | Medication detail/update/delete |
+| `/api/health/bp/med-logs/` | GET, POST | List/create medication adherence logs |
+| `/api/health/bp/alerts/` | GET | List BP alerts (?profile=&read=&severity=&type=) |
+| `/api/health/bp/alerts/<id>/mark_read/` | PATCH | Mark single BP alert as read |
+| `/api/health/bp/alerts/mark_all_read/` | POST | Mark all BP alerts as read |
+| `/api/health/bp/medication-effectiveness/` | GET | Before/after BP comparison for medication (?medication=) |
+| `/api/health/bp/export/` | GET | Export BP data as CSV/PDF (?profile=&format=&date_from=&date_to=) |
+| `/api/health/whoop/connect/` | GET | Get WHOOP OAuth2 authorization URL |
+| `/api/health/whoop/callback/` | POST | Exchange OAuth code for tokens, create connection |
+| `/api/health/whoop/disconnect/` | POST | Disconnect WHOOP, revoke tokens |
+| `/api/health/whoop/status/` | GET | Connection status (is_active, last_sync) |
+| `/api/health/whoop/sync/` | POST | Manual data sync trigger (?days=7) |
+| `/api/health/whoop/dashboard/` | GET | Recovery dashboard (latest, trends, distributions) |
+| `/api/health/whoop/recoveries/` | GET | Recovery history (?days=30, paginated) |
+| `/api/health/whoop/sleeps/` | GET | Sleep history (?days=30, paginated) |
+| `/api/health/whoop/workouts/` | GET | Workout history (?days=30, paginated) |
+| `/api/health/whoop/recovery-stats/` | GET | Deep recovery/HRV statistics (?days=30) |
+| `/api/health/whoop/sleep-stats/` | GET | Deep sleep statistics (?days=30) |
+| `/api/health/whoop/strain-stats/` | GET | Workout/strain statistics (?days=30) |
+| `/api/health/whoop/cardiovascular-fitness/` | GET | Combined CV fitness (WHOOP + BP + blood) |
 | `/api/vehicles/` | GET, POST | List/create vehicles (?property=&active=) |
 | `/api/vehicles/<id>/` | GET, PUT, DELETE | Vehicle detail/update/delete |
 | `/api/vehicles/summary/` | GET | Compliance dashboard (counts + upcoming expirations) |
@@ -259,6 +300,16 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - **VehicleObligation**: vehicle FK, obligation_type (mtpl/kasko/vignette/mot/vehicle_tax/green_card/assistance/custom), custom_type_name, start_date, end_date, provider, policy_number, cost, currency, reminder_days (JSON), is_current, notes
 - **ObligationFile**: obligation FK, file, label, file_size, uploaded_at
 - **VehicleReminder**: obligation FK, remind_at, sent, sent_at, notification_id
+- **BPSession**: user FK, profile FK, measured_at, avg_systolic, avg_diastolic, avg_pulse, reading_count, stage (AHA), notes
+- **BPReading**: user FK, profile FK, session FK (nullable), systolic, diastolic, pulse, measured_at, arm (left/right), posture (sitting/standing/lying), context tags (caffeine/exercise/medication/stressed/clinic/fasting), notes
+- **BPMedication**: user FK, profile FK, name, dose, frequency (daily/twice_daily/as_needed/other), started_at, ended_at, is_active, notes
+- **BPMedLog**: medication FK, date, taken (bool), taken_at — unique_together: medication + date
+- **BPAlert**: user FK, profile FK, alert_type (8 types: crisis/sustained_high/stage_change/morning_surge/white_coat/masked/variability/medication_effective), severity, title/title_bg, message/message_bg, related_reading FK, is_read
+- **WhoopConnection**: user OneToOne, whoop_user_id, access/refresh_token, token_expires_at, scopes, last_sync_at, is_active, sync_error
+- **WhoopCycle**: user FK, whoop_id (unique), start/end, timezone_offset, score_state, strain (0-21), kilojoule, avg/max_heart_rate
+- **WhoopRecovery**: user FK, cycle OneToOne, sleep_id, score_state, recovery_score (0-100), resting_heart_rate, hrv_rmssd_milli, spo2_percentage, skin_temp_celsius
+- **WhoopSleep**: user FK, whoop_id (unique), cycle FK, start/end, nap, score_state, performance/consistency/efficiency pct, respiratory_rate, stage durations (light/sws/rem/awake milli), sleep_cycle_count, disturbance_count, sleep_needed (baseline/debt/strain/nap milli)
+- **WhoopWorkout**: user FK, whoop_id (unique), cycle FK, sport_id/name, start/end, score_state, strain, avg/max_heart_rate, kilojoule, distance_meter, HR zone durations (0-5 milli)
 
 ## Roadmap
 - [x] Step 1: Project scaffold
@@ -282,5 +333,8 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 - [x] Step 14.8: Notes — Apple Notes-style block editor with folders, tags, checklists, tables, entity linking, auto-save
 - [x] Step 14.9: Health Tracker — blood results tracking, PDF parsing (Ramus/LINA), biomarker analysis, body system scoring, lifestyle recommendations, multi-person profiles
 - [x] Step 15.0: Vehicles — Bulgarian vehicle obligation tracker (insurance, vignette, MOT, tax), compliance dashboard, multi-vehicle, cost analytics, quick-renew, file uploads, multi-tier reminders
+- [x] Step 15.05: Blood Pressure — AHA staging, session-based measurement, circadian analysis, cardiovascular risk (BP + blood biomarkers), context correlations, medication tracking, white-coat/masked detection, trend projection, doctor export
+- [x] Step 15.06: Lifestyle → Health merge — moved /lifestyle to /health/lifestyle, added BP links to lifestyle, DASH diet principles, BP supplements
+- [x] Step 15.07: WHOOP Integration — OAuth2 connection, recovery/sleep/strain sync, HRV analysis, cardiovascular fitness scoring (WHOOP + BP + blood), Celery periodic sync
 - [ ] Step 15.1: Celery tasks (auto-notifications, reminders)
 - [ ] Step 16: Financial reports & charts

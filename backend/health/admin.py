@@ -3,6 +3,9 @@ from .models import (
     BiomarkerCategory, Biomarker, HealthProfile,
     BloodReport, BloodResult, HealthRecommendation,
 )
+from .whoop_models import (
+    WhoopConnection, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout,
+)
 
 
 class BiomarkerInline(admin.TabularInline):
@@ -54,3 +57,43 @@ class BloodReportAdmin(admin.ModelAdmin):
 class BloodResultAdmin(admin.ModelAdmin):
     list_display = ('report', 'biomarker', 'value', 'unit', 'flag', 'deviation_pct')
     list_filter = ('flag', 'biomarker__category')
+
+
+# ── WHOOP integration admin ───────────────────────────────────────
+
+@admin.register(WhoopConnection)
+class WhoopConnectionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'whoop_user_id', 'is_active', 'last_sync_at', 'connected_at')
+    list_filter = ('is_active',)
+    readonly_fields = ('access_token', 'refresh_token', 'token_expires_at')
+
+
+class WhoopRecoveryInline(admin.StackedInline):
+    model = WhoopRecovery
+    extra = 0
+    fields = ('score_state', 'recovery_score', 'resting_heart_rate', 'hrv_rmssd_milli', 'spo2_percentage')
+
+
+@admin.register(WhoopCycle)
+class WhoopCycleAdmin(admin.ModelAdmin):
+    list_display = ('whoop_id', 'user', 'start', 'score_state', 'strain', 'average_heart_rate')
+    list_filter = ('score_state',)
+    inlines = [WhoopRecoveryInline]
+
+
+@admin.register(WhoopRecovery)
+class WhoopRecoveryAdmin(admin.ModelAdmin):
+    list_display = ('cycle', 'user', 'score_state', 'recovery_score', 'resting_heart_rate', 'hrv_rmssd_milli')
+    list_filter = ('score_state', 'user_calibrating')
+
+
+@admin.register(WhoopSleep)
+class WhoopSleepAdmin(admin.ModelAdmin):
+    list_display = ('whoop_id', 'user', 'start', 'nap', 'score_state', 'sleep_performance_pct', 'sleep_efficiency_pct')
+    list_filter = ('score_state', 'nap')
+
+
+@admin.register(WhoopWorkout)
+class WhoopWorkoutAdmin(admin.ModelAdmin):
+    list_display = ('whoop_id', 'user', 'sport_name', 'start', 'score_state', 'strain', 'average_heart_rate')
+    list_filter = ('score_state', 'sport_name')

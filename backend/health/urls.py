@@ -1,5 +1,7 @@
 # ── health/urls.py ────────────────────────────────────────────────────
 # §NAV: models → serializers → views → [urls] → parsers → services → recommendations
+# §BP: Blood pressure sub-module mounted at bp/ prefix
+# §WHOOP: WHOOP wearable integration sub-module mounted at whoop/ prefix
 
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -12,6 +14,10 @@ router.register(r'biomarkers', views.BiomarkerViewSet, basename='biomarker')
 router.register(r'biomarker-categories', views.BiomarkerCategoryViewSet, basename='biomarker-category')
 
 urlpatterns = [
+    # §BP: Blood pressure tracking sub-module
+    path('bp/', include('health.bp_urls')),
+    # §WHOOP: WHOOP wearable integration sub-module
+    path('whoop/', include('health.whoop_urls')),
     # Custom paths BEFORE router — otherwise router catches "bulk-upload" as a report pk
     path('reports/bulk-upload/', views.BulkUploadView.as_view(), name='bulk-upload'),
     path('reports/<int:report_id>/results/', views.ManualResultsView.as_view(), name='manual-results'),
