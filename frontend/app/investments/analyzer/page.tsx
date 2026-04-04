@@ -9,13 +9,18 @@
  * AI-NAV: Re-analyze: load saved analysis inputs back into form with new price.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { getMarketData, analyzeProperty, reanalyzeProperty, getPropertyAnalyses, deletePropertyAnalysis } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Badge, Alert, Spinner, FormSection } from '../../components/ui';
+import type { LocationResult } from '../../components/LocationPicker';
+
+// Dynamic import — Leaflet requires window (no SSR)
+const LocationPicker = dynamic(() => import('../../components/LocationPicker'), { ssr: false });
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -399,6 +404,52 @@ export default function DealAnalyzerPage() {
     setLoadedFromSaved(false);
   };
 
+  // Handle location picked from map
+  const handleLocationSelect = useCallback((loc: LocationResult) => {
+    setForm((prev) => {
+      const next = { ...prev };
+      // Map OpenStreetMap country names to our market data keys
+      const countryMap: Record<string, string> = {
+        'Bulgaria': 'Bulgaria',
+        'United Arab Emirates': 'UAE',
+        'United Kingdom': 'United Kingdom',
+      };
+      const mappedCountry = countryMap[loc.country] || loc.country;
+
+      // Only update country/city/area if they match our market data
+      if (marketData) {
+        const md = marketData as MarketDataResponse;
+        if (md.cities[mappedCountry]) {
+          next.country = mappedCountry;
+          // Find best matching city
+          const matchCity = md.cities[mappedCountry].find(
+            (c) => loc.city.toLowerCase().includes(c.toLowerCase()) || c.toLowerCase().includes(loc.city.toLowerCase())
+          );
+          if (matchCity) {
+            next.city = matchCity;
+            // Find best matching area
+            const areaKey = `${mappedCountry}:${matchCity}`;
+            const availableAreas = areaLookup[areaKey] || [];
+            const matchArea = availableAreas.find(
+              (a) => loc.area.toLowerCase().includes(a.toLowerCase()) || a.toLowerCase().includes(loc.area.toLowerCase())
+            );
+            if (matchArea) next.area = matchArea;
+            else next.area = '';
+          }
+        }
+      }
+
+      // Always update proximity flags from POI detection
+      next.near_metro = loc.nearMetro;
+      next.near_school = loc.nearSchool;
+      next.near_hospital = loc.nearHospital;
+      next.near_park = loc.nearPark;
+
+      return next;
+    });
+    setLoadedFromSaved(false);
+  }, [marketData, areaLookup]);
+
   // Load saved analysis back into form for re-analysis
   const handleLoadSaved = (a: SavedAnalysis) => {
     setForm({
@@ -573,6 +624,18 @@ export default function DealAnalyzerPage() {
           {/* LEFT: Form (3 cols) */}
           <div className="lg:col-span-3 space-y-4">
             <form onSubmit={handleAnalyze}>
+              {/* Map Location Picker */}
+              <Card className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <span>🗺️</span> {locale === 'en' ? 'Pick Location on Map' : 'Изберете локация на картата'}
+                </h3>
+                <LocationPicker
+                  locale={locale}
+                  initialCity={form.city || undefined}
+                  onSelect={handleLocationSelect}
+                />
+              </Card>
+
               <FormSection title={t('properties.section.basic', locale)} icon="📍" open={openSections.basic} onToggle={() => toggleSection('basic')}>
                 <Input
                   label={t('analyzer.property_name', locale)}
