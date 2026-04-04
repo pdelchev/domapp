@@ -827,6 +827,12 @@ const translations: Record<string, Record<Locale, string>> = {
   'health.worsened': { en: 'Worsened', bg: 'Влошен' },
   'health.fasting_warning': { en: 'Fasting Warning', bg: 'Предупреждение за гладно' },
   'health.related_markers': { en: 'Related Markers', bg: 'Свързани маркери' },
+  'health.ref_range': { en: 'Ref range', bg: 'Реф. диапазон' },
+  'health.optimal_range': { en: 'Optimal', bg: 'Оптимално' },
+  'health.deviation': { en: 'from range', bg: 'от диапазона' },
+  'health.all_categories': { en: 'All', bg: 'Всички' },
+  'health.collapse': { en: 'Collapse', bg: 'Свий' },
+  'health.no_previous_data': { en: 'No previous data', bg: 'Няма предишни данни' },
 
   // Body systems
   'system.blood': { en: 'Blood', bg: 'Кръв' },
