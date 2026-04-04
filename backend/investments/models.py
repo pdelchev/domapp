@@ -263,6 +263,20 @@ class PropertyAnalysis(models.Model):
     renovation_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Estimated renovation cost in EUR')
     monthly_fees = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text='Monthly condo/maintenance fees')
 
+    # ── Enhanced input fields (location, building, BG-specific) ──
+    construction_type = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='panel/brick/reinforced/wood/unknown'
+    )
+    near_metro = models.BooleanField(default=False)
+    near_school = models.BooleanField(default=False)
+    near_hospital = models.BooleanField(default=False)
+    near_park = models.BooleanField(default=False)
+    noise_level = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='quiet/moderate/noisy'
+    )
+
     # ── Computed results (filled by analysis engine) ──
     total_cost = models.DecimalField(
         max_digits=14, decimal_places=2, null=True,
@@ -292,6 +306,16 @@ class PropertyAnalysis(models.Model):
     verdict_score = models.IntegerField(
         default=0, help_text='0-100 overall investment score'
     )
+
+    # ── Enhanced computed fields ──
+    location_score = models.IntegerField(null=True, blank=True, help_text='0-15 location quality score')
+    risk_score = models.IntegerField(null=True, blank=True, help_text='0-10 risk score (higher=better)')
+    market_trend_score = models.IntegerField(null=True, blank=True, help_text='0-10 market trend score')
+    renovation_roi = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True, help_text='Renovation ROI %')
+    risk_factors = models.JSONField(default=list, blank=True, help_text='List of risk factor dicts')
+    recommendation_text = models.TextField(blank=True, default='', help_text='Detailed recommendation text')
+    recommendation_text_bg = models.TextField(blank=True, default='', help_text='Recommendation in Bulgarian')
+    score_breakdown_json = models.JSONField(default=dict, blank=True, help_text='Full 8-dimension score breakdown')
 
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)

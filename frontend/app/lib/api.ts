@@ -670,6 +670,14 @@ export async function getPropertyAnalyses(filters?: Record<string, string>) {
   if (!res.ok) throw new Error('Failed');
   return res.json();
 }
+export async function reanalyzeProperty(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/analyze-property/${id}/`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed');
+  return res.json();
+}
 export async function deletePropertyAnalysis(id: number) {
   const res = await apiFetch(`/api/property-analyses/${id}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed');

@@ -524,6 +524,12 @@ class AnalyzePropertyView(APIView):
             renovation_cost=data.get('renovation_cost', 0),
             monthly_fees=data.get('monthly_fees', 0),
             notes=data.get('notes', ''),
+            construction_type=data.get('construction_type', ''),
+            near_metro=data.get('near_metro', False),
+            near_school=data.get('near_school', False),
+            near_hospital=data.get('near_hospital', False),
+            near_park=data.get('near_park', False),
+            noise_level=data.get('noise_level', ''),
             # Computed fields
             total_cost=result['total_cost'],
             price_per_sqm=result['price_per_sqm'],
@@ -543,12 +549,84 @@ class AnalyzePropertyView(APIView):
             area_heat_score=result['area_heat_score'],
             verdict=result['verdict'],
             verdict_score=result['verdict_score'],
+            location_score=result.get('location_score'),
+            risk_score=result.get('risk_score'),
+            market_trend_score=result.get('market_trend_score'),
+            renovation_roi=result.get('renovation_roi'),
+            risk_factors=result.get('risk_factors', []),
+            recommendation_text=result.get('recommendation_text', ''),
+            recommendation_text_bg=result.get('recommendation_text_bg', ''),
+            score_breakdown_json=result.get('score_breakdown', {}),
         )
 
         # Return full result + saved record id
         result['id'] = analysis.id
         result['created_at'] = analysis.created_at.isoformat()
         return Response(result, status=status.HTTP_201_CREATED)
+
+    def put(self, request, pk=None):
+        """Re-analyze an existing saved analysis with updated inputs."""
+        if not pk:
+            return Response({'error': 'Analysis ID required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            analysis = PropertyAnalysis.objects.get(pk=pk, user=request.user.get_data_owner())
+        except PropertyAnalysis.DoesNotExist:
+            return Response({'error': 'Analysis not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = PropertyAnalysisInputSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        result = analyze_property(data)
+
+        if 'error' in result:
+            return Response(result, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update existing record in-place
+        input_fields = [
+            'name', 'country', 'city', 'area', 'property_type', 'square_meters',
+            'asking_price', 'parking_included', 'parking_price', 'num_bedrooms',
+            'condition', 'furnishing', 'floor', 'total_floors', 'year_built',
+            'num_bathrooms', 'has_balcony', 'has_garden', 'has_patio', 'has_elevator',
+            'has_storage', 'has_ac', 'has_heating', 'has_pool', 'has_gym', 'has_view',
+            'view_type', 'renovation_cost', 'monthly_fees', 'notes',
+            'construction_type', 'near_metro', 'near_school', 'near_hospital',
+            'near_park', 'noise_level',
+        ]
+        for field in input_fields:
+            if field in data:
+                setattr(analysis, field, data[field])
+
+        # Update computed fields
+        computed_map = {
+            'total_cost': 'total_cost', 'price_per_sqm': 'price_per_sqm',
+            'market_avg_sqm': 'market_avg_sqm', 'price_vs_market_pct': 'price_vs_market_pct',
+            'estimated_monthly_rent': 'estimated_monthly_rent', 'estimated_annual_rent': 'estimated_annual_rent',
+            'gross_rental_yield': 'gross_rental_yield', 'net_rental_yield': 'net_rental_yield',
+            'estimated_airbnb_monthly': 'estimated_airbnb_monthly',
+            'airbnb_annual_revenue': 'airbnb_annual_revenue', 'airbnb_yield': 'airbnb_yield',
+            'cap_rate': 'cap_rate', 'roi_5_year': 'roi_5_year', 'roi_10_year': 'roi_10_year',
+            'break_even_months': 'break_even_months', 'area_heat_score': 'area_heat_score',
+            'verdict': 'verdict', 'verdict_score': 'verdict_score',
+            'location_score': 'location_score', 'risk_score': 'risk_score',
+            'market_trend_score': 'market_trend_score', 'renovation_roi': 'renovation_roi',
+            'risk_factors': 'risk_factors',
+            'recommendation_text': 'recommendation_text',
+            'recommendation_text_bg': 'recommendation_text_bg',
+            'score_breakdown': 'score_breakdown_json',
+        }
+        for result_key, model_field in computed_map.items():
+            if result_key in result:
+                setattr(analysis, model_field, result[result_key])
+
+        analysis.currency = result.get('currency', 'EUR')
+        analysis.save()
+
+        result['id'] = analysis.id
+        result['created_at'] = analysis.created_at.isoformat()
+        result['updated_at'] = analysis.updated_at.isoformat()
+        return Response(result, status=status.HTTP_200_OK)
 
 
 # §VIEW:MarketDataView — GET areas + benchmarks for frontend dropdowns

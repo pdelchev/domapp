@@ -26,5 +26,6 @@ urlpatterns = [
     path('investment-dashboard/', DashboardView.as_view(), name='investment-dashboard'),
     path('tax-report/', TaxReportView.as_view(), name='tax-report'),
     path('analyze-property/', AnalyzePropertyView.as_view(), name='analyze-property'),
+    path('analyze-property/<int:pk>/', AnalyzePropertyView.as_view(), name='analyze-property-update'),
     path('market-data/', MarketDataView.as_view(), name='market-data'),
 ]

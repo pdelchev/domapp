@@ -119,6 +119,12 @@ class PropertyAnalysisInputSerializer(serializers.Serializer):
     view_type = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
     renovation_cost = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, default=0)
     monthly_fees = serializers.DecimalField(max_digits=8, decimal_places=2, required=False, default=0)
+    construction_type = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
+    near_metro = serializers.BooleanField(default=False)
+    near_school = serializers.BooleanField(default=False)
+    near_hospital = serializers.BooleanField(default=False)
+    near_park = serializers.BooleanField(default=False)
+    noise_level = serializers.CharField(max_length=20, required=False, allow_blank=True, default='')
     notes = serializers.CharField(required=False, allow_blank=True, default='')
 
 

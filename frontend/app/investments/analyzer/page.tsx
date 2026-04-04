@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { getMarketData, analyzeProperty, getPropertyAnalyses, deletePropertyAnalysis } from '../../lib/api';
+import { getMarketData, analyzeProperty, reanalyzeProperty, getPropertyAnalyses, deletePropertyAnalysis } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -26,6 +26,15 @@ interface MarketAreaRaw {
   high_value: boolean;
   avg_sqm: number;
   currency: string;
+  transport_score: number;
+  infrastructure_score: number;
+  green_spaces: number;
+  noise_level: number;
+  crime_index: number;
+  seismic_zone: number;
+  panel_buildings_pct: number;
+  appreciation_history: number[];
+  demand_trend: string;
 }
 
 interface MarketDataResponse {
@@ -77,10 +86,26 @@ interface AnalysisResult {
   high_value_area: boolean;
   verdict: string;
   verdict_score: number;
-  score_breakdown: Record<string, { score: number; max: number }>;
+  score_breakdown: Record<string, { score: number; max: number; label_en: string; label_bg: string }>;
   renovation_cost?: number;
   monthly_fees?: number;
   annual_fees?: number;
+  location_score: number;
+  risk_score: number;
+  market_trend_score: number;
+  renovation_roi: number | null;
+  risk_factors: { factor: string; severity: string; text_en: string; text_bg: string }[];
+  recommendation_text: string;
+  recommendation_text_bg: string;
+  appreciation_history: number[];
+  demand_trend: string;
+  seismic_zone: number;
+  panel_buildings_pct: number;
+  transport_score: number;
+  infrastructure_score: number;
+  green_spaces_score: number;
+  noise_level_score: number;
+  crime_index: number;
 }
 
 interface SavedAnalysis {
@@ -124,6 +149,19 @@ interface SavedAnalysis {
   break_even_months: number;
   area_heat_score: number;
   created_at: string;
+  construction_type: string;
+  near_metro: boolean;
+  near_school: boolean;
+  near_hospital: boolean;
+  near_park: boolean;
+  noise_level: string;
+  location_score: number;
+  risk_score: number;
+  market_trend_score: number;
+  renovation_roi: number | null;
+  recommendation_text: string;
+  recommendation_text_bg: string;
+  score_breakdown_json: Record<string, { score: number; max: number; label_en: string; label_bg: string }>;
 }
 
 // ── Constants ──────────────────────────────────────────────────────
@@ -289,6 +327,12 @@ const EMPTY_FORM = {
   view_type: '',
   renovation_cost: '',
   monthly_fees: '',
+  construction_type: '',
+  near_metro: false,
+  near_school: false,
+  near_hospital: false,
+  near_park: false,
+  noise_level: '',
 };
 
 // ── Main Component ─────────────────────────────────────────────────
@@ -304,11 +348,12 @@ export default function DealAnalyzerPage() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [loadedFromSaved, setLoadedFromSaved] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [showMethodology, setShowMethodology] = useState(false);
 
-  const [openSections, setOpenSections] = useState({ basic: true, financial: false, details: false, amenities: false });
+  const [openSections, setOpenSections] = useState({ basic: true, financial: false, details: false, amenities: false, location: false, building: false });
   const toggleSection = (key: keyof typeof openSections) => setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
 
   const [areaLookup, setAreaLookup] = useState<Record<string, string[]>>({});
@@ -386,10 +431,17 @@ export default function DealAnalyzerPage() {
       view_type: a.view_type || '',
       renovation_cost: a.renovation_cost ? String(a.renovation_cost) : '',
       monthly_fees: a.monthly_fees ? String(a.monthly_fees) : '',
+      construction_type: a.construction_type || '',
+      near_metro: a.near_metro ?? false,
+      near_school: a.near_school ?? false,
+      near_hospital: a.near_hospital ?? false,
+      near_park: a.near_park ?? false,
+      noise_level: a.noise_level || '',
     });
+    setEditingId(a.id);
     setLoadedFromSaved(true);
     setResult(null);
-    setOpenSections({ basic: true, financial: true, details: false, amenities: false });
+    setOpenSections({ basic: true, financial: true, details: false, amenities: false, location: false, building: false });
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -430,8 +482,16 @@ export default function DealAnalyzerPage() {
         view_type: form.has_view ? form.view_type : '',
         renovation_cost: Number(form.renovation_cost || 0),
         monthly_fees: Number(form.monthly_fees || 0),
+        construction_type: form.construction_type || null,
+        near_metro: form.near_metro,
+        near_school: form.near_school,
+        near_hospital: form.near_hospital,
+        near_park: form.near_park,
+        noise_level: form.noise_level || null,
       };
-      const res = await analyzeProperty(payload);
+      const res = editingId
+        ? await reanalyzeProperty(editingId, payload)
+        : await analyzeProperty(payload);
       if (res.error) {
         setError(res.error);
       } else {
@@ -439,6 +499,7 @@ export default function DealAnalyzerPage() {
         const updated = await getPropertyAnalyses();
         setSavedAnalyses(updated);
         setLoadedFromSaved(false);
+        setEditingId(null);
       }
     } catch {
       setError(t('common.error', locale));
@@ -614,8 +675,42 @@ export default function DealAnalyzerPage() {
                 </FormSection>
               </div>
 
+              <div className="mt-4">
+                <FormSection title={t('analyzer.location_details', locale)} icon="📍" open={openSections.location} onToggle={() => toggleSection('location')}>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {(['near_metro', 'near_school', 'near_hospital', 'near_park'] as const).map((key) => (
+                      <label key={key} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form[key] as boolean} onChange={(e) => updateForm(key, e.target.checked)}
+                          className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                        {t(`analyzer.${key}`, locale)}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="mt-3">
+                    <Select label={t('analyzer.noise_level', locale)} value={form.noise_level} onChange={(e) => updateForm('noise_level', e.target.value)}>
+                      <option value="">{t('common.select', locale)}</option>
+                      <option value="quiet">{t('analyzer.noise_quiet', locale)}</option>
+                      <option value="moderate">{t('analyzer.noise_moderate', locale)}</option>
+                      <option value="noisy">{t('analyzer.noise_noisy', locale)}</option>
+                    </Select>
+                  </div>
+                </FormSection>
+              </div>
+
+              <div className="mt-4">
+                <FormSection title={t('analyzer.building_details', locale)} icon="🏗️" open={openSections.building} onToggle={() => toggleSection('building')}>
+                  <Select label={t('analyzer.construction_type', locale)} value={form.construction_type} onChange={(e) => updateForm('construction_type', e.target.value)}>
+                    <option value="">{t('analyzer.construction_unknown', locale)}</option>
+                    <option value="panel">{t('analyzer.construction_panel', locale)}</option>
+                    <option value="brick">{t('analyzer.construction_brick', locale)}</option>
+                    <option value="reinforced">{t('analyzer.construction_reinforced', locale)}</option>
+                    <option value="wood">{t('analyzer.construction_wood', locale)}</option>
+                  </Select>
+                </FormSection>
+              </div>
+
               <Button type="submit" className="w-full mt-5" disabled={analyzing || !form.country || !form.city || !form.square_meters || !form.asking_price}>
-                {analyzing ? t('analyzer.analyzing', locale) : t('analyzer.analyze', locale)}
+                {analyzing ? t('analyzer.analyzing', locale) : editingId ? t('analyzer.reanalyze', locale) : t('analyzer.analyze', locale)}
               </Button>
             </form>
           </div>
@@ -678,11 +773,11 @@ export default function DealAnalyzerPage() {
 
                   {/* Score breakdown */}
                   <div className="mt-4 pt-4 border-t border-black/5">
-                    {result.score_breakdown && Object.entries(result.score_breakdown).map(([key, { score, max }]) => (
+                    {result.score_breakdown && Object.entries(result.score_breakdown).map(([key, entry]) => (
                       <ScoreBar
                         key={key}
-                        label={t(`analyzer.${key === 'property_quality' ? 'property_quality' : key === 'area_heat' ? 'area_heat_score' : key === 'rental_yield' ? 'rental_yield_score' : key === 'airbnb_potential' ? 'airbnb_potential' : 'price_vs_market'}`, locale)}
-                        score={score} max={max}
+                        label={locale === 'bg' && entry.label_bg ? entry.label_bg : entry.label_en || key}
+                        score={entry.score} max={entry.max}
                       />
                     ))}
                   </div>
@@ -809,6 +904,13 @@ export default function DealAnalyzerPage() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-400 mt-2">{t('analyzer.appreciation', locale)}: {result.annual_appreciation_pct}%/yr</p>
+                  {result.renovation_roi != null && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+                      <p className="text-[13px] text-gray-500">{locale === 'en' ? 'Renovation ROI' : 'ROI от ремонт'}</p>
+                      <p className={`text-xl font-bold ${result.renovation_roi > 0 ? 'text-green-600' : 'text-red-600'}`}>{result.renovation_roi.toFixed(1)}%</p>
+                      <p className="text-[11px] text-gray-400">{locale === 'en' ? 'Annual return from renovation' : 'Годишна възвръщаемост от ремонт'}</p>
+                    </div>
+                  )}
                 </Card>
 
                 {/* Area heat + research links */}
@@ -859,6 +961,61 @@ export default function DealAnalyzerPage() {
                     </div>
                   )}
                 </Card>
+
+                {/* Risk Factors */}
+                {result.risk_factors && result.risk_factors.length > 0 && (
+                  <Card className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">{locale === 'en' ? 'Risk Factors' : 'Рискови фактори'}</h3>
+                    <div className="space-y-2">
+                      {result.risk_factors.map((rf, i) => (
+                        <div key={i} className={`flex items-start gap-2 p-2 rounded-lg text-sm ${
+                          rf.severity === 'high' ? 'bg-red-50 text-red-800' :
+                          rf.severity === 'medium' ? 'bg-amber-50 text-amber-800' :
+                          'bg-gray-50 text-gray-700'
+                        }`}>
+                          <span>{rf.severity === 'high' ? '🔴' : rf.severity === 'medium' ? '🟡' : '🟢'}</span>
+                          <span>{locale === 'en' ? rf.text_en : rf.text_bg}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Market Trends */}
+                {result.appreciation_history && result.appreciation_history.length > 0 && (
+                  <Card className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">{locale === 'en' ? 'Market Trends' : 'Пазарни тенденции'}</h3>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge color={result.demand_trend === 'rising' ? 'green' : result.demand_trend === 'declining' ? 'red' : 'gray'}>
+                        {result.demand_trend === 'rising' ? (locale === 'en' ? '↑ Rising Demand' : '↑ Растящо търсене') :
+                         result.demand_trend === 'declining' ? (locale === 'en' ? '↓ Declining' : '↓ Намаляващо') :
+                         (locale === 'en' ? '→ Stable' : '→ Стабилно')}
+                      </Badge>
+                    </div>
+                    <div className="flex items-end gap-1 h-16">
+                      {result.appreciation_history.map((v, i) => (
+                        <div key={i} className="flex-1 flex flex-col items-center">
+                          <div className="w-full bg-indigo-400 rounded-t" style={{ height: `${Math.max((v / 15) * 100, 10)}%` }} />
+                          <span className="text-[10px] text-gray-500 mt-1">{v}%</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                      <span>{locale === 'en' ? '5yr ago' : 'преди 5г'}</span>
+                      <span>{locale === 'en' ? 'Latest' : 'Последна'}</span>
+                    </div>
+                  </Card>
+                )}
+
+                {/* Recommendation */}
+                {result.recommendation_text && (
+                  <Card className="mt-4 bg-gradient-to-r from-indigo-50 to-white border-indigo-200">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-2">{locale === 'en' ? 'Investment Recommendation' : 'Инвестиционна препоръка'}</h3>
+                    <p className="text-sm text-gray-700 leading-relaxed">
+                      {locale === 'en' ? result.recommendation_text : result.recommendation_text_bg}
+                    </p>
+                  </Card>
+                )}
               </div>
             ) : !form.country || nearbyAreas.length === 0 ? (
               <Card className="text-center py-16">
