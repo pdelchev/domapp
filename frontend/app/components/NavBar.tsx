@@ -46,6 +46,7 @@ const MODULES: Module[] = [
   { id: 'documents', icon: 'M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z', color: 'bg-amber-500', href: '/documents', key: 'nav.documents', section: 'property' },
   { id: 'problems', icon: 'M11.42 15.17l-5.04-3.36a1.5 1.5 0 010-2.49l5.04-3.36a1.5 1.5 0 012.16 1.24v6.74a1.5 1.5 0 01-2.16 1.24zM20.25 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5h2.25a.75.75 0 01.75.75z', color: 'bg-orange-500', href: '/problems', key: 'nav.problems', section: 'property' },
   // Personal / Life
+  { id: 'life', icon: 'M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z', color: 'bg-fuchsia-500', href: '/life', key: 'life.title', section: 'life' },
   { id: 'health', icon: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z', color: 'bg-rose-500', href: '/health', key: 'nav.health', section: 'life' },
   { id: 'bp', icon: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z', color: 'bg-red-500', href: '/health/bp', key: 'nav.bp', section: 'life' },
   { id: 'recovery', icon: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182', color: 'bg-green-500', href: '/health/recovery', key: 'nav.recovery', section: 'life' },
@@ -83,7 +84,8 @@ const DESKTOP_NAV = [
     { href: '/documents', key: 'nav.documents' },
     { href: '/problems', key: 'nav.problems' },
   ]},
-  { key: 'nav.life', href: '/health', sub: [
+  { key: 'nav.life', href: '/life', sub: [
+    { href: '/life', key: 'life.title' },
     { href: '/health', key: 'nav.health' },
     { href: '/health/bp', key: 'nav.bp' },
     { href: '/health/recovery', key: 'nav.recovery' },
@@ -115,6 +117,7 @@ function useIsStandalone() {
 
 // Detect which section the current page belongs to
 function getActiveSection(pathname: string): string {
+  if (pathname.startsWith('/life')) return 'life';
   if (pathname.startsWith('/health')) return 'life';  // includes /health/bp and /health/lifestyle
   if (pathname.startsWith('/vehicles')) return 'life';
   if (pathname.startsWith('/investments')) return 'invest';

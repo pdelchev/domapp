@@ -1301,3 +1301,40 @@ export async function getWhoopCVFitness() {
   if (!res.ok) throw new Error('Failed to fetch CV fitness');
   return res.json();
 }
+
+// --- Life (unified HealthScore + Interventions) ---
+
+export async function getLifeSummary(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/life-summary/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch life summary');
+  return res.json();
+}
+
+export async function getInterventions(params?: { category?: string; active?: boolean; profile?: number }) {
+  const qs = new URLSearchParams();
+  if (params?.category) qs.set('category', params.category);
+  if (params?.active !== undefined) qs.set('active', String(params.active));
+  if (params?.profile) qs.set('profile', String(params.profile));
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  const res = await apiFetch(`/api/health/interventions/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch interventions');
+  return res.json();
+}
+
+export async function createIntervention(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/interventions/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create intervention');
+  return res.json();
+}
+
+export async function updateIntervention(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/interventions/${id}/`, { method: 'PATCH', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update intervention');
+  return res.json();
+}
+
+export async function deleteIntervention(id: number) {
+  const res = await apiFetch(`/api/health/interventions/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete intervention');
+}
