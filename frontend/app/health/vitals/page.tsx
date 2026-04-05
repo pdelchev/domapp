@@ -1,22 +1,27 @@
 'use client';
-// §NAV: frontend unified Vitals dashboard — weight + BP + cardiometabolic age.
+// §NAV: frontend unified Vitals hub — weight + BP + cardiometabolic age.
 // §COMPOSES: /api/health/vitals/dashboard/ + cardiometabolic-age +
 //            bp-per-kg-slope + stage-regression-forecast.
+// §LOG: inline RitualModal fuses weight + BP session into one flow
+//       (VitalsSession + WeightReading + 3 BPReadings → finalize).
 // §UI: ui.tsx components only.
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import {
   getHealthProfiles, getVitalsDashboard, getCardiometabolicAge,
   getBPPerKgSlope, getStageRegressionForecast,
+  createVitalsSession, finalizeVitalsSession,
+  createWeightReading, createBPReading,
 } from '../../lib/api';
 import NavBar from '../../components/NavBar';
 import {
   PageShell, PageContent, PageHeader, Card, Button, Badge,
   Alert, Spinner, EmptyState, Select,
 } from '../../components/ui';
+import type { Locale } from '../../lib/i18n';
 
 interface Profile { id: number; full_name: string; sex: string; is_primary: boolean; date_of_birth: string | null; height_cm: number | null; }
 interface LatestWeight { id: number; weight_kg: string; bmi: number | null; waist_hip_ratio: number | null; measured_at: string; }
@@ -36,9 +41,313 @@ const STAGE_COLORS: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
   normal: 'green', elevated: 'yellow', stage_1: 'yellow', stage_2: 'red', crisis: 'red',
 };
 
+// ── RitualModal: weight → BP session → finalize ──────────────────────
+// §FLOW: step 1 weight form, steps 2-4 BP readings with 60s rest timers,
+//        step 5 summary + save-all. Creates VitalsSession first, then
+//        weight + BP readings in parallel, then finalize for averages.
+
+interface BpDraft { systolic: string; diastolic: string; pulse: string; }
+
+function RitualModal({ profileId, locale, onClose, onDone }: {
+  profileId: number; locale: Locale;
+  onClose: () => void; onDone: () => void;
+}) {
+  // step: 1 = weight, 2 = bp1, 3 = bp2, 4 = bp3, 5 = summary
+  const [step, setStep] = useState<number>(1);
+  const [weight, setWeight] = useState({ weight_kg: '', body_fat_pct: '', waist_cm: '', hip_cm: '' });
+  const [skipWeight, setSkipWeight] = useState(false);
+  const [bpReadings, setBpReadings] = useState<BpDraft[]>([]);
+  const [currentBp, setCurrentBp] = useState<BpDraft>({ systolic: '', diastolic: '', pulse: '' });
+  const [timer, setTimer] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sysInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // Focus systolic input when entering a BP step
+  useEffect(() => {
+    if (step >= 2 && step <= 4 && timer === 0) sysInputRef.current?.focus();
+  }, [step, timer]);
+
+  const startTimer = () => {
+    setTimer(60);
+    timerRef.current = setInterval(() => {
+      setTimer(prev => {
+        if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const skipTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimer(0);
+  };
+
+  const handleWeightNext = () => {
+    if (!skipWeight && !weight.weight_kg) {
+      setError(locale === 'bg' ? 'Въведете тегло' : 'Enter weight'); return;
+    }
+    setError('');
+    setStep(2);
+  };
+
+  const handleBpSave = () => {
+    const sys = parseInt(currentBp.systolic);
+    const dia = parseInt(currentBp.diastolic);
+    if (!sys || sys < 60 || sys > 300) {
+      setError(locale === 'bg' ? 'Невалидно систолично' : 'Invalid systolic'); return;
+    }
+    if (!dia || dia < 30 || dia > 200) {
+      setError(locale === 'bg' ? 'Невалидно диастолично' : 'Invalid diastolic'); return;
+    }
+    if (dia >= sys) {
+      setError(locale === 'bg' ? 'Диастоличното трябва да е по-малко' : 'Diastolic must be lower'); return;
+    }
+    setError('');
+    const next = [...bpReadings, currentBp];
+    setBpReadings(next);
+    setCurrentBp({ systolic: '', diastolic: '', pulse: '' });
+    if (next.length < 3) { setStep(step + 1); startTimer(); }
+    else setStep(5);
+  };
+
+  const skipBp = () => {
+    if (bpReadings.length >= 2) setStep(5);  // have enough readings
+    else if (bpReadings.length === 0) { onClose(); }  // nothing captured, bail
+    else setStep(5);  // 1 reading, show summary anyway
+  };
+
+  const avg = (nums: number[]) => nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
+  const sysAvg = Math.round(avg(bpReadings.map(r => parseInt(r.systolic)).filter(n => n > 0)));
+  const diaAvg = Math.round(avg(bpReadings.map(r => parseInt(r.diastolic)).filter(n => n > 0)));
+  const pulseAvg = Math.round(avg(bpReadings.map(r => parseInt(r.pulse)).filter(n => n > 0)));
+
+  const handleFinish = async () => {
+    setSaving(true); setError('');
+    try {
+      const now = new Date();
+      const session = await createVitalsSession({
+        profile: profileId,
+        started_at: now.toISOString(),
+        ritual_type: 'morning',
+      });
+      const posts: Promise<unknown>[] = [];
+      if (!skipWeight && weight.weight_kg) {
+        const wPayload: Record<string, unknown> = {
+          profile: profileId, session: session.id,
+          measured_at: now.toISOString(), weight_kg: weight.weight_kg,
+          source: 'manual', context_flags: { fasted: true, post_toilet: true },
+        };
+        if (weight.body_fat_pct) wPayload.body_fat_pct = weight.body_fat_pct;
+        if (weight.waist_cm) wPayload.waist_cm = weight.waist_cm;
+        if (weight.hip_cm) wPayload.hip_cm = weight.hip_cm;
+        posts.push(createWeightReading(wPayload));
+      }
+      // BP readings: spaced 1 second apart so timestamps are distinct
+      bpReadings.forEach((r, i) => {
+        const t = new Date(now.getTime() + i * 1000).toISOString();
+        posts.push(createBPReading({
+          profile: profileId,
+          systolic: parseInt(r.systolic),
+          diastolic: parseInt(r.diastolic),
+          pulse: r.pulse ? parseInt(r.pulse) : null,
+          measured_at: t, arm: 'left', posture: 'sitting',
+        }));
+      });
+      await Promise.all(posts);
+      await finalizeVitalsSession(session.id);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Save failed');
+      setSaving(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────
+  const progressIcon = (target: number) => {
+    if (step > target) return '✓';
+    if (step === target) return '●';
+    return '○';
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">{t('vitals.ritual_title', locale)}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+
+        {/* Progress */}
+        <div className="flex items-center gap-3 mb-6 text-xs text-gray-500">
+          <span className={step > 1 ? 'text-green-600 font-medium' : step === 1 ? 'text-indigo-600 font-medium' : ''}>
+            {progressIcon(1)} {locale === 'bg' ? 'тегло' : 'weight'}
+          </span>
+          <span className="text-gray-300">—</span>
+          <span className={step > 4 ? 'text-green-600 font-medium' : step >= 2 ? 'text-indigo-600 font-medium' : ''}>
+            {step > 4 ? '✓' : step >= 2 ? '●' : '○'} {locale === 'bg' ? 'кръвно' : 'bp'} ({bpReadings.length}/3)
+          </span>
+          <span className="text-gray-300">—</span>
+          <span className={step === 5 ? 'text-indigo-600 font-medium' : ''}>
+            {progressIcon(5)} {locale === 'bg' ? 'готово' : 'done'}
+          </span>
+        </div>
+
+        <Alert type="error" message={error} />
+
+        {/* ── Step 1: Weight ── */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_weight', locale)}</div>
+            <div>
+              <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">kg</label>
+              <input
+                type="number" step="0.1" min="20" max="400" inputMode="decimal"
+                value={weight.weight_kg}
+                onChange={e => setWeight(p => ({ ...p, weight_kg: e.target.value }))}
+                placeholder="82.5"
+                className="w-full h-16 text-3xl font-bold text-center text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                autoFocus
+              />
+            </div>
+            <details className="border-t border-gray-200 pt-3">
+              <summary className="text-xs text-gray-500 cursor-pointer">{t('weight.optional_body_comp', locale)}</summary>
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('weight.body_fat', locale)} %</label>
+                  <input type="number" step="0.1" value={weight.body_fat_pct}
+                    onChange={e => setWeight(p => ({ ...p, body_fat_pct: e.target.value }))}
+                    className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('weight.waist', locale)} cm</label>
+                  <input type="number" step="0.1" value={weight.waist_cm}
+                    onChange={e => setWeight(p => ({ ...p, waist_cm: e.target.value }))}
+                    className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-500 mb-1">{t('weight.hip', locale)} cm</label>
+                  <input type="number" step="0.1" value={weight.hip_cm}
+                    onChange={e => setWeight(p => ({ ...p, hip_cm: e.target.value }))}
+                    className="w-full h-10 px-3 border border-gray-300 rounded-lg text-sm" />
+                </div>
+              </div>
+            </details>
+            <div className="flex gap-2 pt-2">
+              <Button className="flex-1" onClick={handleWeightNext}>{t('vitals.next_bp', locale)}</Button>
+              <Button variant="ghost" onClick={() => { setSkipWeight(true); setError(''); setStep(2); }}>
+                {t('vitals.skip_weight', locale)}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Steps 2-4: BP reading inputs or rest timer ── */}
+        {step >= 2 && step <= 4 && (
+          <div className="space-y-4">
+            <div className="text-[13px] font-medium text-gray-700">
+              {t('vitals.step_bp', locale)} — {t('vitals.take_reading', locale).replace('{n}', String(bpReadings.length + 1))}
+            </div>
+
+            {timer > 0 ? (
+              <div className="text-center py-10">
+                <div className="text-6xl font-bold text-indigo-600 tabular-nums mb-3">{timer}s</div>
+                <div className="text-sm text-gray-500 mb-4">
+                  {locale === 'bg' ? 'Починете преди следващото измерване' : 'Rest before next reading'}
+                </div>
+                <Button variant="secondary" size="sm" onClick={skipTimer}>
+                  {locale === 'bg' ? 'Пропусни таймера' : 'Skip timer'}
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="text-center">
+                    <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">SYS</label>
+                    <input
+                      ref={sysInputRef}
+                      type="number" inputMode="numeric" value={currentBp.systolic}
+                      onChange={e => setCurrentBp(p => ({ ...p, systolic: e.target.value }))}
+                      placeholder="120"
+                      className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">DIA</label>
+                    <input
+                      type="number" inputMode="numeric" value={currentBp.diastolic}
+                      onChange={e => setCurrentBp(p => ({ ...p, diastolic: e.target.value }))}
+                      placeholder="80"
+                      className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div className="text-center">
+                    <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">PULSE</label>
+                    <input
+                      type="number" inputMode="numeric" value={currentBp.pulse}
+                      onChange={e => setCurrentBp(p => ({ ...p, pulse: e.target.value }))}
+                      placeholder="72"
+                      className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button className="flex-1" onClick={handleBpSave}>
+                    {locale === 'bg' ? 'Запази' : 'Save reading'}
+                  </Button>
+                  <Button variant="ghost" onClick={skipBp}>{t('vitals.skip_bp', locale)}</Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── Step 5: Summary ── */}
+        {step === 5 && (
+          <div className="space-y-4">
+            <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_done', locale)}</div>
+
+            {!skipWeight && weight.weight_kg && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">
+                  {t('nav.weight', locale)}
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{weight.weight_kg} kg</div>
+              </div>
+            )}
+
+            {bpReadings.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">
+                  {t('vitals.bp_avg', locale)} ({bpReadings.length})
+                </div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {sysAvg}/{diaAvg}{pulseAvg ? ` · ${pulseAvg} bpm` : ''}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {bpReadings.map((r, i) => `${i + 1}: ${r.systolic}/${r.diastolic}`).join(' · ')}
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <Button className="flex-1" onClick={handleFinish} disabled={saving}>
+                {saving ? t('common.saving', locale) : t('vitals.finish', locale)}
+              </Button>
+              <Button variant="secondary" onClick={onClose}>{t('common.cancel', locale)}</Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function VitalsDashboardPage() {
   const { locale } = useLanguage();
-  const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [dash, setDash] = useState<Dashboard | null>(null);
@@ -47,6 +356,7 @@ export default function VitalsDashboardPage() {
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [ritualOpen, setRitualOpen] = useState(false);
 
   const loadAll = useCallback(async (pid: number) => {
     setLoading(true); setError('');
@@ -80,17 +390,9 @@ export default function VitalsDashboardPage() {
         <PageHeader
           title={t('nav.vitals', locale)}
           action={
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => router.push('/health/bp')}>
-                {t('nav.bp', locale)}
-              </Button>
-              <Button variant="secondary" onClick={() => router.push('/health/weight')}>
-                {t('nav.weight', locale)}
-              </Button>
-              <Button onClick={() => router.push('/health/weight/new')}>
-                + {t('weight.quick_add', locale)}
-              </Button>
-            </div>
+            <Button onClick={() => setRitualOpen(true)} disabled={!profileId}>
+              + {t('vitals.log_ritual', locale)}
+            </Button>
           }
         />
 
@@ -258,6 +560,29 @@ export default function VitalsDashboardPage() {
             </div>
           )}
         </>
+        )}
+
+        {/* ── Deep-link hub ── */}
+        {!loading && dash && (
+          <div className="mt-6">
+            <div className="text-[13px] font-medium text-gray-700 mb-2">{t('vitals.deep_links', locale)}</div>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <Link href="/health/bp"><Card><div className="text-sm font-medium text-gray-900">{t('nav.bp', locale)}</div><div className="text-xs text-gray-500 mt-0.5">{t('vitals.bp_history', locale)}</div></Card></Link>
+              <Link href="/health/bp/statistics"><Card><div className="text-sm font-medium text-gray-900">{t('vitals.bp_stats', locale)}</div><div className="text-xs text-gray-500 mt-0.5">circadian · variability</div></Card></Link>
+              <Link href="/health/bp/medications"><Card><div className="text-sm font-medium text-gray-900">{t('vitals.bp_meds', locale)}</div><div className="text-xs text-gray-500 mt-0.5">adherence</div></Card></Link>
+              <Link href="/health/weight"><Card><div className="text-sm font-medium text-gray-900">{t('vitals.weight_trend', locale)}</div><div className="text-xs text-gray-500 mt-0.5">EWMA · 90d</div></Card></Link>
+              <Link href="/health/weight/goals"><Card><div className="text-sm font-medium text-gray-900">{t('vitals.weight_goals', locale)}</div><div className="text-xs text-gray-500 mt-0.5">progress</div></Card></Link>
+            </div>
+          </div>
+        )}
+
+        {ritualOpen && profileId && (
+          <RitualModal
+            profileId={profileId}
+            locale={locale}
+            onClose={() => setRitualOpen(false)}
+            onDone={() => { setRitualOpen(false); loadAll(profileId); }}
+          />
         )}
       </PageContent>
     </PageShell>

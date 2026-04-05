@@ -1035,6 +1035,7 @@ const translations: Record<string, Record<Locale, string>> = {
 
   'fab.new_vehicle': { en: 'Add Vehicle', bg: 'Добави МПС' },
   'fab.new_bp': { en: 'Log BP', bg: 'Запиши КН' },
+  'fab.new_vitals': { en: 'Log Vitals', bg: 'Запиши витали' },
 
   // Blood Pressure
   'nav.bp': { en: 'Blood Pressure', bg: 'Кръвно налягане' },
@@ -1302,6 +1303,27 @@ const translations: Record<string, Record<Locale, string>> = {
   'vitals.forecast_title': { en: 'Stage Regression Forecast', bg: 'Прогноза за спад' },
   'vitals.forecast_lose': { en: 'Lose {kg} kg', bg: 'Свали {kg} кг' },
   'vitals.projection': { en: 'Projection', bg: 'Прогноза' },
+  'vitals.log_ritual': { en: 'Log Ritual', bg: 'Записване' },
+  'vitals.ritual_title': { en: 'Morning Ritual', bg: 'Сутрешна рутина' },
+  'vitals.step_weight': { en: 'Step 1 — Weight', bg: 'Стъпка 1 — Тегло' },
+  'vitals.step_bp': { en: 'Step 2 — Blood Pressure', bg: 'Стъпка 2 — Кръвно налягане' },
+  'vitals.step_done': { en: 'Ritual Complete', bg: 'Рутината е завършена' },
+  'vitals.skip_weight': { en: 'Skip weight', bg: 'Пропусни тегло' },
+  'vitals.skip_bp': { en: 'Skip BP', bg: 'Пропусни кръвно' },
+  'vitals.next_bp': { en: 'Next: BP session →', bg: 'Напред: кръвно →' },
+  'vitals.finish': { en: 'Finish', bg: 'Завърши' },
+  'vitals.ritual_saved': { en: 'Ritual saved', bg: 'Рутината е записана' },
+  'vitals.take_reading': { en: 'Take reading #{n}', bg: 'Измерване #{n}' },
+  'vitals.rest_seconds': { en: 'Rest {s}s', bg: 'Почивка {s}с' },
+  'vitals.bp_avg': { en: 'Session average', bg: 'Средно от сесията' },
+  'vitals.weight_only': { en: 'Log weight only', bg: 'Само тегло' },
+  'vitals.bp_only': { en: 'Log BP only', bg: 'Само кръвно' },
+  'vitals.deep_links': { en: 'Details & history', bg: 'Детайли и история' },
+  'vitals.bp_history': { en: 'BP history', bg: 'История на кръвно' },
+  'vitals.bp_stats': { en: 'BP statistics', bg: 'BP статистика' },
+  'vitals.bp_meds': { en: 'BP medications', bg: 'Лекарства' },
+  'vitals.weight_trend': { en: 'Weight trend', bg: 'Тренд на тегло' },
+  'vitals.weight_goals': { en: 'Weight goals', bg: 'Цели за тегло' },
 };
 
 export function t(key: string, locale: Locale): string {

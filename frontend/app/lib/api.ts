@@ -1428,6 +1428,18 @@ export async function deleteWeightGoal(id: number) {
   return true;
 }
 
+export async function createVitalsSession(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/vitals/sessions/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create vitals session');
+  return res.json();
+}
+
+export async function finalizeVitalsSession(id: number) {
+  const res = await apiFetch(`/api/health/vitals/sessions/${id}/finalize/`, { method: 'POST', body: '{}' });
+  if (!res.ok) throw new Error('Failed to finalize vitals session');
+  return res.json();
+}
+
 export async function getVitalsDashboard(profileId: number) {
   const res = await apiFetch(`/api/health/vitals/dashboard/?profile=${profileId}`);
   if (!res.ok) throw new Error('Failed to fetch vitals dashboard');
