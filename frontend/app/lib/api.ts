@@ -1345,3 +1345,122 @@ export async function getLabOrder(profileId?: number) {
   if (!res.ok) throw new Error('Failed to fetch lab order');
   return res.json();
 }
+
+// ─── Weight + Vitals (unified weight + BP module) ─────────────────────
+// §NAV: backend at backend/health/weight_views.py
+// §V1:  readings CRUD, goals, vitals dashboard, bp-per-kg slope,
+//       cardiometabolic age, stage regression forecast.
+
+export async function getWeightReadings(params?: {
+  profile?: number; days?: number; source?: string;
+}) {
+  const q = new URLSearchParams();
+  if (params?.profile) q.set('profile', String(params.profile));
+  if (params?.days) q.set('days', String(params.days));
+  if (params?.source) q.set('source', params.source);
+  const res = await apiFetch(`/api/health/weight/readings/?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch weight readings');
+  return res.json();
+}
+
+export async function createWeightReading(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/weight/readings/', {
+    method: 'POST', body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || err.weight_kg?.[0] || 'Failed to create reading');
+  }
+  return res.json();
+}
+
+export async function updateWeightReading(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/weight/readings/${id}/`, {
+    method: 'PATCH', body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update reading');
+  return res.json();
+}
+
+export async function deleteWeightReading(id: number) {
+  const res = await apiFetch(`/api/health/weight/readings/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete reading');
+  return true;
+}
+
+export async function getWeightDashboard(profileId: number) {
+  const res = await apiFetch(`/api/health/weight/dashboard/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch weight dashboard');
+  return res.json();
+}
+
+export async function getWeightGoals(params?: { profile?: number; active?: boolean }) {
+  const q = new URLSearchParams();
+  if (params?.profile) q.set('profile', String(params.profile));
+  if (params?.active !== undefined) q.set('active', String(params.active));
+  const res = await apiFetch(`/api/health/weight/goals/?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch goals');
+  return res.json();
+}
+
+export async function createWeightGoal(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/weight/goals/', {
+    method: 'POST', body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.weekly_rate_kg?.[0] || err.detail || 'Failed to create goal');
+  }
+  return res.json();
+}
+
+export async function updateWeightGoal(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/weight/goals/${id}/`, {
+    method: 'PATCH', body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update goal');
+  return res.json();
+}
+
+export async function deleteWeightGoal(id: number) {
+  const res = await apiFetch(`/api/health/weight/goals/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete goal');
+  return true;
+}
+
+export async function getVitalsDashboard(profileId: number) {
+  const res = await apiFetch(`/api/health/vitals/dashboard/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch vitals dashboard');
+  return res.json();
+}
+
+export async function getBPPerKgSlope(profileId: number, days = 90) {
+  const res = await apiFetch(`/api/health/vitals/bp-per-kg-slope/?profile=${profileId}&days=${days}`);
+  if (!res.ok) throw new Error('Failed to fetch slope');
+  return res.json();
+}
+
+export async function getCardiometabolicAge(profileId: number) {
+  const res = await apiFetch(`/api/health/vitals/cardiometabolic-age/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch cardiometabolic age');
+  return res.json();
+}
+
+export async function getStageRegressionForecast(profileId: number, targetSystolic = 120) {
+  const res = await apiFetch(
+    `/api/health/vitals/stage-regression-forecast/?profile=${profileId}&target_systolic=${targetSystolic}`
+  );
+  if (!res.ok) throw new Error('Failed to fetch forecast');
+  return res.json();
+}
+
+export async function importWeightCSV(profileId: number, file: File) {
+  const form = new FormData();
+  form.append('profile', String(profileId));
+  form.append('file', file);
+  const res = await apiFetch('/api/health/weight/import/csv/', {
+    method: 'POST', body: form,
+  });
+  if (!res.ok) throw new Error('CSV import failed');
+  return res.json();
+}

@@ -104,6 +104,7 @@ class HealthProfile(models.Model):
     full_name = models.CharField(max_length=200)
     date_of_birth = models.DateField(null=True, blank=True)
     sex = models.CharField(max_length=10, choices=SEX_CHOICES, default='male')
+    height_cm = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)  # §BMI: needed for weight module (BMI + body comp)
     is_primary = models.BooleanField(default=False)  # Is this the logged-in user?
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
