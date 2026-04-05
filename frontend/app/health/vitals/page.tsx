@@ -15,6 +15,7 @@ import {
   getBPPerKgSlope, getStageRegressionForecast,
   createVitalsSession, finalizeVitalsSession,
   createWeightReading, createBPReading,
+  getInterventionLogs, saveInterventionLogs,
 } from '../../lib/api';
 import NavBar from '../../components/NavBar';
 import {
@@ -41,30 +42,50 @@ const STAGE_COLORS: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
   normal: 'green', elevated: 'yellow', stage_1: 'yellow', stage_2: 'red', crisis: 'red',
 };
 
-// ── RitualModal: weight → BP session → finalize ──────────────────────
-// §FLOW: step 1 weight form, steps 2-4 BP readings with 60s rest timers,
-//        step 5 summary + save-all. Creates VitalsSession first, then
-//        weight + BP readings in parallel, then finalize for averages.
+// ── RitualModal: weight → BP session → adherence → finalize ─────────
+// §FLOW: step 1 weight, steps 2-4 BP readings w/ 60s rest timers, step 5
+//        intervention adherence checklist (pre-filled from yesterday),
+//        step 6 summary + save-all. Creates VitalsSession first, then
+//        weight + BP readings + intervention logs in parallel, finalize.
 
 interface BpDraft { systolic: string; diastolic: string; pulse: string; }
+interface AdherenceItem {
+  intervention_id: number; name: string; category: string; dose: string;
+  taken_today: boolean | null; taken_yesterday: boolean | null;
+}
 
 function RitualModal({ profileId, locale, onClose, onDone }: {
   profileId: number; locale: Locale;
   onClose: () => void; onDone: () => void;
 }) {
-  // step: 1 = weight, 2 = bp1, 3 = bp2, 4 = bp3, 5 = summary
+  // step: 1 weight, 2-4 bp, 5 adherence, 6 summary
   const [step, setStep] = useState<number>(1);
   const [weight, setWeight] = useState({ weight_kg: '', body_fat_pct: '', waist_cm: '', hip_cm: '' });
   const [skipWeight, setSkipWeight] = useState(false);
   const [bpReadings, setBpReadings] = useState<BpDraft[]>([]);
   const [currentBp, setCurrentBp] = useState<BpDraft>({ systolic: '', diastolic: '', pulse: '' });
   const [timer, setTimer] = useState(0);
+  const [adherence, setAdherence] = useState<AdherenceItem[]>([]);
+  const [adhTaken, setAdhTaken] = useState<Record<number, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sysInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+
+  // §PREFILL: load active interventions + yesterday's log on mount
+  useEffect(() => {
+    getInterventionLogs().then((r: { items: AdherenceItem[] }) => {
+      setAdherence(r.items || []);
+      const initial: Record<number, boolean> = {};
+      (r.items || []).forEach(it => {
+        // prefill from today's log if exists, else yesterday, else true
+        initial[it.intervention_id] = it.taken_today ?? it.taken_yesterday ?? true;
+      });
+      setAdhTaken(initial);
+    }).catch(() => { /* no interventions yet — that's fine */ });
+  }, []);
 
   // Focus systolic input when entering a BP step
   useEffect(() => {
@@ -111,14 +132,20 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
     setBpReadings(next);
     setCurrentBp({ systolic: '', diastolic: '', pulse: '' });
     if (next.length < 3) { setStep(step + 1); startTimer(); }
-    else setStep(5);
+    else advanceAfterBp();
+  };
+
+  const advanceAfterBp = () => {
+    // §SKIP: if no active interventions, jump past adherence to summary
+    setStep(adherence.length > 0 ? 5 : 6);
   };
 
   const skipBp = () => {
-    if (bpReadings.length >= 2) setStep(5);  // have enough readings
-    else if (bpReadings.length === 0) { onClose(); }  // nothing captured, bail
-    else setStep(5);  // 1 reading, show summary anyway
+    if (bpReadings.length === 0 && (skipWeight || !weight.weight_kg)) { onClose(); return; }
+    advanceAfterBp();
   };
+
+  const toggleAdh = (id: number) => setAdhTaken(p => ({ ...p, [id]: !p[id] }));
 
   const avg = (nums: number[]) => nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
   const sysAvg = Math.round(avg(bpReadings.map(r => parseInt(r.systolic)).filter(n => n > 0)));
@@ -159,6 +186,15 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
       });
       await Promise.all(posts);
       await finalizeVitalsSession(session.id);
+      // §ADH: save adherence checklist (only if user saw that step)
+      if (adherence.length > 0) {
+        const today = now.toISOString().slice(0, 10);
+        const logs = adherence.map(it => ({
+          intervention: it.intervention_id,
+          taken: !!adhTaken[it.intervention_id],
+        }));
+        await saveInterventionLogs(today, logs);
+      }
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -182,7 +218,7 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
         </div>
 
         {/* Progress */}
-        <div className="flex items-center gap-3 mb-6 text-xs text-gray-500">
+        <div className="flex items-center gap-2 mb-6 text-xs text-gray-500 flex-wrap">
           <span className={step > 1 ? 'text-green-600 font-medium' : step === 1 ? 'text-indigo-600 font-medium' : ''}>
             {progressIcon(1)} {locale === 'bg' ? 'тегло' : 'weight'}
           </span>
@@ -190,9 +226,17 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
           <span className={step > 4 ? 'text-green-600 font-medium' : step >= 2 ? 'text-indigo-600 font-medium' : ''}>
             {step > 4 ? '✓' : step >= 2 ? '●' : '○'} {locale === 'bg' ? 'кръвно' : 'bp'} ({bpReadings.length}/3)
           </span>
+          {adherence.length > 0 && (
+            <>
+              <span className="text-gray-300">—</span>
+              <span className={step > 5 ? 'text-green-600 font-medium' : step === 5 ? 'text-indigo-600 font-medium' : ''}>
+                {progressIcon(5)} {locale === 'bg' ? 'приемане' : 'adherence'}
+              </span>
+            </>
+          )}
           <span className="text-gray-300">—</span>
-          <span className={step === 5 ? 'text-indigo-600 font-medium' : ''}>
-            {progressIcon(5)} {locale === 'bg' ? 'готово' : 'done'}
+          <span className={step === 6 ? 'text-indigo-600 font-medium' : ''}>
+            {progressIcon(6)} {locale === 'bg' ? 'готово' : 'done'}
           </span>
         </div>
 
@@ -305,8 +349,44 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
           </div>
         )}
 
-        {/* ── Step 5: Summary ── */}
+        {/* ── Step 5: Adherence checklist ── */}
         {step === 5 && (
+          <div className="space-y-4">
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_adherence', locale)}</div>
+              <div className="text-xs text-gray-500 mt-0.5">{t('vitals.adherence_hint', locale)}</div>
+            </div>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {adherence.map(it => {
+                const checked = !!adhTaken[it.intervention_id];
+                return (
+                  <label key={it.intervention_id}
+                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                      checked ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:border-gray-300'
+                    }`}>
+                    <input type="checkbox" checked={checked}
+                      onChange={() => toggleAdh(it.intervention_id)}
+                      className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">{it.name}</div>
+                      {it.dose && <div className="text-xs text-gray-500">{it.dose}</div>}
+                    </div>
+                    <Badge color="gray">{it.category}</Badge>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button className="flex-1" onClick={() => setStep(6)}>
+                {locale === 'bg' ? 'Напред →' : 'Next →'}
+              </Button>
+              <Button variant="ghost" onClick={() => setStep(6)}>{t('vitals.skip_adherence', locale)}</Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 6: Summary ── */}
+        {step === 6 && (
           <div className="space-y-4">
             <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_done', locale)}</div>
 
@@ -329,6 +409,17 @@ function RitualModal({ profileId, locale, onClose, onDone }: {
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
                   {bpReadings.map((r, i) => `${i + 1}: ${r.systolic}/${r.diastolic}`).join(' · ')}
+                </div>
+              </div>
+            )}
+
+            {adherence.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">
+                  {t('vitals.adherence_summary', locale)}
+                </div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {Object.values(adhTaken).filter(Boolean).length}/{adherence.length}
                 </div>
               </div>
             )}

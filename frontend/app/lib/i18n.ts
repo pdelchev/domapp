@@ -1324,6 +1324,11 @@ const translations: Record<string, Record<Locale, string>> = {
   'vitals.bp_meds': { en: 'BP medications', bg: 'Лекарства' },
   'vitals.weight_trend': { en: 'Weight trend', bg: 'Тренд на тегло' },
   'vitals.weight_goals': { en: 'Weight goals', bg: 'Цели за тегло' },
+  'vitals.step_adherence': { en: 'Step 3 — Adherence', bg: 'Стъпка 3 — Приемане' },
+  'vitals.adherence_hint': { en: 'Check what you took today (pre-filled from yesterday)', bg: 'Отметни какво прие днес (попълнено от вчера)' },
+  'vitals.no_interventions': { en: 'No active interventions — add some on /life', bg: 'Няма активни интервенции — добави на /life' },
+  'vitals.skip_adherence': { en: 'Skip', bg: 'Пропусни' },
+  'vitals.adherence_summary': { en: 'Interventions taken', bg: 'Приети интервенции' },
 };
 
 export function t(key: string, locale: Locale): string {

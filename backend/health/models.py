@@ -352,3 +352,35 @@ class Intervention(models.Model):
     @property
     def is_active(self):
         return self.ended_on is None
+
+
+# ── InterventionLog (daily adherence tracking) ───────────────────────
+
+class InterventionLog(models.Model):
+    """
+    §ADHERENCE: one row per (intervention, date). Logged from the
+    morning ritual checklist; enables correlation of interventions
+    against biometrics (BP, HRV, recovery) on taken vs skipped days.
+    §UNIQUE: (intervention, date) — re-logging replaces the prior row.
+    """
+    intervention = models.ForeignKey(
+        Intervention, on_delete=models.CASCADE, related_name='logs'
+    )
+    date = models.DateField()
+    taken = models.BooleanField(default=True)
+    notes = models.CharField(max_length=200, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+        indexes = [models.Index(fields=['intervention', '-date'])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['intervention', 'date'],
+                name='uniq_intervention_log_per_day',
+            ),
+        ]
+
+    def __str__(self):
+        mark = '✓' if self.taken else '✗'
+        return f"{mark} {self.intervention.name} · {self.date}"

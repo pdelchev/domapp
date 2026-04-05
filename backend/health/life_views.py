@@ -8,7 +8,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Intervention, HealthProfile, HealthScoreSnapshot
+from datetime import date as date_cls, timedelta
+
+from .models import Intervention, HealthProfile, HealthScoreSnapshot, InterventionLog
 from .life_serializers import InterventionSerializer, HealthScoreSnapshotSerializer
 from .life_services import compute_health_score, get_deltas
 from .phenoage import compute_phenoage
@@ -144,6 +146,86 @@ class LabOrderView(APIView):
         if not profile:
             return Response({'detail': 'No HealthProfile found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(generate_lab_order(profile))
+
+
+class InterventionLogView(APIView):
+    """
+    §LOG: daily adherence checklist for the ritual.
+
+    GET  /api/health/interventions/logs/?date=YYYY-MM-DD
+         Returns active interventions + today's log + yesterday's log
+         (for prefill). date defaults to today.
+
+    POST /api/health/interventions/logs/batch/
+         Body: {date: 'YYYY-MM-DD', logs: [{intervention: <id>, taken: bool, notes?}]}
+         Upserts one row per intervention for the given date.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _parse_date(self, s, fallback):
+        if not s:
+            return fallback
+        try:
+            return date_cls.fromisoformat(s)
+        except ValueError:
+            return fallback
+
+    def get(self, request):
+        user = request.user
+        target = self._parse_date(request.query_params.get('date'), date_cls.today())
+        yesterday = target - timedelta(days=1)
+
+        actives = Intervention.objects.filter(user=user, ended_on__isnull=True).order_by('name')
+        ids = list(actives.values_list('id', flat=True))
+        logs_today = {
+            l.intervention_id: l for l in
+            InterventionLog.objects.filter(intervention_id__in=ids, date=target)
+        }
+        logs_yesterday = {
+            l.intervention_id: l.taken for l in
+            InterventionLog.objects.filter(intervention_id__in=ids, date=yesterday)
+        }
+
+        items = []
+        for iv in actives:
+            today_log = logs_today.get(iv.id)
+            items.append({
+                'intervention_id': iv.id,
+                'name': iv.name,
+                'category': iv.category,
+                'dose': iv.dose,
+                'taken_today': today_log.taken if today_log else None,
+                'taken_yesterday': logs_yesterday.get(iv.id),  # None if no log
+                'notes': today_log.notes if today_log else '',
+            })
+        return Response({'date': target.isoformat(), 'items': items})
+
+    def post(self, request):
+        user = request.user
+        body = request.data or {}
+        target = self._parse_date(body.get('date'), date_cls.today())
+        logs = body.get('logs') or []
+        if not isinstance(logs, list):
+            return Response({'detail': 'logs must be a list'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # §AUTH: only allow logs against user's own interventions
+        user_iv_ids = set(
+            Intervention.objects.filter(user=user).values_list('id', flat=True)
+        )
+        saved = 0
+        for row in logs:
+            iv_id = row.get('intervention')
+            if iv_id not in user_iv_ids:
+                continue
+            InterventionLog.objects.update_or_create(
+                intervention_id=iv_id, date=target,
+                defaults={
+                    'taken': bool(row.get('taken', True)),
+                    'notes': str(row.get('notes', ''))[:200],
+                },
+            )
+            saved += 1
+        return Response({'date': target.isoformat(), 'saved': saved})
 
 
 class MorningBriefingView(APIView):

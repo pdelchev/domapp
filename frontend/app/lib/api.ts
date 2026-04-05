@@ -1339,6 +1339,21 @@ export async function deleteIntervention(id: number) {
   if (!res.ok) throw new Error('Failed to delete intervention');
 }
 
+export async function getInterventionLogs(date?: string) {
+  const q = date ? `?date=${date}` : '';
+  const res = await apiFetch(`/api/health/interventions/logs/${q}`);
+  if (!res.ok) throw new Error('Failed to fetch intervention logs');
+  return res.json();
+}
+
+export async function saveInterventionLogs(date: string, logs: { intervention: number; taken: boolean; notes?: string }[]) {
+  const res = await apiFetch(`/api/health/interventions/logs/`, {
+    method: 'POST', body: JSON.stringify({ date, logs }),
+  });
+  if (!res.ok) throw new Error('Failed to save intervention logs');
+  return res.json();
+}
+
 export async function getLabOrder(profileId?: number) {
   const query = profileId ? `?profile=${profileId}` : '';
   const res = await apiFetch(`/api/health/lab-order/${query}`);
