@@ -181,7 +181,7 @@ export default function LifestylePage() {
               </div>
             </Card>
           </div>
-          <div onClick={() => router.push('/health/lifestyle/tests')} className="cursor-pointer group">
+          <div onClick={() => router.push('/life/lab-order')} className="cursor-pointer group">
             <Card className="hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">🧪</span>
@@ -300,7 +300,7 @@ export default function LifestylePage() {
 
         {/* Bottom nav links */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <Button onClick={() => router.push('/health/lifestyle/tests')}>{t('lifestyle.view_tests', locale)}</Button>
+          <Button onClick={() => router.push('/life/lab-order')}>{t('lifestyle.view_tests', locale)}</Button>
           <Button variant="secondary" onClick={() => router.push('/health/lifestyle/meals')}>{t('lifestyle.view_meals', locale)}</Button>
           <Button variant="secondary" onClick={() => router.push('/health/lifestyle/gym')}>{t('lifestyle.view_gym', locale)}</Button>
         </div>
