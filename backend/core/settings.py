@@ -17,6 +17,8 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 # CSRF — trust origins from env, Codespaces, and localhost
 _extra_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _extra_origins if o.strip()] + [
+    'https://www.dlchv.com',
+    'https://dlchv.com',
     'https://*.up.railway.app',
     'https://*.app.github.dev',
     'https://*.preview.app.github.dev',
@@ -220,4 +222,4 @@ AUTH_USER_MODEL = 'accounts.User'
 # --- WHOOP Integration ---
 WHOOP_CLIENT_ID = os.environ.get('WHOOP_CLIENT_ID', 'e8f29e2a-d83e-48b1-8632-f17069eea3c2')
 WHOOP_CLIENT_SECRET = os.environ.get('WHOOP_CLIENT_SECRET', '027cddbc3ec3c5cfe1f529f9f9920f1b3f500fe5495ad68f427e6884aa1fe51a')
-WHOOP_REDIRECT_URI = os.environ.get('WHOOP_REDIRECT_URI', 'https://curly-telegram-pwpx9x96grc7r77-3000.app.github.dev/health/recovery')
+WHOOP_REDIRECT_URI = os.environ.get('WHOOP_REDIRECT_URI', 'https://www.dlchv.com/health/recovery')
