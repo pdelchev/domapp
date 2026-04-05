@@ -11,7 +11,7 @@ import { t } from '../lib/i18n';
 import type { Locale } from '../lib/i18n';
 import {
   createVitalsSession, finalizeVitalsSession,
-  createWeightReading, createBPReading,
+  createWeightReading, createBPSession,
   getInterventionLogs, saveInterventionLogs,
 } from '../lib/api';
 import { Button, Badge, Alert } from './ui';
@@ -138,16 +138,20 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
         if (weight.hip_cm) wPayload.hip_cm = weight.hip_cm;
         posts.push(createWeightReading(wPayload));
       }
-      bpReadings.forEach((r, i) => {
-        const ts = new Date(now.getTime() + i * 1000).toISOString();
-        posts.push(createBPReading({
+      // §BP: create a BPSession bundling all readings — server computes
+      //      averages + AHA stage, and populates /life's BP card.
+      if (bpReadings.length > 0) {
+        posts.push(createBPSession({
           profile: profileId,
-          systolic: parseInt(r.systolic),
-          diastolic: parseInt(r.diastolic),
-          pulse: r.pulse ? parseInt(r.pulse) : null,
-          measured_at: ts, arm: 'left', posture: 'sitting',
+          measured_at: now.toISOString(),
+          readings: bpReadings.map(r => ({
+            systolic: parseInt(r.systolic),
+            diastolic: parseInt(r.diastolic),
+            pulse: r.pulse ? parseInt(r.pulse) : null,
+            arm: 'left', posture: 'sitting',
+          })),
         }));
-      });
+      }
       await Promise.all(posts);
       await finalizeVitalsSession(session.id);
       if (adherence.length > 0) {
