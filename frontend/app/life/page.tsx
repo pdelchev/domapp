@@ -151,14 +151,15 @@ function Sparkline({ values, width = 220, height = 40 }: { values: (number | nul
 }
 
 function SubScoreCard({
-  label, score, delta7, delta30, href,
-}: { label: string; score: number | null; delta7: number | null; delta30: number | null; href?: string }) {
+  label, score, delta7, delta30, href, hint,
+}: { label: string; score: number | null; delta7: number | null; delta30: number | null; href?: string; hint?: string }) {
   const body = (
     <Card>
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-0.5">
         <div className="text-[13px] font-medium text-gray-700">{label}</div>
         {href && <span className="text-xs text-gray-400">→</span>}
       </div>
+      {hint && <div className="text-[10px] text-gray-400 mb-2 leading-snug">{hint}</div>}
       <div className={`text-4xl font-bold ${scoreColor(score)}`}>
         {score != null ? score : '—'}
       </div>
@@ -337,9 +338,10 @@ export default function LifePage() {
         <Card>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
-              <div className="text-[13px] font-medium text-gray-700 mb-1">
+              <div className="text-[13px] font-medium text-gray-700">
                 {t('life.health_score', locale)} · {data?.profile.full_name}
               </div>
+              <div className="text-[11px] text-gray-400 mb-1">{t('life.health_score_hint', locale)}</div>
               <div className={`text-7xl font-bold ${scoreColor(today?.composite_score ?? null)}`}>
                 {today?.composite_score ?? '—'}
               </div>
@@ -362,6 +364,7 @@ export default function LifePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
           <SubScoreCard
             label={t('life.sub.blood', locale)}
+            hint={t('life.sub.blood_hint', locale)}
             score={today?.blood_score ?? null}
             delta7={d7?.blood_score ?? null}
             delta30={d30?.blood_score ?? null}
@@ -369,6 +372,7 @@ export default function LifePage() {
           />
           <SubScoreCard
             label={t('life.sub.bp', locale)}
+            hint={t('life.sub.bp_hint', locale)}
             score={today?.bp_score ?? null}
             delta7={d7?.bp_score ?? null}
             delta30={d30?.bp_score ?? null}
@@ -376,6 +380,7 @@ export default function LifePage() {
           />
           <SubScoreCard
             label={t('life.sub.recovery', locale)}
+            hint={t('life.sub.recovery_hint', locale)}
             score={today?.recovery_score ?? null}
             delta7={d7?.recovery_score ?? null}
             delta30={d30?.recovery_score ?? null}
@@ -383,6 +388,7 @@ export default function LifePage() {
           />
           <SubScoreCard
             label={t('life.sub.lifestyle', locale)}
+            hint={t('life.sub.lifestyle_hint', locale)}
             score={today?.lifestyle_score ?? null}
             delta7={null}
             delta30={null}
@@ -475,9 +481,10 @@ export default function LifePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
                   {t('nav.weight', locale)}
                 </div>
+                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.weight_hint', locale)}</div>
                 {vitals?.latest_weight ? (
                   <>
                     <div className="text-3xl font-semibold text-gray-900">
@@ -496,9 +503,10 @@ export default function LifePage() {
               </Card>
 
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
                   {t('nav.bp', locale)}
                 </div>
+                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.bp_hint', locale)}</div>
                 {vitals?.latest_bp_session ? (
                   <>
                     <div className="text-3xl font-semibold text-gray-900">
@@ -515,9 +523,10 @@ export default function LifePage() {
               </Card>
 
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
                   {t('vitals.bp_per_kg', locale)}
                 </div>
+                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.slope_hint', locale)}</div>
                 {slope?.status === 'ok' ? (
                   <>
                     <div className="text-3xl font-semibold text-gray-900">
@@ -545,9 +554,10 @@ export default function LifePage() {
               <Card>
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
                       {t('vitals.forecast_title', locale)}
                     </div>
+                    <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.forecast_hint', locale)}</div>
                     <div className="text-lg text-gray-900">
                       {t('vitals.forecast_lose', locale).replace('{kg}', String(forecast.kg_to_lose))}
                       {' → '}
@@ -652,9 +662,10 @@ export default function LifePage() {
           {t('life.interventions_section', locale)}
         </div>
         <Card>
-          <div className="text-[13px] font-medium text-gray-700 mb-3">
+          <div className="text-[13px] font-medium text-gray-700">
             {t('life.active_interventions', locale)}
           </div>
+          <div className="text-[10px] text-gray-400 mb-3 leading-snug">{t('life.interventions_hint', locale)}</div>
           {(data?.active_interventions ?? []).length === 0 ? (
             <EmptyState
               icon="🧪"

@@ -1332,6 +1332,28 @@ const translations: Record<string, Record<Locale, string>> = {
   'life.bio_age_section': { en: 'Biological Age', bg: 'Биологична възраст' },
   'life.vitals_section': { en: 'Vitals', bg: 'Витали' },
   'life.interventions_section': { en: 'Interventions', bg: 'Интервенции' },
+  'life.health_score_hint': {
+    en: 'Weighted 0–100 score across all domains. Confidence reflects how many sub-scores have data.',
+    bg: 'Претеглена оценка 0–100 по всички области. Увереността отразява броя на подобластите с данни.',
+  },
+  'life.sub.blood_hint': { en: 'From your latest blood test.', bg: 'От последния кръвен тест.' },
+  'life.sub.bp_hint': { en: 'From recent BP readings + stage.', bg: 'От последните измервания на кръвно.' },
+  'life.sub.recovery_hint': { en: 'WHOOP recovery + HRV.', bg: 'WHOOP възстановяване + HRV.' },
+  'life.sub.lifestyle_hint': { en: 'Intervention adherence + habits.', bg: 'Приемане на интервенции + навици.' },
+  'life.weight_hint': { en: 'Latest scale reading + BMI / waist-hip ratio.', bg: 'Последно измерване + BMI / талия-ханш.' },
+  'life.bp_hint': { en: 'Averaged from your last morning BP session.', bg: 'Осреднено от последната сутрешна сесия.' },
+  'life.slope_hint': {
+    en: 'How many mmHg your systolic drops per kg lost. Needs 20+ days of paired weight + BP logs.',
+    bg: 'Колко mmHg пада систоличното на свален кг. Нужни са 20+ дни с двойно логване.',
+  },
+  'life.forecast_hint': {
+    en: 'Projected weight loss to reach a target systolic, based on your personal slope.',
+    bg: 'Прогнозно сваляне за постигане на целево систолично, на база твоя наклон.',
+  },
+  'life.interventions_hint': {
+    en: 'Supplements, meds, diets, habits you are testing. Log daily adherence from the ritual.',
+    bg: 'Добавки, лекарства, диети, навици. Регистрирай ги дневно чрез рутината.',
+  },
 };
 
 export function t(key: string, locale: Locale): string {
