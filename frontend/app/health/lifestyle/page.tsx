@@ -157,65 +157,6 @@ export default function LifestylePage() {
         <PageHeader title={t('lifestyle.title', locale)} />
         <p className="text-sm text-gray-500 -mt-4 mb-6">{t('lifestyle.subtitle', locale)}</p>
 
-        {/* Quick navigation cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-          <div onClick={() => router.push('/health/recovery')} className="cursor-pointer group">
-            <Card className="hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">💚</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'en' ? 'WHOOP Recovery' : 'WHOOP Възстановяване'}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Strain, HR & recovery' : 'Стрейн, пулс и възстановяване'}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-          <div onClick={() => router.push('/health/bp')} className="cursor-pointer group">
-            <Card className="hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">❤️</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'en' ? 'Blood Pressure' : 'Кръвно налягане'}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Track BP & cardiovascular risk' : 'Проследяване на КН и сърдечен риск'}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-          <div onClick={() => router.push('/life/lab-order')} className="cursor-pointer group">
-            <Card className="hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">🧪</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.follow_up', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Tests to repeat in 3 months' : 'Тестове за повторение след 3 месеца'}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-          <div onClick={() => router.push('/health/lifestyle/meals')} className="cursor-pointer group">
-            <Card className="hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">🥗</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.meal_plan', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? '30-day rotating daily menus' : '30-дневно ротиращо меню'}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-          <div onClick={() => router.push('/health/lifestyle/gym')} className="cursor-pointer group">
-            <Card className="hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">🏋️</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.gym_routine', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Gym, sports & recovery plan' : 'Фитнес, спорт и възстановяване'}</p>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-
         {/* Blood Test Results Table */}
         <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('lifestyle.blood_results', locale)}</h2>
         {categories.map((cat) => {

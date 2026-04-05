@@ -396,6 +396,68 @@ export default function LifePage() {
           />
         </div>
 
+        {/* ═══ QUICK TOOLS ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Бързи инструменти' : 'Quick Tools'}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <Link href="/health/recovery" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F49A;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'WHOOP' : 'WHOOP Recovery'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Стрейн, пулс' : 'Strain, HR & recovery'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/health/bp" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x2764;&#xFE0F;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'КН и сърдечен риск' : 'Track BP & CV risk'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/life/lab-order" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F9EA;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Тестове' : 'Follow-up Tests'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'След 3 месеца' : 'Repeat in 3 months'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/health/lifestyle/meals" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F957;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Меню' : 'Meal Plan'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Ротиращо меню' : 'Daily rotating menu'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/health/lifestyle/gym" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F3CB;&#xFE0F;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Фитнес' : 'Gym & Sports'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Тренировки' : 'Training & recovery'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+        </div>
+
         {/* ═══ BIOLOGICAL AGE ═══ */}
         {(data?.phenoage || cmAge) && (
           <>
