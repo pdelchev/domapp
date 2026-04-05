@@ -30,6 +30,7 @@ from .whoop_services import (
     get_auth_url, exchange_code, sync_whoop_data,
     get_whoop_dashboard, get_recovery_stats, get_sleep_stats,
     get_strain_stats, compute_cardiovascular_fitness,
+    get_training_recommendation,
     disconnect_whoop, WhoopAPIError,
 )
 
@@ -415,4 +416,19 @@ class CardiovascularFitnessView(APIView):
 
     def get(self, request):
         result = compute_cardiovascular_fitness(request.user)
+        return Response(result)
+
+
+# ── Training Recommendation ───────────────────────────────────────
+
+class TrainingRecommendationView(APIView):
+    """
+    §TRAINING_REC: Next-session prescription from recent strain/HR signals.
+
+    GET /api/health/whoop/training-recommendation/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        result = get_training_recommendation(request.user)
         return Response(result)

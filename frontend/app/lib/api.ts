@@ -1302,6 +1302,12 @@ export async function getWhoopCVFitness() {
   return res.json();
 }
 
+export async function getWhoopTrainingRecommendation() {
+  const res = await apiFetch('/api/health/whoop/training-recommendation/');
+  if (!res.ok) throw new Error('Failed to fetch training recommendation');
+  return res.json();
+}
+
 // --- Life (unified HealthScore + Interventions) ---
 
 export async function getLifeSummary(profileId?: number) {

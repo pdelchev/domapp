@@ -33,4 +33,7 @@ urlpatterns = [
 
     # §CVF: Combined cardiovascular fitness
     path('cardiovascular-fitness/', whoop_views.CardiovascularFitnessView.as_view(), name='whoop-cardiovascular-fitness'),
+
+    # §TRAIN: Next-session training recommendation
+    path('training-recommendation/', whoop_views.TrainingRecommendationView.as_view(), name='whoop-training-recommendation'),
 ]

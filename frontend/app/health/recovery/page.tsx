@@ -7,7 +7,7 @@ import { t } from '../../lib/i18n';
 import { Locale } from '../../lib/i18n';
 import {
   getWhoopStatus, getWhoopConnectUrl, whoopCallback, whoopSync,
-  whoopDisconnect, getWhoopDashboard,
+  whoopDisconnect, getWhoopDashboard, getWhoopTrainingRecommendation,
 } from '../../lib/api';
 import NavBar from '../../components/NavBar';
 import {
@@ -54,6 +54,40 @@ interface CvFactor {
   label: string;
   score: number;
   available: boolean;
+}
+
+interface TrainingSignal {
+  key: string;
+  label: string;
+  value: number | null;
+  status: string;
+  explainer: string;
+}
+
+interface TrainingPrescription {
+  band: string;
+  label: string;
+  color: 'green' | 'yellow' | 'red';
+  session_type: string;
+  sets_modifier: string;
+  reps_modifier: string;
+  intensity_pct_1rm: string;
+  target_strain_min: number;
+  target_strain_max: number;
+  message: string;
+}
+
+interface TrainingRecommendation {
+  available: boolean;
+  reason?: string;
+  cycles_found?: number;
+  cycles_needed?: number;
+  readiness_score?: number;
+  band?: string;
+  prescription?: TrainingPrescription;
+  signals?: TrainingSignal[];
+  metrics?: Record<string, number | null>;
+  note?: string;
 }
 
 interface CycleEntry {
@@ -383,6 +417,134 @@ function CvFitnessCard({ cv, locale, router }: {
   );
 }
 
+// ── Training Recommendation Card ─────────────────────────────────
+
+function signalStatusColor(status: string): string {
+  const good = ['optimal', 'balanced', 'varied', 'steady', 'progressing', 'improving', 'stable', 'deloading'];
+  const warn = ['elevated', 'monotonous', 'ramping_fast', 'rising', 'undertraining'];
+  const bad = ['danger', 'overtraining_risk', 'fatigued'];
+  if (good.includes(status)) return 'bg-emerald-500';
+  if (warn.includes(status)) return 'bg-amber-500';
+  if (bad.includes(status)) return 'bg-red-500';
+  return 'bg-gray-300';
+}
+
+function ReadinessRing({ score, color }: { score: number; color: string }) {
+  const size = 96;
+  const r = (size - 10) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c - (score / 100) * c;
+  const hex = color === 'green' ? '#22c55e' : color === 'yellow' ? '#eab308' : '#ef4444';
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={hex} strokeWidth="7"
+          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
+      </svg>
+      <span className="absolute text-2xl font-bold" style={{ color: hex }}>{score}</span>
+    </div>
+  );
+}
+
+function TrainingRecommendationCard({ rec, locale }: { rec: TrainingRecommendation; locale: Locale }) {
+  if (!rec.available) {
+    return (
+      <Card className="mb-6">
+        <div className="flex items-start gap-3">
+          <div className="text-2xl">&#x1F4AA;</div>
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+              {locale === 'bg' ? 'Тренировъчна препоръка' : "Tomorrow's Training"}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {locale === 'bg'
+                ? `Нужни са поне ${rec.cycles_needed ?? 3} цикъла (${rec.cycles_found ?? 0} налични). Продължете да синхронизирате данни.`
+                : `Need at least ${rec.cycles_needed ?? 3} cycles (${rec.cycles_found ?? 0} available). Keep syncing data.`}
+            </p>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const rx = rec.prescription!;
+  const score = rec.readiness_score ?? 0;
+  const signals = rec.signals ?? [];
+
+  const borderColor =
+    rx.color === 'green' ? 'border-emerald-300' :
+    rx.color === 'yellow' ? 'border-amber-300' : 'border-red-300';
+  const bgColor =
+    rx.color === 'green' ? 'bg-emerald-50' :
+    rx.color === 'yellow' ? 'bg-amber-50' : 'bg-red-50';
+
+  return (
+    <Card className={`mb-6 border-2 ${borderColor}`}>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">
+            {locale === 'bg' ? 'Утрешна тренировка' : "Tomorrow's Training"}
+          </h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {locale === 'bg' ? 'Готовност на базата на натоварване' : 'Readiness from training load signals'}
+          </p>
+        </div>
+        <Badge color={rx.color === 'green' ? 'green' : rx.color === 'yellow' ? 'yellow' : 'red'}>
+          {rx.label}
+        </Badge>
+      </div>
+
+      <div className="flex items-center gap-4 mb-4">
+        <ReadinessRing score={score} color={rx.color} />
+        <div className="flex-1">
+          <div className="text-xs text-gray-500 mb-1">{locale === 'bg' ? 'Препоръка' : 'Prescription'}</div>
+          <div className="text-base font-semibold text-gray-900">{rx.session_type}</div>
+          <div className="text-sm text-gray-600 mt-1">{rx.message}</div>
+        </div>
+      </div>
+
+      <div className={`grid grid-cols-2 md:grid-cols-4 gap-2 p-3 rounded-lg mb-4 ${bgColor}`}>
+        <div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide">{locale === 'bg' ? 'Серии' : 'Sets'}</div>
+          <div className="text-sm font-semibold text-gray-900">{rx.sets_modifier}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide">{locale === 'bg' ? 'Повторения' : 'Reps'}</div>
+          <div className="text-sm font-semibold text-gray-900">{rx.reps_modifier}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide">{locale === 'bg' ? 'Интензивност' : 'Intensity'}</div>
+          <div className="text-sm font-semibold text-gray-900">{rx.intensity_pct_1rm}</div>
+        </div>
+        <div>
+          <div className="text-[10px] text-gray-500 uppercase tracking-wide">{locale === 'bg' ? 'Стрейн' : 'Strain'}</div>
+          <div className="text-sm font-semibold text-gray-900">{rx.target_strain_min}–{rx.target_strain_max}</div>
+        </div>
+      </div>
+
+      <div>
+        <div className="text-xs font-medium text-gray-600 mb-2">{locale === 'bg' ? 'Защо' : 'Why'}</div>
+        <div className="space-y-1.5">
+          {signals.map((s) => (
+            <div key={s.key} className="flex items-center gap-2 text-xs">
+              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${signalStatusColor(s.status)}`} title={s.explainer} />
+              <span className="text-gray-700 flex-1">{s.label}</span>
+              <span className="font-mono text-gray-900">{s.value ?? '—'}</span>
+              <span className="text-gray-400 capitalize w-28 text-right">{s.status.replace(/_/g, ' ')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {rec.note && (
+        <p className="text-[11px] text-gray-400 italic mt-3 pt-3 border-t border-gray-100">{rec.note}</p>
+      )}
+    </Card>
+  );
+}
+
 // ── Main Page ────────────────────────────────────────────────────
 
 export default function RecoveryPage() {
@@ -392,6 +554,7 @@ export default function RecoveryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [trainingRec, setTrainingRec] = useState<TrainingRecommendation | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const callbackProcessed = useRef(false);
@@ -413,6 +576,13 @@ export default function RecoveryPage() {
             hrv_sparkline: [], rhr_sparkline: [], sleep: null, strain: null,
             latest_workout: null, cv_fitness: null, recent_history: [],
           });
+        }
+        // Training recommendation — independent of dashboard success
+        try {
+          const rec = await getWhoopTrainingRecommendation();
+          setTrainingRec(rec);
+        } catch {
+          setTrainingRec(null);
         }
       } else {
         setData({
@@ -556,6 +726,11 @@ export default function RecoveryPage() {
         {/* Not connected / No data */}
         {!data?.connected && (
           <EmptyState icon="&#x1F4F1;" message={t('whoop.no_data', locale)} />
+        )}
+
+        {/* Training recommendation — shown whenever we have enough cycle data */}
+        {data?.connected && trainingRec && (
+          <TrainingRecommendationCard rec={trainingRec} locale={locale} />
         )}
 
         {/* Connected with data */}

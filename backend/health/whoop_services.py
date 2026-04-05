@@ -1237,3 +1237,284 @@ def _compute_trend(points: list) -> float:
 
     slope = (n * sum_xy - sum_x * sum_y) / denom
     return slope
+
+
+# ── Training Recommendation ────────────────────────────────────────
+# §TRAIN: Data-driven next-session prescription from WHOOP cycles.
+#
+# Research basis:
+#   • ACWR (Gabbett 2016): 7d acute load / 28d chronic load. 0.8–1.3 sweet
+#     spot; >1.5 linked to injury risk in team-sport studies.
+#   • Foster monotony: mean(weekly load) / sd(weekly load). High monotony +
+#     high load correlates with overtraining symptoms.
+#   • HR drift: rising avg HR for similar strain = accumulated fatigue.
+#
+# When Recovery/HRV data becomes available, overlay HRV-vs-baseline and
+# Recovery Score — they dominate the proxy readiness score computed here.
+
+def get_training_recommendation(user) -> dict:
+    """
+    §TRAINING_REC: Compute readiness and prescribe tomorrow's session.
+
+    Returns readiness (0-100), prescription (session type, set/rep/intensity
+    modifiers, target strain band), and the signals that drove the score.
+    """
+    now = timezone.now()
+    window_start = now - timedelta(days=28)
+
+    cycles = list(
+        WhoopCycle.objects
+        .filter(user=user, start__gte=window_start, strain__isnull=False)
+        .order_by('start')
+        .values('start', 'strain', 'average_heart_rate')
+    )
+
+    if len(cycles) < 3:
+        return {
+            'available': False,
+            'reason': 'insufficient_data',
+            'cycles_found': len(cycles),
+            'cycles_needed': 3,
+        }
+
+    # ── Signals ────────────────────────────────────────────────────
+    today = now.date()
+
+    def in_window(cycle, days_back):
+        return (today - cycle['start'].date()).days < days_back
+
+    last7 = [c for c in cycles if in_window(c, 7)]
+    last14 = [c for c in cycles if in_window(c, 14)]
+    last28 = cycles  # already windowed
+
+    # Acute = weekly-equivalent load per period (normalized by days covered)
+    def weekly_equiv(items, window_days):
+        if not items:
+            return 0.0
+        dates = {c['start'].date() for c in items}
+        days_covered = max(1, min(len(dates), window_days))
+        return (sum(c['strain'] for c in items) / days_covered) * 7
+
+    acute_load = weekly_equiv(last7, 7)
+    chronic_load = weekly_equiv(last28, 28)
+    # ACWR only meaningful once we have ≥14 days of data
+    chronic_days = len({c['start'].date() for c in last28})
+    if chronic_load > 0 and chronic_days >= 14:
+        acwr = round(acute_load / chronic_load, 2)
+    else:
+        acwr = None  # insufficient history
+
+    # Foster monotony: weekly mean ÷ SD
+    if len(last7) >= 2:
+        mean7 = sum(c['strain'] for c in last7) / len(last7)
+        var7 = sum((c['strain'] - mean7) ** 2 for c in last7) / len(last7)
+        sd7 = math.sqrt(var7)
+        monotony = round(mean7 / sd7, 2) if sd7 > 0.1 else 4.0  # clamp at 4
+    else:
+        monotony = None
+
+    # Strain trend: slope over last 14 days (per-day change)
+    if len(last14) >= 4:
+        points = [
+            ((c['start'].date() - today).days + 14, c['strain'])
+            for c in last14
+        ]
+        strain_slope = round(_compute_trend(points), 3)
+    else:
+        strain_slope = None
+
+    # HR drift: last 7d avg HR vs prior 7d (days 8-14)
+    prior7 = [c for c in last14 if not in_window(c, 7)]
+    hr_last7 = [c['average_heart_rate'] for c in last7 if c['average_heart_rate']]
+    hr_prior7 = [c['average_heart_rate'] for c in prior7 if c['average_heart_rate']]
+    if hr_last7 and hr_prior7:
+        hr_drift = round(
+            (sum(hr_last7) / len(hr_last7)) - (sum(hr_prior7) / len(hr_prior7)),
+            1,
+        )
+    else:
+        hr_drift = None
+
+    # Latest strain (yesterday-ish)
+    latest_strain = round(cycles[-1]['strain'], 1)
+
+    # ── Traffic-light each signal ─────────────────────────────────
+    signals = []
+
+    # ACWR — sweet spot 0.8–1.3
+    if acwr is None:
+        acwr_status = 'unknown'; acwr_points = 50
+    elif acwr < 0.8:
+        acwr_status = 'undertraining'; acwr_points = 70
+    elif acwr <= 1.3:
+        acwr_status = 'optimal'; acwr_points = 100
+    elif acwr <= 1.5:
+        acwr_status = 'elevated'; acwr_points = 55
+    else:
+        acwr_status = 'danger'; acwr_points = 20
+    signals.append({
+        'key': 'acwr', 'label': 'Acute:Chronic Load',
+        'value': acwr, 'status': acwr_status,
+        'explainer': 'Last 7 days vs 28-day average. 0.8–1.3 is the injury-safe sweet spot.',
+    })
+
+    # Monotony — <2.0 healthy, >2.5 elevated
+    if monotony is None:
+        mono_status = 'unknown'; mono_points = 50
+    elif monotony < 1.5:
+        mono_status = 'varied'; mono_points = 100
+    elif monotony < 2.0:
+        mono_status = 'balanced'; mono_points = 85
+    elif monotony < 2.5:
+        mono_status = 'monotonous'; mono_points = 55
+    else:
+        mono_status = 'overtraining_risk'; mono_points = 25
+    signals.append({
+        'key': 'monotony', 'label': 'Training Monotony',
+        'value': monotony, 'status': mono_status,
+        'explainer': 'Low variation in daily strain. >2.0 + high load = overtraining risk (Foster).',
+    })
+
+    # Strain trend
+    if strain_slope is None:
+        trend_status = 'unknown'; trend_points = 50
+    elif strain_slope > 0.5:
+        trend_status = 'ramping_fast'; trend_points = 40
+    elif strain_slope > 0.15:
+        trend_status = 'progressing'; trend_points = 85
+    elif strain_slope >= -0.15:
+        trend_status = 'steady'; trend_points = 90
+    else:
+        trend_status = 'deloading'; trend_points = 70
+    signals.append({
+        'key': 'trend', 'label': '14-day Strain Trend',
+        'value': strain_slope, 'status': trend_status,
+        'explainer': 'Per-day strain change. Fast ramp-up precedes injuries.',
+    })
+
+    # HR drift
+    if hr_drift is None:
+        drift_status = 'unknown'; drift_points = 50
+    elif hr_drift < -2:
+        drift_status = 'improving'; drift_points = 100
+    elif hr_drift <= 3:
+        drift_status = 'stable'; drift_points = 90
+    elif hr_drift <= 7:
+        drift_status = 'rising'; drift_points = 50
+    else:
+        drift_status = 'fatigued'; drift_points = 20
+    signals.append({
+        'key': 'hr_drift', 'label': 'HR Drift (7d vs prior 7d)',
+        'value': hr_drift, 'status': drift_status,
+        'explainer': 'Rising avg HR at same workload suggests accumulated fatigue.',
+    })
+
+    # ── Readiness score: weighted average ─────────────────────────
+    # ACWR and HR drift weighted highest (injury/fatigue signals).
+    weights = {'acwr': 0.35, 'monotony': 0.20, 'trend': 0.15, 'hr_drift': 0.30}
+    points_map = {
+        'acwr': acwr_points, 'monotony': mono_points,
+        'trend': trend_points, 'hr_drift': drift_points,
+    }
+    readiness = round(sum(points_map[k] * w for k, w in weights.items()))
+
+    # Yesterday's strain dampener: if you just hit >16, scale readiness down
+    if latest_strain >= 18:
+        readiness = min(readiness, 45)
+    elif latest_strain >= 16:
+        readiness = min(readiness, 60)
+
+    readiness = max(0, min(100, readiness))
+
+    # ── Prescription ──────────────────────────────────────────────
+    if readiness >= 80:
+        band = 'peak'
+        rx = {
+            'band': 'peak',
+            'label': 'Green — Push',
+            'color': 'green',
+            'session_type': 'Heavy strength / PR attempt',
+            'sets_modifier': '+1 set',
+            'reps_modifier': 'baseline',
+            'intensity_pct_1rm': '85–100%',
+            'target_strain_min': 14,
+            'target_strain_max': 18,
+            'message': 'Your body is ready. Attack the hardest session this week — heavy compound lifts, intervals, or a PR attempt.',
+        }
+    elif readiness >= 60:
+        band = 'ready'
+        rx = {
+            'band': 'ready',
+            'label': 'Green — Normal hard',
+            'color': 'green',
+            'session_type': 'Strength — baseline',
+            'sets_modifier': 'baseline',
+            'reps_modifier': 'baseline',
+            'intensity_pct_1rm': '75–85%',
+            'target_strain_min': 12,
+            'target_strain_max': 15,
+            'message': 'Solid readiness. Run your planned session at prescribed weights and volume.',
+        }
+    elif readiness >= 40:
+        band = 'moderate'
+        rx = {
+            'band': 'moderate',
+            'label': 'Yellow — Hypertrophy',
+            'color': 'yellow',
+            'session_type': 'Volume / hypertrophy',
+            'sets_modifier': 'baseline',
+            'reps_modifier': '+2 reps',
+            'intensity_pct_1rm': '65–75%',
+            'target_strain_min': 8,
+            'target_strain_max': 12,
+            'message': 'Moderate readiness. Drop intensity, add reps — prioritize volume and technique over max loads.',
+        }
+    elif readiness >= 20:
+        band = 'low'
+        rx = {
+            'band': 'low',
+            'label': 'Red — Light',
+            'color': 'red',
+            'session_type': 'Light technique / mobility',
+            'sets_modifier': '−1 set',
+            'reps_modifier': 'baseline',
+            'intensity_pct_1rm': '50–65%',
+            'target_strain_min': 6,
+            'target_strain_max': 9,
+            'message': 'Under-recovered. Cut a set, drop intensity, focus on clean movement. No grinders.',
+        }
+    else:
+        band = 'rest'
+        rx = {
+            'band': 'rest',
+            'label': 'Red — Rest',
+            'color': 'red',
+            'session_type': 'Active recovery or full rest',
+            'sets_modifier': '—',
+            'reps_modifier': '—',
+            'intensity_pct_1rm': 'Walk / stretch only',
+            'target_strain_min': 0,
+            'target_strain_max': 6,
+            'message': 'Accumulated fatigue is high. Take a rest day or 30-45 min easy walk. Training through this costs more than it gives.',
+        }
+
+    return {
+        'available': True,
+        'computed_at': now.isoformat(),
+        'readiness_score': readiness,
+        'band': band,
+        'prescription': rx,
+        'signals': signals,
+        'metrics': {
+            'acute_load_7d': round(acute_load, 1),
+            'chronic_load_weekly_avg': round(chronic_load, 1),
+            'acwr': acwr,
+            'monotony': monotony,
+            'strain_slope_14d': strain_slope,
+            'hr_drift_bpm': hr_drift,
+            'latest_strain': latest_strain,
+            'cycles_analyzed': len(cycles),
+        },
+        'data_source': 'cycles_only',  # Upgrade to 'full' when recovery data available
+        'note': 'Using cycle data (strain, HR). Readiness will improve when Recovery/HRV data is available after WHOOP app approval.',
+    }
