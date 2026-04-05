@@ -106,7 +106,7 @@ export default function WeightDashboardPage() {
           title={t('nav.weight', locale)}
           action={
             <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => router.push('/health/vitals')}>
+              <Button variant="secondary" onClick={() => router.push('/life')}>
                 {t('weight.view_vitals', locale)}
               </Button>
               <Button onClick={() => router.push('/health/weight/new')}>

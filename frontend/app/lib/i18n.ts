@@ -1329,6 +1329,9 @@ const translations: Record<string, Record<Locale, string>> = {
   'vitals.no_interventions': { en: 'No active interventions — add some on /life', bg: 'Няма активни интервенции — добави на /life' },
   'vitals.skip_adherence': { en: 'Skip', bg: 'Пропусни' },
   'vitals.adherence_summary': { en: 'Interventions taken', bg: 'Приети интервенции' },
+  'life.bio_age_section': { en: 'Biological Age', bg: 'Биологична възраст' },
+  'life.vitals_section': { en: 'Vitals', bg: 'Витали' },
+  'life.interventions_section': { en: 'Interventions', bg: 'Интервенции' },
 };
 
 export function t(key: string, locale: Locale): string {

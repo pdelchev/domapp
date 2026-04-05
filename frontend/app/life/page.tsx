@@ -14,7 +14,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import {
   getLifeSummary, createIntervention, deleteIntervention,
+  getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
+  getStageRegressionForecast,
 } from '../lib/api';
+import { RitualModal } from '../components/RitualModal';
 
 type Snapshot = {
   id: number;
@@ -76,6 +79,19 @@ type LifeSummary = {
   active_interventions: Intervention[];
   phenoage: PhenoAge;
   briefing: Briefing;
+};
+
+// Vitals section types
+interface VitalsDash {
+  latest_weight: { weight_kg: string; bmi: number | null; waist_hip_ratio: number | null; measured_at: string } | null;
+  latest_bp_session: { measured_at: string; avg_systolic: number; avg_diastolic: number; stage: string } | null;
+}
+interface CMAge { chronological_age: number; cardiometabolic_age: number; delta_years: number; signals_present: number; confidence: number; }
+interface Slope { status: string; slope_mmhg_per_kg?: number; r_squared?: number; paired_days?: number; need?: number; }
+interface Forecast { status: string; kg_to_lose?: number; target_systolic?: number; eta_date?: string; weeks?: number; }
+
+const STAGE_COLORS: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
+  normal: 'green', elevated: 'yellow', stage_1: 'yellow', stage_2: 'red', crisis: 'red',
 };
 
 const CATEGORIES = ['supplement', 'medication', 'diet', 'exercise', 'sleep', 'habit', 'other'];
@@ -167,6 +183,11 @@ export default function LifePage() {
     hypothesis: '', evidence_grade: 'B', source_url: '', notes: '',
   });
   const [saving, setSaving] = useState(false);
+  const [vitals, setVitals] = useState<VitalsDash | null>(null);
+  const [cmAge, setCmAge] = useState<CMAge | null>(null);
+  const [slope, setSlope] = useState<Slope | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [ritualOpen, setRitualOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -174,6 +195,18 @@ export default function LifePage() {
       const res = await getLifeSummary();
       setData(res);
       setError('');
+      // §VITALS: fire 4 vitals requests in parallel once we know the profile
+      const pid = res?.profile?.id;
+      if (pid) {
+        Promise.all([
+          getVitalsDashboard(pid).catch(() => null),
+          getCardiometabolicAge(pid).catch(() => null),
+          getBPPerKgSlope(pid).catch(() => null),
+          getStageRegressionForecast(pid).catch(() => null),
+        ]).then(([d, a, s, f]) => {
+          setVitals(d); setCmAge(a); setSlope(s); setForecast(f);
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -258,13 +291,16 @@ export default function LifePage() {
         <PageHeader
           title={t('life.title', locale)}
           action={
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button onClick={() => setRitualOpen(true)} disabled={!data?.profile?.id}>
+                + {t('vitals.log_ritual', locale)}
+              </Button>
               <Link href="/life/lab-order">
                 <Button variant="secondary">
                   📋 {t('life.lab_order', locale)}
                 </Button>
               </Link>
-              <Button onClick={() => setShowForm((v) => !v)}>
+              <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
                 {showForm ? t('common.cancel', locale) : `+ ${t('life.add_intervention', locale)}`}
               </Button>
             </div>
@@ -354,41 +390,180 @@ export default function LifePage() {
           />
         </div>
 
-        {/* PHENOAGE */}
-        {data?.phenoage && (
-          <Card>
-            <div className="flex items-baseline justify-between mb-3">
-              <div>
-                <div className="text-[13px] font-medium text-gray-700">
-                  {t('life.phenoage', locale)}
-                </div>
-                <div className="text-[11px] text-gray-400">Levine 2018 · bio-age from 9 biomarkers</div>
-              </div>
-              {data.phenoage.test_date && (
-                <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>
+        {/* ═══ BIOLOGICAL AGE ═══ */}
+        {(data?.phenoage || cmAge) && (
+          <>
+            <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {t('life.bio_age_section', locale)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* PhenoAge — blood-based */}
+              {data?.phenoage && (
+                <Card>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-gray-700">
+                        {t('life.phenoage', locale)}
+                      </div>
+                      <div className="text-[11px] text-gray-400">Levine 2018 · 9 blood markers</div>
+                    </div>
+                    {data.phenoage.test_date && (
+                      <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>
+                    )}
+                  </div>
+                  {data.phenoage.phenoage != null ? (
+                    <div className="flex items-end gap-5">
+                      <div>
+                        <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
+                        <div className="text-5xl font-bold text-indigo-600">{data.phenoage.phenoage}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
+                        <div className="text-3xl font-medium text-gray-700">{data.phenoage.chronological_age}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-500">Δ</div>
+                        <div className={`text-3xl font-medium ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">{data.phenoage.note}</div>
+                  )}
+                </Card>
+              )}
+
+              {/* Cardiometabolic Age — BP + body comp */}
+              {cmAge && cmAge.signals_present > 0 && (
+                <Card>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-gray-700">
+                        {t('vitals.cm_age_title', locale)}
+                      </div>
+                      <div className="text-[11px] text-gray-400">BP + body comp · {cmAge.signals_present}/4 signals</div>
+                    </div>
+                  </div>
+                  <div className="flex items-end gap-5">
+                    <div>
+                      <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
+                      <div className="text-5xl font-bold text-indigo-600">{cmAge.cardiometabolic_age}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
+                      <div className="text-3xl font-medium text-gray-700">{cmAge.chronological_age}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">Δ</div>
+                      <div className={`text-3xl font-medium ${cmAge.delta_years <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {cmAge.delta_years >= 0 ? '+' : ''}{cmAge.delta_years}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
               )}
             </div>
-            {data.phenoage.phenoage != null ? (
-              <div className="flex items-end gap-6">
-                <div>
-                  <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
-                  <div className="text-5xl font-bold text-indigo-600">{data.phenoage.phenoage}</div>
+          </>
+        )}
+
+        {/* ═══ VITALS SNAPSHOT ═══ */}
+        {(vitals || slope) && (
+          <>
+            <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {t('life.vitals_section', locale)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  {t('nav.weight', locale)}
                 </div>
-                <div>
-                  <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
-                  <div className="text-3xl font-medium text-gray-700">{data.phenoage.chronological_age}</div>
+                {vitals?.latest_weight ? (
+                  <>
+                    <div className="text-3xl font-semibold text-gray-900">
+                      {Number(vitals.latest_weight.weight_kg).toFixed(1)}
+                      <span className="text-lg text-gray-500 ml-1">kg</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(vitals.latest_weight.measured_at).toLocaleDateString()}
+                    </div>
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {vitals.latest_weight.bmi && <Badge color="indigo">BMI {vitals.latest_weight.bmi}</Badge>}
+                      {vitals.latest_weight.waist_hip_ratio && <Badge color="blue">WHR {vitals.latest_weight.waist_hip_ratio}</Badge>}
+                    </div>
+                  </>
+                ) : <div className="text-sm text-gray-500 py-4">{t('weight.no_readings', locale)}</div>}
+              </Card>
+
+              <Card>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  {t('nav.bp', locale)}
                 </div>
-                <div>
-                  <div className="text-[11px] text-gray-500">{t('life.age_accel', locale)}</div>
-                  <div className={`text-3xl font-medium ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                {vitals?.latest_bp_session ? (
+                  <>
+                    <div className="text-3xl font-semibold text-gray-900">
+                      {Math.round(vitals.latest_bp_session.avg_systolic)}/{Math.round(vitals.latest_bp_session.avg_diastolic)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(vitals.latest_bp_session.measured_at).toLocaleDateString()}
+                    </div>
+                    <Badge color={STAGE_COLORS[vitals.latest_bp_session.stage] || 'gray'}>
+                      {vitals.latest_bp_session.stage.replace('_', ' ')}
+                    </Badge>
+                  </>
+                ) : <div className="text-sm text-gray-500 py-4">{t('vitals.no_bp', locale)}</div>}
+              </Card>
+
+              <Card>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                  {t('vitals.bp_per_kg', locale)}
+                </div>
+                {slope?.status === 'ok' ? (
+                  <>
+                    <div className="text-3xl font-semibold text-gray-900">
+                      {slope.slope_mmhg_per_kg! > 0 ? '+' : ''}{slope.slope_mmhg_per_kg}
+                      <span className="text-sm text-gray-500 ml-1">mmHg/kg</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      R² {slope.r_squared} • {slope.paired_days}d {t('vitals.paired', locale)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm text-gray-600">
+                      {slope?.paired_days || 0} / {slope?.need || 20} {t('vitals.paired_days_needed', locale)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {t('vitals.log_weight_bp', locale)}
+                    </div>
+                  </>
+                )}
+              </Card>
+            </div>
+
+            {forecast?.status === 'ok' && (
+              <Card>
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      {t('vitals.forecast_title', locale)}
+                    </div>
+                    <div className="text-lg text-gray-900">
+                      {t('vitals.forecast_lose', locale).replace('{kg}', String(forecast.kg_to_lose))}
+                      {' → '}
+                      <span className="font-medium">{forecast.target_systolic} mmHg</span>
+                    </div>
+                    {forecast.eta_date && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        ETA: {new Date(forecast.eta_date).toLocaleDateString()} ({forecast.weeks} wks)
+                      </div>
+                    )}
                   </div>
+                  <Badge color="indigo">{t('vitals.projection', locale)}</Badge>
                 </div>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500">{data.phenoage.note}</div>
+              </Card>
             )}
-          </Card>
+          </>
         )}
 
         {/* Add intervention form */}
@@ -472,7 +647,10 @@ export default function LifePage() {
           </Card>
         )}
 
-        {/* Active interventions */}
+        {/* ═══ INTERVENTIONS ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {t('life.interventions_section', locale)}
+        </div>
         <Card>
           <div className="text-[13px] font-medium text-gray-700 mb-3">
             {t('life.active_interventions', locale)}
@@ -513,6 +691,15 @@ export default function LifePage() {
             </div>
           )}
         </Card>
+
+        {ritualOpen && data?.profile?.id && (
+          <RitualModal
+            profileId={data.profile.id}
+            locale={locale}
+            onClose={() => setRitualOpen(false)}
+            onDone={() => { setRitualOpen(false); load(); }}
+          />
+        )}
       </PageContent>
     </PageShell>
   );
