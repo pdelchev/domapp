@@ -88,8 +88,8 @@ const DESKTOP_NAV = [
     { href: '/health', key: 'nav.health' },
     { href: '/health/recovery', key: 'nav.recovery' },
     { href: '/health/lifestyle', key: 'nav.lifestyle' },
-    { href: '/vehicles', key: 'nav.vehicles' },
   ]},
+  { key: 'nav.vehicles', href: '/vehicles' },
   { key: 'nav.investments', href: '/investments', sub: [
     { href: '/investments', key: 'investments.portfolio_tracker' },
     { href: '/investments/analyzer', key: 'investments.deal_analyzer' },

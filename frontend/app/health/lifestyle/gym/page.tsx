@@ -1,11 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../../context/LanguageContext';
 import { t } from '../../../lib/i18n';
 import NavBar from '../../../components/NavBar';
 import { PageShell, PageContent, PageHeader, Card, Badge } from '../../../components/ui';
+import { getWhoopTrainingRecommendation } from '../../../lib/api';
+
+interface ReadinessBannerData {
+  available: boolean;
+  readiness_score?: number;
+  prescription?: {
+    color: 'green' | 'yellow' | 'red';
+    label: string;
+    session_type: string;
+    sets_modifier: string;
+    reps_modifier: string;
+    intensity_pct_1rm: string;
+    target_strain_min: number;
+    target_strain_max: number;
+  };
+}
 
 interface WorkoutDay {
   day: { en: string; bg: string };
@@ -156,7 +172,14 @@ export default function GymRoutinePage() {
   const router = useRouter();
   const { locale } = useLanguage();
   const [selectedDay, setSelectedDay] = useState(0);
+  const [readiness, setReadiness] = useState<ReadinessBannerData | null>(null);
   const workout = WEEKLY_PLAN[selectedDay];
+
+  useEffect(() => {
+    getWhoopTrainingRecommendation()
+      .then(setReadiness)
+      .catch(() => setReadiness(null));
+  }, []);
 
   return (
     <PageShell>
@@ -172,6 +195,36 @@ export default function GymRoutinePage() {
             ? 'Designed for: glucose control (strength + Zone 2 cardio), liver fat reduction, uric acid clearance, blood pressure management'
             : 'Проектирано за: контрол на глюкозата (сила + зона 2 кардио), намаляване на мастния черен дроб, изчистване на пикочната киселина, контрол на кръвното налягане'}
         </p>
+
+        {/* Today's readiness (from WHOOP cycles) */}
+        {readiness?.available && readiness.prescription && (() => {
+          const rx = readiness.prescription;
+          const border = rx.color === 'green' ? 'border-l-emerald-500' : rx.color === 'yellow' ? 'border-l-amber-500' : 'border-l-red-500';
+          const textColor = rx.color === 'green' ? 'text-emerald-700' : rx.color === 'yellow' ? 'text-amber-700' : 'text-red-700';
+          return (
+            <button
+              onClick={() => router.push('/health/recovery')}
+              className={`w-full text-left bg-white border border-gray-200 border-l-4 ${border} rounded-xl p-4 mb-5 shadow-sm hover:shadow transition-shadow`}
+            >
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className={`text-2xl font-bold ${textColor}`}>{readiness.readiness_score}</div>
+                  <div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wide">
+                      {locale === 'bg' ? 'Готовност днес' : "Today's readiness"}
+                    </div>
+                    <div className="text-sm font-semibold text-gray-900">{rx.session_type}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-xs">
+                  <div><span className="text-gray-400">{locale === 'bg' ? 'Серии' : 'Sets'}:</span> <span className="font-semibold text-gray-900">{rx.sets_modifier}</span></div>
+                  <div><span className="text-gray-400">{locale === 'bg' ? 'Повт.' : 'Reps'}:</span> <span className="font-semibold text-gray-900">{rx.reps_modifier}</span></div>
+                  <div><span className="text-gray-400">{locale === 'bg' ? 'Инт.' : 'Int.'}:</span> <span className="font-semibold text-gray-900">{rx.intensity_pct_1rm}</span></div>
+                </div>
+              </div>
+            </button>
+          );
+        })()}
 
         {/* Day selector */}
         <div className="flex flex-wrap gap-2 mb-5">
