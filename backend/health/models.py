@@ -322,12 +322,22 @@ class Intervention(models.Model):
         ('C', 'C — Preliminary (animal / mechanistic / early human)'),
         ('anecdote', 'Anecdote / self-experiment'),
     ]
+    FREQUENCY_CHOICES = [
+        ('daily', 'Once daily'),
+        ('twice_daily', 'Twice daily'),
+        ('three_daily', 'Three times daily'),
+        ('weekly', 'Weekly'),
+        ('as_needed', 'As needed'),
+        ('one_time', 'One-time'),
+    ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='interventions')
     profile = models.ForeignKey(HealthProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='interventions')
     name = models.CharField(max_length=200)                         # "Magnesium glycinate 400mg"
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
     dose = models.CharField(max_length=100, blank=True, default='') # "400 mg/day"
+    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES, default='daily')
+    reminder_times = models.JSONField(default=list, blank=True)     # ["08:00", "20:00"] — times to remind
 
     started_on = models.DateField()
     ended_on = models.DateField(null=True, blank=True)              # null = still ongoing

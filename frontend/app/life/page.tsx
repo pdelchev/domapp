@@ -1,19 +1,19 @@
 'use client';
 
 // Unified Life landing page — one HealthScore + sub-scores + deltas + history sparkline
-// + active interventions + quick-add intervention form.
+// + active interventions + blood test results + recommendations (merged from lifestyle).
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import NavBar from '../components/NavBar';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
-  Input, Select, Textarea, Badge, EmptyState, Spinner, Alert,
+  Badge, EmptyState, Spinner, Alert,
 } from '../components/ui';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import {
-  getLifeSummary, createIntervention, deleteIntervention,
+  getLifeSummary, deleteIntervention,
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
   getStageRegressionForecast,
 } from '../lib/api';
@@ -36,6 +36,8 @@ type Intervention = {
   name: string;
   category: string;
   dose: string;
+  frequency: string;
+  reminder_times: string[];
   started_on: string;
   ended_on: string | null;
   hypothesis: string;
@@ -94,13 +96,63 @@ const STAGE_COLORS: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
   normal: 'green', elevated: 'yellow', stage_1: 'yellow', stage_2: 'red', crisis: 'red',
 };
 
-const CATEGORIES = ['supplement', 'medication', 'diet', 'exercise', 'sleep', 'habit', 'other'];
-const EVIDENCE_GRADES = [
-  { value: 'A', label: 'A — Strong' },
-  { value: 'B', label: 'B — Moderate' },
-  { value: 'C', label: 'C — Preliminary' },
-  { value: 'anecdote', label: 'Anecdote' },
+const FREQ_LABELS: Record<string, string> = {
+  daily: '1×/day', twice_daily: '2×/day', three_daily: '3×/day',
+  weekly: 'Weekly', as_needed: 'PRN', one_time: 'Once',
+};
+
+// ── Blood test data (from latest results) ──
+interface BloodResult {
+  id: string; category: string;
+  name: { en: string; bg: string }; code: string;
+  refMin: number; refMax: number; unit: string;
+  value: number; status: 'optimal' | 'borderline' | 'abnormal';
+}
+
+const BLOOD_RESULTS: BloodResult[] = [
+  { id: 'glu', category: 'metabolic', name: { en: 'Glucose (fasting)', bg: 'Глюкоза (на гладно)' }, code: 'GLU', refMin: 3.9, refMax: 6.1, unit: 'mmol/L', value: 8.64, status: 'abnormal' },
+  { id: 'alt', category: 'liver', name: { en: 'ALT (SGPT)', bg: 'АЛТ (СГПТ)' }, code: 'ALT', refMin: 0, refMax: 41, unit: 'U/L', value: 49.7, status: 'abnormal' },
+  { id: 'ast', category: 'liver', name: { en: 'AST (SGOT)', bg: 'АСТ (СГОТ)' }, code: 'AST', refMin: 0, refMax: 40, unit: 'U/L', value: 32.8, status: 'borderline' },
+  { id: 'ggt', category: 'liver', name: { en: 'GGT', bg: 'ГГТ' }, code: 'GGT', refMin: 0, refMax: 55, unit: 'U/L', value: 35, status: 'borderline' },
+  { id: 'alp', category: 'liver', name: { en: 'Alkaline Phosphatase', bg: 'Алкална фосфатаза (АФ)' }, code: 'ALP', refMin: 40, refMax: 130, unit: 'U/L', value: 73, status: 'optimal' },
+  { id: 'crea', category: 'kidney', name: { en: 'Creatinine', bg: 'Креатинин' }, code: 'CREA', refMin: 62, refMax: 106, unit: 'μmol/L', value: 95, status: 'optimal' },
+  { id: 'urea', category: 'kidney', name: { en: 'Urea', bg: 'Урея' }, code: 'UREA', refMin: 2.5, refMax: 7.1, unit: 'mmol/L', value: 5.3, status: 'optimal' },
+  { id: 'uric', category: 'kidney', name: { en: 'Uric Acid', bg: 'Пикочна киселина' }, code: 'URIC', refMin: 200, refMax: 430, unit: 'μmol/L', value: 481, status: 'abnormal' },
+  { id: 'ca', category: 'electrolytes', name: { en: 'Calcium', bg: 'Калций' }, code: 'CA', refMin: 2.15, refMax: 2.55, unit: 'mmol/L', value: 2.43, status: 'optimal' },
+  { id: 'p', category: 'electrolytes', name: { en: 'Phosphorus', bg: 'Фосфор' }, code: 'P', refMin: 0.81, refMax: 1.45, unit: 'mmol/L', value: 1.23, status: 'optimal' },
+  { id: 'tp', category: 'protein', name: { en: 'Total Protein', bg: 'Общ белтък' }, code: 'TP', refMin: 60, refMax: 83, unit: 'g/L', value: 81.5, status: 'borderline' },
+  { id: 'alb', category: 'protein', name: { en: 'Albumin', bg: 'Албумин' }, code: 'ALB', refMin: 35, refMax: 55, unit: 'g/L', value: 44.6, status: 'optimal' },
+  { id: 'psa', category: 'tumor', name: { en: 'Total PSA', bg: 'Общ ПСА' }, code: 'PSA', refMin: 0, refMax: 4, unit: 'ng/mL', value: 0.73, status: 'optimal' },
+  { id: 'cea', category: 'tumor', name: { en: 'CEA', bg: 'Карциноембрионален антиген' }, code: 'CEA', refMin: 0, refMax: 3.8, unit: 'ng/mL', value: 0.22, status: 'optimal' },
+  { id: 'ca199', category: 'tumor', name: { en: 'CA 19-9', bg: 'CA 19-9' }, code: 'CA199', refMin: 0, refMax: 34, unit: 'U/mL', value: 8.38, status: 'optimal' },
 ];
+
+interface Recommendation {
+  icon: string; priority: 'high' | 'medium' | 'low';
+  title: { en: string; bg: string }; description: { en: string; bg: string };
+  linkedResults: string[];
+}
+
+const RECOMMENDATIONS: Recommendation[] = [
+  { icon: '🏥', priority: 'high', title: { en: 'Metabolic Syndrome Pattern Detected', bg: 'Открит модел на метаболитен синдром' }, description: { en: 'Elevated glucose combined with liver enzyme changes suggests metabolic syndrome risk. Focus: 1) Cut refined carbs & sugar, 2) Exercise 30+ min daily, 3) Reduce belly fat, 4) Mediterranean diet.', bg: 'Комбинацията от повишена глюкоза и промени в чернодробните ензими предполага риск от метаболитен синдром. Фокус: 1) Намалете рафинираните въглехидрати и захарта, 2) Упражнения 30+ мин дневно, 3) Свалете коремните мазнини, 4) Средиземноморска диета.' }, linkedResults: ['glu', 'alt', 'ast'] },
+  { icon: '🫁', priority: 'high', title: { en: 'Elevated Liver Enzymes', bg: 'Множество повишени чернодробни ензими' }, description: { en: 'Two or more elevated liver enzymes suggest liver stress. Actions: eliminate alcohol for 30 days, reduce sugar, exercise daily, drink coffee (protective).', bg: 'Два или повече повишени чернодробни ензима предполагат чернодробно натоварване. Действия: елиминирайте алкохола за 30 дни, намалете захарта, упражнения ежедневно, пийте кафе (защитно).' }, linkedResults: ['alt', 'ast', 'ggt'] },
+  { icon: '⚡', priority: 'high', title: { en: 'Fasting Glucose Significantly Elevated', bg: 'Значително повишена кръвна захар на гладно' }, description: { en: 'Fasting glucose of 8.64 mmol/L is well above reference (3.9-6.1). This indicates pre-diabetic or diabetic range. Urgent: consult endocrinologist, HbA1c test needed, strict carb management.', bg: 'Глюкоза на гладно 8.64 mmol/L е значително над нормата (3.9-6.1). Това показва пре-диабетен или диабетен диапазон. Спешно: консултация с ендокринолог, необходим HbA1c тест, строг контрол на въглехидратите.' }, linkedResults: ['glu'] },
+  { icon: '🫘', priority: 'medium', title: { en: 'Uric Acid Above Normal', bg: 'Пикочна киселина над нормата' }, description: { en: 'Risk of gout, kidney stones. Linked to metabolic syndrome. Reduce purine-rich foods: organ meats, sardines, beer. Drink plenty of water. Limit fructose & alcohol. Cherry extract may help.', bg: 'Риск от подагра, бъбречни камъни. Свързано с метаболитен синдром. Намалете храни богати на пурини: карантии, сардини, бира. Пийте много вода. Ограничете фруктозата и алкохола. Екстракт от череши може да помогне.' }, linkedResults: ['uric', 'glu'] },
+  { icon: '🧬', priority: 'low', title: { en: 'Total Protein: Upper Borderline', bg: 'Общ белтък: горна граница' }, description: { en: 'Most common cause is dehydration. Ensure adequate hydration (2.5-3L water/day). Distribute protein evenly across meals (1.2-1.6g/kg body weight).', bg: 'Най-честа причина е дехидратация. Осигурете адекватна хидратация (2.5-3L вода/ден). Разпределете протеина равномерно в храненията (1.2-1.6г/кг телесно тегло).' }, linkedResults: ['tp'] },
+  { icon: '❤️', priority: 'high', title: { en: 'Blood Pressure Monitoring Recommended', bg: 'Препоръчва се проследяване на кръвното налягане' }, description: { en: 'Elevated glucose + liver enzyme changes indicate cardiovascular risk. Regular BP monitoring is critical. Track your blood pressure alongside blood results for integrated cardiovascular risk assessment.', bg: 'Повишена глюкоза + промени в чернодробните ензими показват сърдечно-съдов риск. Редовното мониториране на кръвното налягане е критично. Проследявайте кръвното налягане заедно с кръвните резултати.' }, linkedResults: ['glu', 'alt'] },
+];
+
+const CATEGORY_LABELS: Record<string, { en: string; bg: string; icon: string }> = {
+  metabolic: { en: 'Metabolic Panel', bg: 'Метаболитен панел', icon: '⚡' },
+  liver: { en: 'Liver Function', bg: 'Чернодробна функция', icon: '🫁' },
+  kidney: { en: 'Kidney Function', bg: 'Бъбречна функция', icon: '🫘' },
+  electrolytes: { en: 'Electrolytes', bg: 'Електролити', icon: '⚡' },
+  protein: { en: 'Protein Panel', bg: 'Протеинов панел', icon: '🧬' },
+  tumor: { en: 'Tumor Markers', bg: 'Туморни маркери', icon: '🔬' },
+};
+
+const STATUS_COLORS: Record<string, 'green' | 'yellow' | 'red'> = { optimal: 'green', borderline: 'yellow', abnormal: 'red' };
+const PRIORITY_COLORS: Record<string, 'red' | 'yellow' | 'blue'> = { high: 'red', medium: 'yellow', low: 'blue' };
 
 function scoreColor(score: number | null) {
   if (score == null) return 'text-gray-400';
@@ -127,12 +179,9 @@ function DeltaArrow({ value }: { value: number | null }) {
   );
 }
 
-// Tiny inline sparkline for composite history
 function Sparkline({ values, width = 220, height = 40 }: { values: (number | null)[]; width?: number; height?: number }) {
   const clean = values.filter((v): v is number => v != null);
-  if (clean.length < 2) {
-    return <div className="text-xs text-gray-400">Not enough history yet</div>;
-  }
+  if (clean.length < 2) return <div className="text-xs text-gray-400">Not enough history yet</div>;
   const min = Math.min(...clean);
   const max = Math.max(...clean);
   const range = Math.max(max - min, 1);
@@ -177,18 +226,13 @@ export default function LifePage() {
   const [data, setData] = useState<LifeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    name: '', category: 'supplement', dose: '',
-    started_on: new Date().toISOString().slice(0, 10),
-    hypothesis: '', evidence_grade: 'B', source_url: '', notes: '',
-  });
-  const [saving, setSaving] = useState(false);
   const [vitals, setVitals] = useState<VitalsDash | null>(null);
   const [cmAge, setCmAge] = useState<CMAge | null>(null);
   const [slope, setSlope] = useState<Slope | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [ritualOpen, setRitualOpen] = useState(false);
+  const [bloodOpen, setBloodOpen] = useState(false);
+  const [recsOpen, setRecsOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -196,7 +240,6 @@ export default function LifePage() {
       const res = await getLifeSummary();
       setData(res);
       setError('');
-      // §VITALS: fire 4 vitals requests in parallel once we know the profile
       const pid = res?.profile?.id;
       if (pid) {
         Promise.all([
@@ -217,33 +260,9 @@ export default function LifePage() {
 
   useEffect(() => { load(); }, []);
 
-  const handleAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.name.trim()) return;
-    setSaving(true);
-    try {
-      await createIntervention({
-        ...form,
-        target_metrics: [],
-      });
-      setShowForm(false);
-      setForm({
-        name: '', category: 'supplement', dose: '',
-        started_on: new Date().toISOString().slice(0, 10),
-        hypothesis: '', evidence_grade: 'B', source_url: '', notes: '',
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleEnd = async (id: number) => {
-    if (!confirm('Mark this intervention as ended today?')) return;
+    if (!confirm(locale === 'bg' ? 'Маркирай тази интервенция като приключена днес?' : 'Mark this intervention as ended today?')) return;
     try {
-      // PATCH with ended_on=today is handled by updateIntervention; inline here
       const res = await fetch(`/api/health/interventions/${id}/`, {
         method: 'PATCH',
         headers: {
@@ -260,7 +279,7 @@ export default function LifePage() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this intervention? This cannot be undone.')) return;
+    if (!confirm(locale === 'bg' ? 'Изтрий тази интервенция?' : 'Delete this intervention? This cannot be undone.')) return;
     try {
       await deleteIntervention(id);
       await load();
@@ -284,6 +303,7 @@ export default function LifePage() {
   const d7 = data?.deltas?.['7'] ?? data?.deltas?.[7 as unknown as string];
   const d30 = data?.deltas?.['30'] ?? data?.deltas?.[30 as unknown as string];
   const historyComposite = (data?.history ?? []).map((s) => s.composite_score);
+  const bloodCategories = [...new Set(BLOOD_RESULTS.map((r) => r.category))];
 
   return (
     <PageShell>
@@ -298,12 +318,9 @@ export default function LifePage() {
               </Button>
               <Link href="/life/lab-order">
                 <Button variant="secondary">
-                  📋 {t('life.lab_order', locale)}
+                  {locale === 'bg' ? 'Тестове' : 'Lab Order'}
                 </Button>
               </Link>
-              <Button variant="secondary" onClick={() => setShowForm((v) => !v)}>
-                {showForm ? t('common.cancel', locale) : `+ ${t('life.add_intervention', locale)}`}
-              </Button>
             </div>
           }
         />
@@ -392,7 +409,6 @@ export default function LifePage() {
             score={today?.lifestyle_score ?? null}
             delta7={null}
             delta30={null}
-            href="/health/lifestyle"
           />
         </div>
 
@@ -465,19 +481,14 @@ export default function LifePage() {
               {t('life.bio_age_section', locale)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* PhenoAge — blood-based */}
               {data?.phenoage && (
                 <Card>
                   <div className="flex items-baseline justify-between mb-3">
                     <div>
-                      <div className="text-[13px] font-medium text-gray-700">
-                        {t('life.phenoage', locale)}
-                      </div>
+                      <div className="text-[13px] font-medium text-gray-700">{t('life.phenoage', locale)}</div>
                       <div className="text-[11px] text-gray-400">Levine 2018 · 9 blood markers</div>
                     </div>
-                    {data.phenoage.test_date && (
-                      <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>
-                    )}
+                    {data.phenoage.test_date && <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>}
                   </div>
                   {data.phenoage.phenoage != null ? (
                     <div className="flex items-end gap-5">
@@ -501,15 +512,11 @@ export default function LifePage() {
                   )}
                 </Card>
               )}
-
-              {/* Cardiometabolic Age — BP + body comp */}
               {cmAge && cmAge.signals_present > 0 && (
                 <Card>
                   <div className="flex items-baseline justify-between mb-3">
                     <div>
-                      <div className="text-[13px] font-medium text-gray-700">
-                        {t('vitals.cm_age_title', locale)}
-                      </div>
+                      <div className="text-[13px] font-medium text-gray-700">{t('vitals.cm_age_title', locale)}</div>
                       <div className="text-[11px] text-gray-400">BP + body comp · {cmAge.signals_present}/4 signals</div>
                     </div>
                   </div>
@@ -543,9 +550,7 @@ export default function LifePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
-                  {t('nav.weight', locale)}
-                </div>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.weight', locale)}</div>
                 <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.weight_hint', locale)}</div>
                 {vitals?.latest_weight ? (
                   <>
@@ -565,9 +570,7 @@ export default function LifePage() {
               </Card>
 
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
-                  {t('nav.bp', locale)}
-                </div>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.bp', locale)}</div>
                 <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.bp_hint', locale)}</div>
                 {vitals?.latest_bp_session ? (
                   <>
@@ -585,9 +588,7 @@ export default function LifePage() {
               </Card>
 
               <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
-                  {t('vitals.bp_per_kg', locale)}
-                </div>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('vitals.bp_per_kg', locale)}</div>
                 <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.slope_hint', locale)}</div>
                 {slope?.status === 'ok' ? (
                   <>
@@ -604,9 +605,7 @@ export default function LifePage() {
                     <div className="text-sm text-gray-600">
                       {slope?.paired_days || 0} / {slope?.need || 20} {t('vitals.paired_days_needed', locale)}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {t('vitals.log_weight_bp', locale)}
-                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{t('vitals.log_weight_bp', locale)}</div>
                   </>
                 )}
               </Card>
@@ -616,9 +615,7 @@ export default function LifePage() {
               <Card>
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">
-                      {t('vitals.forecast_title', locale)}
-                    </div>
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('vitals.forecast_title', locale)}</div>
                     <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.forecast_hint', locale)}</div>
                     <div className="text-lg text-gray-900">
                       {t('vitals.forecast_lose', locale).replace('{kg}', String(forecast.kg_to_lose))}
@@ -638,114 +635,51 @@ export default function LifePage() {
           </>
         )}
 
-        {/* Add intervention form */}
-        {showForm && (
-          <Card>
-            <div className="text-[13px] font-medium text-gray-700 mb-3">
-              {t('life.add_intervention', locale)}
-            </div>
-            <form onSubmit={handleAdd} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label={t('life.field.name', locale)}
-                required
-                value={form.name}
-                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Magnesium glycinate 400mg"
-              />
-              <Select
-                label={t('life.field.category', locale)}
-                value={form.category}
-                onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </Select>
-              <Input
-                label={t('life.field.dose', locale)}
-                value={form.dose}
-                onChange={(e) => setForm((p) => ({ ...p, dose: e.target.value }))}
-                placeholder="400 mg/day"
-              />
-              <Input
-                label={t('life.field.started_on', locale)}
-                type="date"
-                required
-                value={form.started_on}
-                onChange={(e) => setForm((p) => ({ ...p, started_on: e.target.value }))}
-              />
-              <Select
-                label={t('life.field.evidence', locale)}
-                value={form.evidence_grade}
-                onChange={(e) => setForm((p) => ({ ...p, evidence_grade: e.target.value }))}
-              >
-                {EVIDENCE_GRADES.map((g) => (
-                  <option key={g.value} value={g.value}>{g.label}</option>
-                ))}
-              </Select>
-              <Input
-                label={t('life.field.source_url', locale)}
-                type="url"
-                value={form.source_url}
-                onChange={(e) => setForm((p) => ({ ...p, source_url: e.target.value }))}
-                placeholder="https://pubmed.ncbi.nlm.nih.gov/..."
-              />
-              <div className="md:col-span-2">
-                <Textarea
-                  label={t('life.field.hypothesis', locale)}
-                  value={form.hypothesis}
-                  onChange={(e) => setForm((p) => ({ ...p, hypothesis: e.target.value }))}
-                  rows={2}
-                  placeholder="Lower morning systolic, improve HRV"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Textarea
-                  label={t('life.field.notes', locale)}
-                  value={form.notes}
-                  onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div className="md:col-span-2 flex gap-2 justify-end">
-                <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
-                  {t('common.cancel', locale)}
-                </Button>
-                <Button type="submit" disabled={saving}>
-                  {saving ? t('common.loading', locale) : t('common.save', locale)}
-                </Button>
-              </div>
-            </form>
-          </Card>
-        )}
-
-        {/* ═══ INTERVENTIONS ═══ */}
+        {/* ═══ INTERVENTIONS (meds & supplements) ═══ */}
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-          {t('life.interventions_section', locale)}
+          {locale === 'bg' ? 'Лекарства и добавки' : 'Medications & Supplements'}
         </div>
         <Card>
-          <div className="text-[13px] font-medium text-gray-700">
-            {t('life.active_interventions', locale)}
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {t('life.active_interventions', locale)}
+              </div>
+              <div className="text-[10px] text-gray-400 leading-snug">
+                {locale === 'bg'
+                  ? 'Управлявайте вашите добавки и лекарства. Добавете нови през ритуала.'
+                  : 'Manage your supplements & meds. Add new ones via the morning ritual.'}
+              </div>
+            </div>
           </div>
-          <div className="text-[10px] text-gray-400 mb-3 leading-snug">{t('life.interventions_hint', locale)}</div>
           {(data?.active_interventions ?? []).length === 0 ? (
             <EmptyState
-              icon="🧪"
-              message={t('life.no_interventions', locale)}
+              icon="💊"
+              message={locale === 'bg'
+                ? 'Няма активни добавки. Добавете нови чрез ритуала.'
+                : 'No active supplements or meds. Add via the ritual.'}
             />
           ) : (
             <div className="space-y-2">
               {data!.active_interventions.map((iv) => (
                 <div key={iv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-900">{iv.name}</span>
                       <Badge color="indigo">{iv.category}</Badge>
+                      {iv.frequency && iv.frequency !== 'daily' && (
+                        <Badge color="blue">{FREQ_LABELS[iv.frequency] || iv.frequency}</Badge>
+                      )}
                       <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
                         {iv.evidence_grade}
                       </Badge>
                     </div>
                     {iv.dose && <div className="text-xs text-gray-600 mt-0.5">{iv.dose}</div>}
+                    {iv.reminder_times && iv.reminder_times.length > 0 && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {locale === 'bg' ? 'Напомняне:' : 'Remind:'} {iv.reminder_times.join(', ')}
+                      </div>
+                    )}
                     {iv.hypothesis && <div className="text-xs text-gray-500 italic mt-0.5">&ldquo;{iv.hypothesis}&rdquo;</div>}
                     <div className="text-xs text-gray-400 mt-0.5">
                       {t('life.since', locale)} {iv.started_on}
@@ -761,6 +695,138 @@ export default function LifePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </Card>
+
+        {/* ═══ BLOOD TEST RESULTS (from lifestyle) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Кръвни резултати' : 'Blood Test Results'}
+        </div>
+        <Card>
+          <button
+            type="button"
+            onClick={() => setBloodOpen(!bloodOpen)}
+            className="w-full flex items-center justify-between"
+          >
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {locale === 'bg' ? 'Последни резултати' : 'Latest Results'}
+              </div>
+              <div className="text-[10px] text-gray-400">
+                {locale === 'bg'
+                  ? 'Преглед на кръвните тестове по системи'
+                  : 'Blood test overview by body system'}
+              </div>
+            </div>
+            <span className={`text-gray-400 transition-transform ${bloodOpen ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {bloodOpen && (
+            <div className="mt-4 space-y-4">
+              {bloodCategories.map(cat => {
+                const catLabel = CATEGORY_LABELS[cat];
+                const results = BLOOD_RESULTS.filter(r => r.category === cat);
+                return (
+                  <div key={cat}>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <span>{catLabel?.icon}</span> {catLabel?.[locale] || cat}
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-left">
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase">{locale === 'bg' ? 'Тест' : 'Test'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-right hidden sm:table-cell">{locale === 'bg' ? 'Референция' : 'Reference'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-right">{locale === 'bg' ? 'Резултат' : 'Result'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-center">{locale === 'bg' ? 'Статус' : 'Status'}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {results.map(r => (
+                            <tr key={r.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2">
+                                <span className="text-sm font-medium text-gray-900">{r.name[locale]}</span>
+                                <span className="text-xs text-gray-400 ml-1.5">{r.code}</span>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-500 text-right hidden sm:table-cell">
+                                {r.refMin}–{r.refMax} {r.unit}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <span className={`text-sm font-semibold ${r.status === 'abnormal' ? 'text-red-600' : r.status === 'borderline' ? 'text-yellow-600' : 'text-gray-900'}`}>
+                                  {r.value}
+                                </span>
+                                <span className="text-xs text-gray-400 ml-1">{r.unit}</span>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <Badge color={STATUS_COLORS[r.status]}>
+                                  {r.status === 'optimal' ? (locale === 'bg' ? 'Оптимален' : 'Optimal') :
+                                   r.status === 'borderline' ? (locale === 'bg' ? 'Гранична' : 'Borderline') :
+                                   (locale === 'bg' ? 'Отклонение' : 'Abnormal')}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* ═══ RECOMMENDATIONS (from lifestyle) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Препоръки' : 'Recommendations'}
+        </div>
+        <Card>
+          <button
+            type="button"
+            onClick={() => setRecsOpen(!recsOpen)}
+            className="w-full flex items-center justify-between"
+          >
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {locale === 'bg' ? 'Персонализирани препоръки' : 'Personalized Recommendations'}
+              </div>
+              <div className="text-[10px] text-gray-400">
+                {locale === 'bg'
+                  ? 'На база кръвните ви резултати'
+                  : 'Based on your blood test results'}
+              </div>
+            </div>
+            <span className={`text-gray-400 transition-transform ${recsOpen ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {recsOpen && (
+            <div className="mt-4 space-y-4">
+              {RECOMMENDATIONS.map((rec, i) => {
+                const linked = BLOOD_RESULTS.filter(r => rec.linkedResults.includes(r.id));
+                return (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-2xl mt-0.5">{rec.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-sm font-semibold text-gray-900">{rec.title[locale]}</h3>
+                        <Badge color={PRIORITY_COLORS[rec.priority]}>
+                          {rec.priority === 'high' ? (locale === 'bg' ? 'Висок' : 'High Priority') :
+                           rec.priority === 'medium' ? (locale === 'bg' ? 'Среден' : 'Medium Priority') :
+                           (locale === 'bg' ? 'Нисък' : 'Low Priority')}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">{rec.description[locale]}</p>
+                      {linked.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-gray-400">{locale === 'bg' ? 'Свързани:' : 'Linked:'}</span>
+                          {linked.map(r => (
+                            <Badge key={r.id} color={STATUS_COLORS[r.status]}>{r.code} {r.value}</Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Card>

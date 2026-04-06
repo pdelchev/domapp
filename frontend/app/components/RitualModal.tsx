@@ -1,7 +1,7 @@
 'use client';
-// ── RitualModal: weight → BP session → adherence → finalize ─────────
+// ── RitualModal: weight → BP session → adherence + add intervention → finalize ─
 // §FLOW: step 1 weight, steps 2-4 BP readings w/ 60s rest timers, step 5
-//        intervention adherence checklist (pre-filled from yesterday),
+//        intervention adherence checklist with inline "add new" form,
 //        step 6 summary + save-all. Creates VitalsSession first, then
 //        weight + BP readings + intervention logs in parallel, finalize.
 // §USE: shared across /life and potentially other entry points.
@@ -13,8 +13,9 @@ import {
   createVitalsSession, finalizeVitalsSession,
   createWeightReading, createBPSession,
   getInterventionLogs, saveInterventionLogs,
+  createIntervention,
 } from '../lib/api';
-import { Button, Badge, Alert } from './ui';
+import { Button, Badge, Alert, Input, Select, Textarea } from './ui';
 
 interface BpDraft { systolic: string; diastolic: string; pulse: string; }
 interface AdherenceItem {
@@ -22,16 +23,40 @@ interface AdherenceItem {
   taken_today: boolean | null; taken_yesterday: boolean | null;
 }
 
+const CATEGORIES = ['supplement', 'medication', 'diet', 'exercise', 'sleep', 'habit', 'other'];
+const FREQUENCIES = [
+  { value: 'daily', label: 'Once daily' },
+  { value: 'twice_daily', label: 'Twice daily' },
+  { value: 'three_daily', label: '3× daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'as_needed', label: 'As needed' },
+  { value: 'one_time', label: 'One-time' },
+];
+const EVIDENCE_GRADES = [
+  { value: 'A', label: 'A — Strong' },
+  { value: 'B', label: 'B — Moderate' },
+  { value: 'C', label: 'C — Preliminary' },
+  { value: 'anecdote', label: 'Anecdote' },
+];
+
+const EMPTY_INTERVENTION = {
+  name: '', category: 'supplement', dose: '', frequency: 'daily',
+  reminder_times: ['08:00'],
+  started_on: new Date().toISOString().slice(0, 10),
+  hypothesis: '', evidence_grade: 'B', source_url: '', notes: '',
+};
+
 export function RitualModal({ profileId, locale, onClose, onDone }: {
   profileId: number; locale: Locale;
   onClose: () => void; onDone: () => void;
 }) {
-  // step: 1 weight, 2-4 bp, 5 adherence, 6 summary
+  // step: 1 weight, 2-4 bp, 5 adherence+add, 6 summary
   const [step, setStep] = useState<number>(1);
   const [weight, setWeight] = useState({ weight_kg: '', body_fat_pct: '', waist_cm: '', hip_cm: '' });
   const [skipWeight, setSkipWeight] = useState(false);
   const [bpReadings, setBpReadings] = useState<BpDraft[]>([]);
   const [currentBp, setCurrentBp] = useState<BpDraft>({ systolic: '', diastolic: '', pulse: '' });
+  const [bpAfterMeds, setBpAfterMeds] = useState(false);
   const [timer, setTimer] = useState(0);
   const [adherence, setAdherence] = useState<AdherenceItem[]>([]);
   const [adhTaken, setAdhTaken] = useState<Record<number, boolean>>({});
@@ -39,6 +64,11 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
   const [error, setError] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sysInputRef = useRef<HTMLInputElement>(null);
+
+  // Add intervention inline form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newIntervention, setNewIntervention] = useState({ ...EMPTY_INTERVENTION });
+  const [addingSaving, setAddingSaving] = useState(false);
 
   useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
@@ -98,19 +128,46 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
     setBpReadings(next);
     setCurrentBp({ systolic: '', diastolic: '', pulse: '' });
     if (next.length < 3) { setStep(step + 1); startTimer(); }
-    else advanceAfterBp();
-  };
-
-  const advanceAfterBp = () => {
-    setStep(adherence.length > 0 ? 5 : 6);
+    else setStep(5);
   };
 
   const skipBp = () => {
     if (bpReadings.length === 0 && (skipWeight || !weight.weight_kg)) { onClose(); return; }
-    advanceAfterBp();
+    setStep(5);
   };
 
   const toggleAdh = (id: number) => setAdhTaken(p => ({ ...p, [id]: !p[id] }));
+
+  const handleAddIntervention = async () => {
+    if (!newIntervention.name.trim()) {
+      setError(locale === 'bg' ? 'Въведете име' : 'Enter a name');
+      return;
+    }
+    setAddingSaving(true); setError('');
+    try {
+      const created = await createIntervention({
+        ...newIntervention,
+        target_metrics: [],
+      });
+      // Add to adherence list immediately
+      const newItem: AdherenceItem = {
+        intervention_id: created.id,
+        name: created.name,
+        category: created.category,
+        dose: created.dose,
+        taken_today: null,
+        taken_yesterday: null,
+      };
+      setAdherence(prev => [...prev, newItem]);
+      setAdhTaken(prev => ({ ...prev, [created.id]: true }));
+      setNewIntervention({ ...EMPTY_INTERVENTION });
+      setShowAddForm(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add');
+    } finally {
+      setAddingSaving(false);
+    }
+  };
 
   const avg = (nums: number[]) => nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : 0;
   const sysAvg = Math.round(avg(bpReadings.map(r => parseInt(r.systolic)).filter(n => n > 0)));
@@ -138,8 +195,6 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
         if (weight.hip_cm) wPayload.hip_cm = weight.hip_cm;
         posts.push(createWeightReading(wPayload));
       }
-      // §BP: create a BPSession bundling all readings — server computes
-      //      averages + AHA stage, and populates /life's BP card.
       if (bpReadings.length > 0) {
         posts.push(createBPSession({
           profile: profileId,
@@ -149,6 +204,7 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
             diastolic: parseInt(r.diastolic),
             pulse: r.pulse ? parseInt(r.pulse) : null,
             arm: 'left', posture: 'sitting',
+            is_after_medication: bpAfterMeds,
           })),
         }));
       }
@@ -191,14 +247,10 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
           <span className={step > 4 ? 'text-green-600 font-medium' : step >= 2 ? 'text-indigo-600 font-medium' : ''}>
             {step > 4 ? '✓' : step >= 2 ? '●' : '○'} {locale === 'bg' ? 'кръвно' : 'bp'} ({bpReadings.length}/3)
           </span>
-          {adherence.length > 0 && (
-            <>
-              <span className="text-gray-300">—</span>
-              <span className={step > 5 ? 'text-green-600 font-medium' : step === 5 ? 'text-indigo-600 font-medium' : ''}>
-                {progressIcon(5)} {locale === 'bg' ? 'приемане' : 'adherence'}
-              </span>
-            </>
-          )}
+          <span className="text-gray-300">—</span>
+          <span className={step > 5 ? 'text-green-600 font-medium' : step === 5 ? 'text-indigo-600 font-medium' : ''}>
+            {progressIcon(5)} {locale === 'bg' ? 'приемане' : 'meds & supplements'}
+          </span>
           <span className="text-gray-300">—</span>
           <span className={step === 6 ? 'text-indigo-600 font-medium' : ''}>
             {progressIcon(6)} {locale === 'bg' ? 'готово' : 'done'}
@@ -207,6 +259,7 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
 
         <Alert type="error" message={error} />
 
+        {/* ═══ STEP 1: WEIGHT ═══ */}
         {step === 1 && (
           <div className="space-y-4">
             <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_weight', locale)}</div>
@@ -253,11 +306,45 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
           </div>
         )}
 
+        {/* ═══ STEPS 2-4: BP READINGS ═══ */}
         {step >= 2 && step <= 4 && (
           <div className="space-y-4">
             <div className="text-[13px] font-medium text-gray-700">
               {t('vitals.step_bp', locale)} — {t('vitals.take_reading', locale).replace('{n}', String(bpReadings.length + 1))}
             </div>
+
+            {/* Before/after medication toggle — shown on first reading */}
+            {bpReadings.length === 0 && timer === 0 && (
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-xs text-gray-600">
+                  {locale === 'bg' ? 'Измерване:' : 'Measured:'}
+                </span>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setBpAfterMeds(false)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      !bpAfterMeds
+                        ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {locale === 'bg' ? 'Преди хапчета' : 'Before pills'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBpAfterMeds(true)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      bpAfterMeds
+                        ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
+                        : 'bg-white text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {locale === 'bg' ? 'След хапчета' : 'After pills'}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {timer > 0 ? (
               <div className="text-center py-10">
@@ -312,41 +399,173 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
           </div>
         )}
 
+        {/* ═══ STEP 5: ADHERENCE + ADD NEW INTERVENTION ═══ */}
         {step === 5 && (
           <div className="space-y-4">
             <div>
-              <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_adherence', locale)}</div>
-              <div className="text-xs text-gray-500 mt-0.5">{t('vitals.adherence_hint', locale)}</div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {locale === 'bg' ? 'Лекарства и добавки' : 'Medications & Supplements'}
+              </div>
+              <div className="text-xs text-gray-500 mt-0.5">
+                {locale === 'bg'
+                  ? 'Отбележете какво сте взели днес. Добавете нови с бутона по-долу.'
+                  : 'Check off what you took today. Add new ones below.'}
+              </div>
             </div>
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {adherence.map(it => {
-                const checked = !!adhTaken[it.intervention_id];
-                return (
-                  <label key={it.intervention_id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
-                      checked ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:border-gray-300'
-                    }`}>
-                    <input type="checkbox" checked={checked}
-                      onChange={() => toggleAdh(it.intervention_id)}
-                      className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-gray-900 truncate">{it.name}</div>
-                      {it.dose && <div className="text-xs text-gray-500">{it.dose}</div>}
-                    </div>
-                    <Badge color="gray">{it.category}</Badge>
-                  </label>
-                );
-              })}
-            </div>
+
+            {/* Existing interventions checklist */}
+            {adherence.length > 0 && (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {adherence.map(it => {
+                  const checked = !!adhTaken[it.intervention_id];
+                  return (
+                    <label key={it.intervention_id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition ${
+                        checked ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200 hover:border-gray-300'
+                      }`}>
+                      <input type="checkbox" checked={checked}
+                        onChange={() => toggleAdh(it.intervention_id)}
+                        className="w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 truncate">{it.name}</div>
+                        {it.dose && <div className="text-xs text-gray-500">{it.dose}</div>}
+                      </div>
+                      <Badge color="gray">{it.category}</Badge>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
+            {adherence.length === 0 && !showAddForm && (
+              <div className="text-center py-6 text-sm text-gray-500">
+                {locale === 'bg'
+                  ? 'Все още нямате добавки или лекарства. Добавете първото по-долу.'
+                  : 'No supplements or medications yet. Add your first one below.'}
+              </div>
+            )}
+
+            {/* Add new intervention inline */}
+            {!showAddForm ? (
+              <button
+                type="button"
+                onClick={() => setShowAddForm(true)}
+                className="w-full p-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="text-lg leading-none">+</span>
+                {locale === 'bg' ? 'Добави лекарство / добавка' : 'Add medication / supplement'}
+              </button>
+            ) : (
+              <div className="border border-indigo-200 rounded-lg p-4 bg-indigo-50/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-[13px] font-medium text-gray-700">
+                    {locale === 'bg' ? 'Нова добавка' : 'New intervention'}
+                  </div>
+                  <button onClick={() => setShowAddForm(false)} className="text-gray-400 hover:text-gray-600 text-sm">×</button>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <Input
+                      label={locale === 'bg' ? 'Име *' : 'Name *'}
+                      value={newIntervention.name}
+                      onChange={e => setNewIntervention(p => ({ ...p, name: e.target.value }))}
+                      placeholder="Magnesium glycinate 400mg"
+                    />
+                  </div>
+                  <Select
+                    label={locale === 'bg' ? 'Категория' : 'Category'}
+                    value={newIntervention.category}
+                    onChange={e => setNewIntervention(p => ({ ...p, category: e.target.value }))}
+                  >
+                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </Select>
+                  <Input
+                    label={locale === 'bg' ? 'Доза' : 'Dose'}
+                    value={newIntervention.dose}
+                    onChange={e => setNewIntervention(p => ({ ...p, dose: e.target.value }))}
+                    placeholder="400 mg/day"
+                  />
+                  <Select
+                    label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                    value={newIntervention.frequency}
+                    onChange={e => setNewIntervention(p => ({ ...p, frequency: e.target.value }))}
+                  >
+                    {FREQUENCIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </Select>
+                  <Input
+                    label={locale === 'bg' ? 'Напомняне в' : 'Remind at'}
+                    type="time"
+                    value={newIntervention.reminder_times[0] || '08:00'}
+                    onChange={e => setNewIntervention(p => ({ ...p, reminder_times: [e.target.value] }))}
+                  />
+                  <Input
+                    label={locale === 'bg' ? 'Начало' : 'Started on'}
+                    type="date"
+                    value={newIntervention.started_on}
+                    onChange={e => setNewIntervention(p => ({ ...p, started_on: e.target.value }))}
+                  />
+                  <Select
+                    label={locale === 'bg' ? 'Доказателства' : 'Evidence'}
+                    value={newIntervention.evidence_grade}
+                    onChange={e => setNewIntervention(p => ({ ...p, evidence_grade: e.target.value }))}
+                  >
+                    {EVIDENCE_GRADES.map(g => <option key={g.value} value={g.value}>{g.label}</option>)}
+                  </Select>
+                </div>
+                <details className="text-xs">
+                  <summary className="text-gray-500 cursor-pointer">
+                    {locale === 'bg' ? 'Допълнителни полета' : 'More fields'}
+                  </summary>
+                  <div className="grid grid-cols-1 gap-3 mt-3">
+                    <Textarea
+                      label={locale === 'bg' ? 'Хипотеза' : 'Hypothesis'}
+                      value={newIntervention.hypothesis}
+                      onChange={e => setNewIntervention(p => ({ ...p, hypothesis: e.target.value }))}
+                      rows={2}
+                      placeholder="Lower morning systolic, improve HRV"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Източник URL' : 'Source URL'}
+                      type="url"
+                      value={newIntervention.source_url}
+                      onChange={e => setNewIntervention(p => ({ ...p, source_url: e.target.value }))}
+                      placeholder="https://pubmed.ncbi.nlm.nih.gov/..."
+                    />
+                    <Textarea
+                      label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                      value={newIntervention.notes}
+                      onChange={e => setNewIntervention(p => ({ ...p, notes: e.target.value }))}
+                      rows={2}
+                    />
+                  </div>
+                </details>
+                <div className="flex gap-2 justify-end pt-1">
+                  <Button variant="secondary" size="sm" onClick={() => setShowAddForm(false)}>
+                    {t('common.cancel', locale)}
+                  </Button>
+                  <Button size="sm" onClick={handleAddIntervention} disabled={addingSaving}>
+                    {addingSaving
+                      ? (locale === 'bg' ? 'Запазване...' : 'Saving...')
+                      : (locale === 'bg' ? 'Добави' : 'Add')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-2 pt-2">
               <Button className="flex-1" onClick={() => setStep(6)}>
                 {locale === 'bg' ? 'Напред →' : 'Next →'}
               </Button>
-              <Button variant="ghost" onClick={() => setStep(6)}>{t('vitals.skip_adherence', locale)}</Button>
+              {adherence.length === 0 && (
+                <Button variant="ghost" onClick={() => setStep(6)}>
+                  {locale === 'bg' ? 'Пропусни' : 'Skip'}
+                </Button>
+              )}
             </div>
           </div>
         )}
 
+        {/* ═══ STEP 6: SUMMARY ═══ */}
         {step === 6 && (
           <div className="space-y-4">
             <div className="text-[13px] font-medium text-gray-700">{t('vitals.step_done', locale)}</div>
@@ -364,6 +583,11 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">
                   {t('vitals.bp_avg', locale)} ({bpReadings.length})
+                  {' · '}
+                  {bpAfterMeds
+                    ? <Badge color="blue">{locale === 'bg' ? 'след хапчета' : 'after pills'}</Badge>
+                    : <Badge color="gray">{locale === 'bg' ? 'преди хапчета' : 'before pills'}</Badge>
+                  }
                 </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {sysAvg}/{diaAvg}{pulseAvg ? ` · ${pulseAvg} bpm` : ''}
@@ -377,7 +601,7 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
             {adherence.length > 0 && (
               <div className="p-3 bg-gray-50 rounded-lg">
                 <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-1">
-                  {t('vitals.adherence_summary', locale)}
+                  {locale === 'bg' ? 'Лекарства и добавки' : 'Meds & Supplements'}
                 </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {Object.values(adhTaken).filter(Boolean).length}/{adherence.length}

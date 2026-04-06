@@ -27,6 +27,7 @@ class InterventionSerializer(serializers.ModelSerializer):
         model = Intervention
         fields = [
             'id', 'profile', 'name', 'category', 'dose',
+            'frequency', 'reminder_times',
             'started_on', 'ended_on',
             'hypothesis', 'target_metrics',
             'evidence_grade', 'source_url', 'notes',
