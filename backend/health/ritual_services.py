@@ -120,6 +120,7 @@ def get_ritual_dashboard(user, profile_id=None, date=None):
             'color': item.color,
             'sort_order': item.sort_order,
             'prescription_note': item.prescription_note,
+            'prescription_image': item.prescription_image.url if item.prescription_image else None,
             'completed': log.completed if log else False,
             'completed_at': log.completed_at.isoformat() if log and log.completed_at else None,
             'skipped': log.skipped if log else False,

@@ -98,6 +98,11 @@ class RitualItem(models.Model):
 
     # Prescription reference (doctor, clinic, date — for pharmacy orders)
     prescription_note = models.TextField(blank=True, default='', help_text='Doctor name, clinic, prescription details for pharmacy reference')
+    prescription_image = models.ImageField(
+        upload_to='prescriptions/',
+        blank=True, null=True,
+        help_text='Photo of the prescription for pharmacy reference'
+    )
 
     # Display
     sort_order = models.IntegerField(default=0)

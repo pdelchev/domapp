@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getRitualDashboard, toggleRitualItem, seedRitualProtocol, getRitualAdherence } from '../../lib/api';
+import { getRitualDashboard, toggleRitualItem, seedRitualProtocol, getRitualAdherence, uploadRxImage } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -17,6 +17,7 @@ interface RitualItem {
   sort_order: number; completed: boolean; completed_at: string | null;
   skipped: boolean; log_id: number | null;
   prescription_note: string;
+  prescription_image: string | null;
 }
 
 interface Dashboard {
@@ -70,7 +71,9 @@ export default function RitualPage() {
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [showRx, setShowRx] = useState<number | null>(null); // prescription detail popup
+  const [showRx, setShowRx] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const rxFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadData();
@@ -116,6 +119,27 @@ export default function RitualPage() {
       });
     } catch { /* */ }
     setToggling(null);
+  };
+
+  const handleUploadRx = async (itemId: number) => {
+    const file = rxFileRef.current?.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const result = await uploadRxImage(itemId, file);
+      // Update the item's image in dashboard
+      setDashboard((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          items: prev.items.map((i) =>
+            i.id === itemId ? { ...i, prescription_image: result.prescription_image } : i
+          ),
+        };
+      });
+    } catch { /* */ }
+    setUploading(false);
+    if (rxFileRef.current) rxFileRef.current.value = '';
   };
 
   if (loading) {
@@ -347,19 +371,80 @@ export default function RitualPage() {
             if (!item) return null;
             return (
               <div className="space-y-4">
+                {/* Prescription photo */}
+                {item.prescription_image ? (
+                  <div className="rounded-2xl overflow-hidden border border-gray-200">
+                    <img
+                      src={item.prescription_image}
+                      alt="Prescription"
+                      className="w-full max-h-[400px] object-contain bg-gray-50"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl text-center">
+                    <p className="text-sm text-gray-500 mb-3">
+                      {locale === 'bg' ? 'Няма снимка на рецептата' : 'No prescription photo'}
+                    </p>
+                    <input
+                      ref={rxFileRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={() => handleUploadRx(item.id)}
+                    />
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => rxFileRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? '...' : locale === 'bg' ? '📷 Снимай рецепта' : '📷 Take photo'}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Medication details */}
                 <div className="p-4 bg-gray-50 rounded-2xl">
                   <p className="text-base font-bold text-gray-900">{item.name}</p>
                   <p className="text-sm text-gray-600 mt-1">{item.dose}</p>
                   {item.instructions && <p className="text-xs text-gray-500 mt-1">{item.instructions}</p>}
                 </div>
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
-                  <p className="text-xs font-semibold text-blue-800 mb-2">
-                    {locale === 'bg' ? '📋 Показване в аптека:' : '📋 Show at pharmacy:'}
-                  </p>
-                  <pre className="text-sm text-blue-900 whitespace-pre-wrap font-sans leading-relaxed">
-                    {item.prescription_note}
-                  </pre>
-                </div>
+
+                {/* Text prescription note */}
+                {item.prescription_note && (
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                    <p className="text-xs font-semibold text-blue-800 mb-2">
+                      {locale === 'bg' ? '📋 Показване в аптека:' : '📋 Show at pharmacy:'}
+                    </p>
+                    <pre className="text-sm text-blue-900 whitespace-pre-wrap font-sans leading-relaxed">
+                      {item.prescription_note}
+                    </pre>
+                  </div>
+                )}
+
+                {/* Replace photo button (when photo exists) */}
+                {item.prescription_image && (
+                  <div className="text-center">
+                    <input
+                      ref={rxFileRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={() => handleUploadRx(item.id)}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => rxFileRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? '...' : locale === 'bg' ? '📷 Смени снимката' : '📷 Replace photo'}
+                    </Button>
+                  </div>
+                )}
+
                 {item.warning && (
                   <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
                     <p className="text-xs text-amber-700">⚠️ {item.warning}</p>

@@ -1709,6 +1709,17 @@ export async function deleteRitualItem(id: number) {
   if (!res.ok) throw new Error('Failed to delete');
 }
 
+export async function uploadRxImage(itemId: number, file: File) {
+  const form = new FormData();
+  form.append('image', file);
+  const res = await apiFetch(`/api/health/ritual/upload-rx/${itemId}/`, {
+    method: 'POST',
+    body: form,
+  });
+  if (!res.ok) throw new Error('Failed to upload');
+  return res.json();
+}
+
 export async function getBodyMeasurements(site?: string) {
   const params = site ? `?site=${site}` : '';
   const res = await apiFetch(`/api/health/ritual/measurements/${params}`);

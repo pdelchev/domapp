@@ -75,6 +75,25 @@ class RitualSeedView(APIView):
         })
 
 
+class RitualUploadRxView(APIView):
+    """POST: Upload prescription image for a ritual item."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, item_id):
+        item = RitualItem.objects.filter(id=item_id, user=request.user.get_data_owner()).first()
+        if not item:
+            return Response({'detail': 'Not found'}, status=404)
+        image = request.FILES.get('image')
+        if not image:
+            return Response({'detail': 'No image provided'}, status=400)
+        item.prescription_image = image
+        item.save(update_fields=['prescription_image'])
+        return Response({
+            'id': item.id,
+            'prescription_image': item.prescription_image.url if item.prescription_image else None,
+        })
+
+
 class RitualAdherenceView(APIView):
     """GET: Adherence stats over a period."""
     permission_classes = [IsAuthenticated]
