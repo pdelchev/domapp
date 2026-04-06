@@ -1497,3 +1497,65 @@ export async function importWeightCSV(profileId: number, file: File) {
   if (!res.ok) throw new Error('CSV import failed');
   return res.json();
 }
+
+// ═══ PROPERTY TAXES ═══
+
+export async function getPropertyTaxes(propertyId: number, current?: boolean) {
+  const params = current ? '?current=true' : '';
+  const res = await apiFetch(`/api/properties/${propertyId}/taxes/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch taxes');
+  return res.json();
+}
+
+export async function createPropertyTax(propertyId: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/properties/${propertyId}/taxes/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create tax');
+  return res.json();
+}
+
+export async function updatePropertyTax(taxId: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/taxes/${taxId}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update tax');
+  return res.json();
+}
+
+export async function deletePropertyTax(taxId: number) {
+  const res = await apiFetch(`/api/taxes/${taxId}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete tax');
+}
+
+export async function markTaxPaid(taxId: number, paidUntil?: string) {
+  const res = await apiFetch(`/api/taxes/${taxId}/mark-paid/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paid_until: paidUntil }),
+  });
+  if (!res.ok) throw new Error('Failed to mark tax paid');
+  return res.json();
+}
+
+export async function createTaxPresets(propertyId: number) {
+  const res = await apiFetch(`/api/properties/${propertyId}/taxes/presets/`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to create presets');
+  return res.json();
+}
+
+export async function getCountryTaxInfo(country: string) {
+  const res = await apiFetch(`/api/taxes/country-info/?country=${encodeURIComponent(country)}`);
+  if (!res.ok) throw new Error('Failed to fetch country info');
+  return res.json();
+}
+
+export async function getTaxSummary() {
+  const res = await apiFetch('/api/taxes/summary/');
+  if (!res.ok) throw new Error('Failed to fetch tax summary');
+  return res.json();
+}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getProperty, updateProperty, getOwners, getProperties, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems, getUnits, createUnit, updateUnit, deleteUnit } from '../../lib/api';
+import { getProperty, updateProperty, getOwners, getProperties, getLeases, getDocuments, uploadDocument, deleteDocument, getSmartFolders, getProblems, getUnits, createUnit, updateUnit, deleteUnit, getPropertyTaxes, createPropertyTax, updatePropertyTax, deletePropertyTax, markTaxPaid, createTaxPresets } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
@@ -105,6 +105,47 @@ interface UnitRecord {
   notes: string | null;
 }
 
+interface TaxRecord {
+  id: number;
+  property: number;
+  tax_type: string;
+  custom_tax_name: string;
+  display_name: string;
+  status: string;
+  amount: string | null;
+  currency: string;
+  frequency: string;
+  due_date: string | null;
+  paid_until: string | null;
+  authority: string;
+  reference_number: string;
+  helper_text: string;
+  reminder_days: number[];
+  is_current: boolean;
+  is_paid: boolean;
+  monthly_equivalent: number | null;
+  notes: string;
+}
+
+const TAX_TYPES = [
+  'bg_property_tax', 'bg_waste_tax',
+  'uk_council_tax', 'uk_stamp_duty', 'uk_capital_gains', 'uk_income_tax',
+  'uae_municipality_fee', 'uae_housing_fee', 'uae_service_charge',
+  'custom',
+] as const;
+
+const TAX_FREQUENCIES = [
+  'one_time', 'monthly', 'quarterly', 'biannual', 'annual',
+] as const;
+
+const TAX_STATUS_COLOR: Record<string, 'red' | 'yellow' | 'green' | 'blue' | 'gray'> = {
+  overdue: 'red',
+  due_soon: 'yellow',
+  paid: 'green',
+  upcoming: 'blue',
+  no_due_date: 'gray',
+};
+
 const TYPE_BADGE: Record<string, 'blue' | 'green' | 'yellow' | 'purple' | 'gray' | 'indigo'> = {
   apartment: 'blue',
   house: 'green',
@@ -205,6 +246,17 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
   const fileRef = useRef<HTMLInputElement>(null);
   const [allProperties, setAllProperties] = useState<{ id: number; name: string; property_type: string }[]>([]);
 
+  // Tax state
+  const [taxes, setTaxes] = useState<TaxRecord[]>([]);
+  const [showAddTax, setShowAddTax] = useState(false);
+  const [editingTaxId, setEditingTaxId] = useState<number | null>(null);
+  const [taxForm, setTaxForm] = useState({
+    tax_type: '', custom_tax_name: '', amount: '', currency: 'EUR',
+    frequency: 'annual', due_date: '', authority: '', reference_number: '',
+    helper_text: '', reminder_days: '30,7,1', notes: '',
+  });
+  const [taxSaving, setTaxSaving] = useState(false);
+
   // Inline editing state
   const [editingSection, setEditingSection] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -221,8 +273,9 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
       getSmartFolders(Number(id)),
       getProblems(Number(id)),
       getUnits(Number(id)),
+      getPropertyTaxes(Number(id), true),
     ])
-      .then(([propData, ownersData, propsData, leasesData, docsData, foldersData, problemsData, unitsData]) => {
+      .then(([propData, ownersData, propsData, leasesData, docsData, foldersData, problemsData, unitsData, taxesData]) => {
         setProp(propData);
         setOwners(ownersData);
         setAllProperties(propsData);
@@ -231,6 +284,7 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
         setSmartFolders(foldersData);
         setProblems(problemsData);
         setUnits(unitsData);
+        setTaxes(taxesData);
       })
       .catch(() => router.push('/properties'))
       .finally(() => setLoading(false));
@@ -376,6 +430,78 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
     } catch {
       // silently fail
     }
+  };
+
+  // ═══ TAX HANDLERS ═══
+  const resetTaxForm = () => {
+    setShowAddTax(false);
+    setEditingTaxId(null);
+    setTaxForm({
+      tax_type: '', custom_tax_name: '', amount: '', currency: 'EUR',
+      frequency: 'annual', due_date: '', authority: '', reference_number: '',
+      helper_text: '', reminder_days: '30,7,1', notes: '',
+    });
+  };
+
+  const startEditTax = (tax: TaxRecord) => {
+    setEditingTaxId(tax.id);
+    setShowAddTax(false);
+    setTaxForm({
+      tax_type: tax.tax_type,
+      custom_tax_name: tax.custom_tax_name || '',
+      amount: tax.amount || '',
+      currency: tax.currency,
+      frequency: tax.frequency,
+      due_date: tax.due_date || '',
+      authority: tax.authority || '',
+      reference_number: tax.reference_number || '',
+      helper_text: tax.helper_text || '',
+      reminder_days: (tax.reminder_days || [30, 7, 1]).join(','),
+      notes: tax.notes || '',
+    });
+  };
+
+  const handleSaveTax = async () => {
+    setTaxSaving(true);
+    try {
+      const data = {
+        ...taxForm,
+        amount: taxForm.amount || null,
+        due_date: taxForm.due_date || null,
+        reminder_days: taxForm.reminder_days.split(',').map(Number).filter(n => !isNaN(n)),
+      };
+      if (editingTaxId) {
+        const updated = await updatePropertyTax(editingTaxId, data);
+        setTaxes((prev) => prev.map((t2) => t2.id === editingTaxId ? updated : t2));
+      } else {
+        const created = await createPropertyTax(Number(id), data);
+        setTaxes((prev) => [...prev, created]);
+      }
+      resetTaxForm();
+    } catch { /* */ }
+    setTaxSaving(false);
+  };
+
+  const handleDeleteTax = async (taxId: number) => {
+    if (!confirm(t('common.delete_confirm', locale))) return;
+    try {
+      await deletePropertyTax(taxId);
+      setTaxes((prev) => prev.filter((t2) => t2.id !== taxId));
+    } catch { /* */ }
+  };
+
+  const handleMarkPaid = async (taxId: number) => {
+    try {
+      const updated = await markTaxPaid(taxId);
+      setTaxes((prev) => prev.map((t2) => t2.id === taxId ? updated : t2));
+    } catch { /* */ }
+  };
+
+  const handleAddPresets = async () => {
+    try {
+      const created = await createTaxPresets(Number(id));
+      setTaxes((prev) => [...prev, ...created]);
+    } catch { /* */ }
   };
 
   const docsByType = ALL_DOC_TYPES.reduce((acc, type) => {
@@ -1002,6 +1128,202 @@ export default function PropertyViewPage({ params }: { params: Promise<{ id: str
                 </tbody>
               </table>
             </Card>
+          )}
+        </div>
+
+        {/* ====== Taxes ====== */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">{t('taxes.title', locale)}</h2>
+            <div className="flex gap-2">
+              {taxes.length === 0 && prop.country && (
+                <Button variant="secondary" size="sm" onClick={handleAddPresets}>
+                  {t('taxes.add_presets', locale)}
+                </Button>
+              )}
+              <Button variant="secondary" size="sm" onClick={() => { resetTaxForm(); setShowAddTax(true); }}>
+                + {t('taxes.add', locale)}
+              </Button>
+            </div>
+          </div>
+
+          {/* Add/Edit Tax Form */}
+          {(showAddTax || editingTaxId) && (
+            <Card className="mb-4">
+              <h3 className="text-sm font-medium text-gray-700 mb-3">
+                {editingTaxId ? t('taxes.edit', locale) : t('taxes.add', locale)}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Select
+                  label={t('taxes.type', locale)}
+                  value={taxForm.tax_type}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, tax_type: e.target.value }))}
+                  required
+                >
+                  <option value="">{t('common.select', locale)}</option>
+                  {TAX_TYPES.map((tt) => (
+                    <option key={tt} value={tt}>{t(`tax.${tt}`, locale)}</option>
+                  ))}
+                </Select>
+                {taxForm.tax_type === 'custom' && (
+                  <Input
+                    label={t('taxes.custom_name', locale)}
+                    value={taxForm.custom_tax_name}
+                    onChange={(e) => setTaxForm((prev) => ({ ...prev, custom_tax_name: e.target.value }))}
+                  />
+                )}
+                <Input
+                  label={t('taxes.amount', locale)}
+                  type="number"
+                  value={taxForm.amount}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, amount: e.target.value }))}
+                />
+                <Select
+                  label={t('taxes.frequency', locale)}
+                  value={taxForm.frequency}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, frequency: e.target.value }))}
+                >
+                  {TAX_FREQUENCIES.map((f) => (
+                    <option key={f} value={f}>{t(`freq.${f}`, locale)}</option>
+                  ))}
+                </Select>
+                <Input
+                  label={t('taxes.due_date', locale)}
+                  type="date"
+                  value={taxForm.due_date}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, due_date: e.target.value }))}
+                />
+                <Input
+                  label={t('taxes.authority', locale)}
+                  value={taxForm.authority}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, authority: e.target.value }))}
+                />
+                <Input
+                  label={t('taxes.reference', locale)}
+                  value={taxForm.reference_number}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, reference_number: e.target.value }))}
+                />
+                <Select
+                  label="Currency"
+                  value={taxForm.currency}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, currency: e.target.value }))}
+                >
+                  <option value="EUR">EUR</option>
+                  <option value="BGN">BGN</option>
+                  <option value="GBP">GBP</option>
+                  <option value="AED">AED</option>
+                  <option value="USD">USD</option>
+                </Select>
+              </div>
+              <div className="mt-3">
+                <Textarea
+                  label={t('taxes.notes', locale)}
+                  value={taxForm.notes}
+                  onChange={(e) => setTaxForm((prev) => ({ ...prev, notes: e.target.value }))}
+                  rows={2}
+                />
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Button size="sm" onClick={handleSaveTax} disabled={taxSaving || !taxForm.tax_type}>
+                  {taxSaving ? '...' : t('common.save', locale)}
+                </Button>
+                <Button size="sm" variant="secondary" onClick={resetTaxForm}>
+                  {t('common.cancel', locale)}
+                </Button>
+              </div>
+            </Card>
+          )}
+
+          {taxes.length === 0 && !showAddTax ? (
+            <Card className="py-8 text-center">
+              <p className="text-sm text-gray-500">{t('taxes.no_taxes', locale)}</p>
+            </Card>
+          ) : taxes.length > 0 && (
+            <div className="space-y-3">
+              {taxes.map((tax) => (
+                <Card key={tax.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-sm font-semibold text-gray-900">{tax.display_name}</h3>
+                        <Badge color={TAX_STATUS_COLOR[tax.status] || 'gray'}>
+                          {t(`taxes.${tax.status}`, locale)}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-xs text-gray-500 mt-2">
+                        {tax.amount && (
+                          <div>
+                            <span className="text-gray-400">{t('taxes.amount', locale)}: </span>
+                            <span className="font-medium text-gray-900">
+                              {new Intl.NumberFormat(locale === 'bg' ? 'bg-BG' : 'en-US', { style: 'currency', currency: tax.currency }).format(Number(tax.amount))}
+                            </span>
+                            {tax.monthly_equivalent && tax.frequency !== 'monthly' && (
+                              <span className="text-gray-400 ml-1">
+                                ({new Intl.NumberFormat(locale === 'bg' ? 'bg-BG' : 'en-US', { style: 'currency', currency: tax.currency }).format(tax.monthly_equivalent)}{t('taxes.monthly_eq', locale)})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {tax.frequency && (
+                          <div>
+                            <span className="text-gray-400">{t('taxes.frequency', locale)}: </span>
+                            <span className="text-gray-700">{t(`freq.${tax.frequency}`, locale)}</span>
+                          </div>
+                        )}
+                        {tax.due_date && (
+                          <div>
+                            <span className="text-gray-400">{t('taxes.due_date', locale)}: </span>
+                            <span className={`font-medium ${tax.status === 'overdue' ? 'text-red-600' : tax.status === 'due_soon' ? 'text-amber-600' : 'text-gray-700'}`}>
+                              {tax.due_date}
+                            </span>
+                          </div>
+                        )}
+                        {tax.authority && (
+                          <div>
+                            <span className="text-gray-400">{t('taxes.authority', locale)}: </span>
+                            <span className="text-gray-700">{tax.authority}</span>
+                          </div>
+                        )}
+                        {tax.reference_number && (
+                          <div>
+                            <span className="text-gray-400">{t('taxes.reference', locale)}: </span>
+                            <span className="text-gray-700 font-mono text-[11px]">{tax.reference_number}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Helper text */}
+                      {tax.helper_text && (
+                        <div className="mt-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg">
+                          <p className="text-xs text-blue-700 leading-relaxed">{tax.helper_text}</p>
+                        </div>
+                      )}
+
+                      {/* Notes */}
+                      {tax.notes && (
+                        <p className="text-xs text-gray-500 mt-1 italic">{tax.notes}</p>
+                      )}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!tax.is_paid && tax.due_date && (
+                        <Button variant="ghost" size="sm" onClick={() => handleMarkPaid(tax.id)}>
+                          <span className="text-green-600">{t('taxes.mark_paid', locale)}</span>
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => startEditTax(tax)}>
+                        {t('common.edit', locale)}
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteTax(tax.id)}>
+                        {t('common.delete', locale)}
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
           )}
         </div>
 

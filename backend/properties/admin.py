@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import PropertyOwner, Property, Unit
+from .tax_models import PropertyTax, TaxReminder
 
 
 @admin.register(PropertyOwner)
@@ -21,3 +22,16 @@ class PropertyAdmin(admin.ModelAdmin):
 class UnitAdmin(admin.ModelAdmin):
     list_display = ('unit_number', 'property', 'floor', 'square_meters')
     search_fields = ('unit_number', 'property__name')
+
+
+@admin.register(PropertyTax)
+class PropertyTaxAdmin(admin.ModelAdmin):
+    list_display = ('property', 'tax_type', 'amount', 'frequency', 'due_date', 'is_paid', 'is_current')
+    list_filter = ('tax_type', 'frequency', 'is_paid', 'is_current')
+    search_fields = ('property__name',)
+
+
+@admin.register(TaxReminder)
+class TaxReminderAdmin(admin.ModelAdmin):
+    list_display = ('tax', 'remind_at', 'sent', 'sent_at')
+    list_filter = ('sent',)

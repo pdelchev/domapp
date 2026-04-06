@@ -613,8 +613,8 @@ export default function NotesPage() {
 
         {/* ─── LEFT SIDEBAR ──────────────────────────── */}
         {/* §LS — folder/tag sidebar */}
-        <aside className={`${sidebarOpen ? 'w-56' : 'w-0'} shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto transition-all duration-200 ${
-          mobilePanel === 'sidebar' ? 'block' : 'hidden md:block'
+        <aside className={`${sidebarOpen ? 'w-52' : 'w-0'} shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto transition-all duration-200 ${
+          mobilePanel === 'sidebar' ? 'block w-full md:w-52' : 'hidden lg:block'
         }`}>
           <div className="p-3 space-y-1">
             {/* Smart views */}
@@ -773,8 +773,8 @@ export default function NotesPage() {
 
         {/* ─── MIDDLE: NOTE LIST ─────────────────────── */}
         {/* §NL — note list panel */}
-        <div className={`w-72 md:w-80 shrink-0 border-r border-gray-200 flex flex-col bg-white ${
-          mobilePanel === 'list' ? 'block' : 'hidden md:flex'
+        <div className={`w-full md:w-64 lg:w-72 shrink-0 border-r border-gray-200 flex flex-col bg-white ${
+          mobilePanel === 'list' ? 'flex' : 'hidden md:flex'
         }`}>
           {/* List header */}
           <div className="p-3 border-b border-gray-100 space-y-2">
@@ -782,13 +782,13 @@ export default function NotesPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSidebarOpen(prev => !prev)}
-                  className="p-1 text-gray-400 hover:text-gray-600 md:inline-flex hidden"
+                  className="p-1 text-gray-400 hover:text-gray-600 lg:inline-flex hidden"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
                 <button
                   onClick={() => setMobilePanel('sidebar')}
-                  className="p-1 text-gray-400 hover:text-gray-600 md:hidden"
+                  className="p-1 text-gray-400 hover:text-gray-600 lg:hidden"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
@@ -868,15 +868,15 @@ export default function NotesPage() {
         {/* ─── RIGHT: EDITOR ─────────────────────────── */}
         {/* §ED — note editor panel */}
         <div className={`flex-1 flex flex-col bg-white overflow-hidden ${
-          mobilePanel === 'editor' ? 'block' : 'hidden md:flex'
+          mobilePanel === 'editor' ? 'flex fixed inset-0 z-40 md:relative md:z-auto' : 'hidden md:flex'
         }`}>
           {selectedNote ? (
             <>
               {/* Editor toolbar */}
-              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100 shrink-0">
+              <div className="flex items-center justify-between px-3 md:px-4 py-2 border-b border-gray-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2">
                   {/* Back button — mobile */}
-                  <button onClick={() => { flushSave(); setMobilePanel('list'); }} className="md:hidden p-1 text-gray-400 hover:text-gray-600">
+                  <button onClick={() => { flushSave(); setMobilePanel('list'); }} className="md:hidden p-1.5 -ml-1 text-indigo-600 hover:bg-indigo-50 rounded-lg">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                   </button>
 
@@ -971,14 +971,14 @@ export default function NotesPage() {
 
               {/* Editor body */}
               <div className={`flex-1 overflow-y-auto ${NOTE_COLORS[editColor]?.bg || 'bg-white'}`} onClick={() => { setShowColorPicker(false); setShowNoteMenu(false); }}>
-                <div className="max-w-3xl mx-auto px-6 py-6">
+                <div className="max-w-4xl mx-auto px-4 md:px-8 py-4 md:py-6">
                   {/* Title */}
                   <input
                     type="text"
                     value={editTitle}
                     onChange={e => setEditTitle(e.target.value)}
                     placeholder={t('notes.untitled', locale)}
-                    className="w-full text-2xl font-bold text-gray-900 placeholder:text-gray-300 bg-transparent border-none outline-none mb-4"
+                    className="w-full text-xl md:text-2xl font-bold text-gray-900 placeholder:text-gray-300 bg-transparent border-none outline-none mb-3"
                   />
 
                   {/* Blocks */}
@@ -1018,26 +1018,28 @@ export default function NotesPage() {
                         if (lastBlock) insertBlockAfter(lastBlock.id, 'text');
                         else setEditContent([emptyBlock('text')]);
                       }}
-                      className="text-xs text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1"
+                      className="text-xs md:text-sm text-gray-400 hover:text-indigo-600 transition-colors flex items-center gap-1.5 py-2"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                       {t('notes.type_slash', locale)}
                     </button>
                   </div>
+                  {/* Extra bottom padding for mobile scroll comfort */}
+                  <div className="h-16 md:h-8" />
                 </div>
               </div>
             </>
           ) : (
             /* No note selected */
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center p-8">
               <div className="text-center">
-                <svg className="w-16 h-16 mx-auto text-gray-200 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.5}>
+                <svg className="w-12 h-12 md:w-16 md:h-16 mx-auto text-gray-200 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={0.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                 </svg>
                 <p className="text-sm text-gray-400">{t('notes.select_note', locale)}</p>
                 <button
                   onClick={handleNewNote}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                   {t('notes.new_note', locale)}
@@ -1107,8 +1109,8 @@ function NoteCard({ note, isSelected, onClick, onPin, onTrash, onRestore, onDele
   return (
     <div
       onClick={onClick}
-      className={`group/card px-3 py-2.5 border-b border-gray-50 cursor-pointer transition-colors ${
-        isSelected ? 'bg-indigo-50' : `hover:bg-gray-50 ${colors.bg}`
+      className={`group/card px-3 py-3 border-b border-gray-100 cursor-pointer transition-colors active:bg-gray-100 ${
+        isSelected ? 'bg-indigo-50 border-l-2 border-l-indigo-500' : `hover:bg-gray-50 ${colors.bg}`
       }`}
     >
       <div className="flex items-start justify-between gap-2">
@@ -1116,7 +1118,7 @@ function NoteCard({ note, isSelected, onClick, onPin, onTrash, onRestore, onDele
           <h3 className={`text-sm font-medium truncate ${note.title ? 'text-gray-900' : 'text-gray-400 italic'}`}>
             {note.title || t('notes.untitled', locale)}
           </h3>
-          <p className="text-[11px] text-gray-400 truncate mt-0.5">
+          <p className="text-xs text-gray-400 truncate mt-0.5 leading-relaxed">
             {note.content_preview || t('notes.type_slash', locale)}
           </p>
         </div>
@@ -1217,9 +1219,9 @@ function BlockRenderer({
   ];
 
   return (
-    <div className="group/block relative flex items-start gap-1">
+    <div className="group/block relative flex items-start gap-0.5 md:gap-1">
       {/* Block controls — left gutter */}
-      <div className="w-6 shrink-0 flex flex-col items-center pt-1 opacity-0 group-hover/block:opacity-100 transition-opacity">
+      <div className="w-5 md:w-6 shrink-0 flex flex-col items-center pt-1 opacity-0 group-hover/block:opacity-100 group-focus-within/block:opacity-100 transition-opacity">
         {/* Drag handle + block menu trigger */}
         <div className="relative">
           <button
@@ -1270,12 +1272,21 @@ function BlockRenderer({
         {block.type === 'text' && (
           <textarea
             value={block.content || ''}
-            onChange={e => onUpdate({ content: e.target.value })}
+            onChange={e => {
+              onUpdate({ content: e.target.value });
+              // Auto-grow: adjust height to content
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             placeholder="Type something..."
-            className="w-full text-sm text-gray-800 bg-transparent border-none outline-none resize-none min-h-[24px] leading-relaxed"
-            rows={Math.max(1, (block.content || '').split('\n').length)}
+            className="w-full text-sm md:text-[15px] text-gray-800 bg-transparent border-none outline-none resize-none min-h-[28px] leading-relaxed"
+            rows={1}
+            ref={el => {
+              // Auto-size on mount
+              if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+            }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+              if (e.key === 'Enter' && e.metaKey) {
                 e.preventDefault();
                 onInsertAfter('text');
               }
@@ -1293,7 +1304,7 @@ function BlockRenderer({
             value={block.content || ''}
             onChange={e => onUpdate({ content: e.target.value })}
             placeholder="Heading"
-            className="w-full text-lg font-semibold text-gray-900 bg-transparent border-none outline-none"
+            className="w-full text-lg md:text-xl font-semibold text-gray-900 bg-transparent border-none outline-none"
             onKeyDown={e => {
               if (e.key === 'Enter') { e.preventDefault(); onInsertAfter('text'); }
             }}
@@ -1301,59 +1312,59 @@ function BlockRenderer({
         )}
 
         {block.type === 'checklist' && (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {(block.items as ChecklistItem[] || []).map(item => (
-              <div key={item.id} className="flex items-center gap-2 group/item">
+              <div key={item.id} className="flex items-center gap-2 group/item min-h-[32px]">
                 <input
                   type="checkbox"
                   checked={item.checked}
                   onChange={() => onToggleCheck(item.id)}
-                  className="w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+                  className="w-[18px] h-[18px] text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer shrink-0"
                 />
                 <input
                   type="text"
                   value={item.text}
                   onChange={e => onUpdateItemText(item.id, e.target.value)}
                   placeholder="To do..."
-                  className={`flex-1 text-sm bg-transparent border-none outline-none ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                  className={`flex-1 text-sm md:text-[15px] bg-transparent border-none outline-none ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); onAddItem(); }
                     if (e.key === 'Backspace' && !item.text) { e.preventDefault(); onRemoveItem(item.id); }
                   }}
                 />
-                <button onClick={() => onRemoveItem(item.id)} className="hidden group-hover/item:block p-0.5 text-gray-300 hover:text-red-500 shrink-0">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <button onClick={() => onRemoveItem(item.id)} className="hidden group-hover/item:block p-1 text-gray-300 hover:text-red-500 shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             ))}
-            <button onClick={onAddItem} className="text-[11px] text-gray-400 hover:text-indigo-600 ml-6 transition-colors">
+            <button onClick={onAddItem} className="text-xs text-gray-400 hover:text-indigo-600 ml-7 py-1 transition-colors">
               + Add item
             </button>
           </div>
         )}
 
         {block.type === 'bullet' && (
-          <div className="space-y-0.5">
+          <div className="space-y-1">
             {(block.items as BulletItem[] || []).map(item => (
-              <div key={item.id} className="flex items-center gap-2 group/item">
+              <div key={item.id} className="flex items-center gap-2 group/item min-h-[32px]">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
                 <input
                   type="text"
                   value={item.text}
                   onChange={e => onUpdateItemText(item.id, e.target.value)}
                   placeholder="List item..."
-                  className="flex-1 text-sm text-gray-800 bg-transparent border-none outline-none"
+                  className="flex-1 text-sm md:text-[15px] text-gray-800 bg-transparent border-none outline-none"
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); onAddItem(); }
                     if (e.key === 'Backspace' && !item.text) { e.preventDefault(); onRemoveItem(item.id); }
                   }}
                 />
-                <button onClick={() => onRemoveItem(item.id)} className="hidden group-hover/item:block p-0.5 text-gray-300 hover:text-red-500 shrink-0">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                <button onClick={() => onRemoveItem(item.id)} className="hidden group-hover/item:block p-1 text-gray-300 hover:text-red-500 shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             ))}
-            <button onClick={onAddItem} className="text-[11px] text-gray-400 hover:text-indigo-600 ml-4 transition-colors">
+            <button onClick={onAddItem} className="text-xs text-gray-400 hover:text-indigo-600 ml-4 py-1 transition-colors">
               + Add item
             </button>
           </div>
@@ -1412,10 +1423,17 @@ function BlockRenderer({
         {block.type === 'code' && (
           <textarea
             value={block.content || ''}
-            onChange={e => onUpdate({ content: e.target.value })}
+            onChange={e => {
+              onUpdate({ content: e.target.value });
+              e.target.style.height = 'auto';
+              e.target.style.height = e.target.scrollHeight + 'px';
+            }}
             placeholder="Code or reference..."
-            className="w-full px-3 py-2 text-xs font-mono text-gray-800 bg-gray-50 border border-gray-200 rounded-lg outline-none resize-none min-h-[36px]"
-            rows={Math.max(2, (block.content || '').split('\n').length)}
+            className="w-full px-3 py-2 text-xs md:text-sm font-mono text-gray-800 bg-gray-50 border border-gray-200 rounded-lg outline-none resize-none min-h-[36px]"
+            rows={1}
+            ref={el => {
+              if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+            }}
           />
         )}
       </div>

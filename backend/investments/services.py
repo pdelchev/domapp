@@ -452,6 +452,14 @@ def analyze_property(data: dict) -> dict:
     renovation_cost = Decimal(str(data.get('renovation_cost', 0)))
     monthly_fees = Decimal(str(data.get('monthly_fees', 0)))
 
+    # Acquisition costs (notary, tax, lawyer, agent, other)
+    notary_fees = Decimal(str(data.get('notary_fees', 0)))
+    acquisition_tax = Decimal(str(data.get('acquisition_tax', 0)))
+    lawyer_fees = Decimal(str(data.get('lawyer_fees', 0)))
+    agent_commission = Decimal(str(data.get('agent_commission', 0)))
+    other_costs = Decimal(str(data.get('other_costs', 0)))
+    total_acquisition = notary_fees + acquisition_tax + lawyer_fees + agent_commission + other_costs
+
     # §STEP:1 — Look up market data
     market = get_market_data(country, city, area)
     country_info = get_country_info(country)
@@ -491,7 +499,7 @@ def analyze_property(data: dict) -> dict:
         }
 
     # §STEP:2 — Price calculations
-    total_cost = asking_price + parking_price + renovation_cost
+    total_cost = asking_price + parking_price + renovation_cost + total_acquisition
     price_per_sqm = asking_price / sqm
     market_avg = Decimal(str(market['avg_sqm']))
     price_vs_market_pct = float(((price_per_sqm - market_avg) / market_avg) * 100)
@@ -636,6 +644,17 @@ def analyze_property(data: dict) -> dict:
         'currency': currency,
 
         'total_cost': float(total_cost),
+        'cost_breakdown': {
+            'asking_price': float(asking_price),
+            'notary_fees': float(notary_fees),
+            'acquisition_tax': float(acquisition_tax),
+            'lawyer_fees': float(lawyer_fees),
+            'agent_commission': float(agent_commission),
+            'other_costs': float(other_costs),
+            'renovation_cost': float(renovation_cost),
+            'parking_price': float(parking_price),
+            'total_acquisition': float(total_acquisition),
+        },
         'price_per_sqm': round(float(price_per_sqm), 2),
         'market_avg_sqm': float(market_avg),
         'market_min_sqm': market['min_sqm'],

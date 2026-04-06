@@ -95,6 +95,17 @@ interface AnalysisResult {
   renovation_cost?: number;
   monthly_fees?: number;
   annual_fees?: number;
+  cost_breakdown?: {
+    asking_price: number;
+    notary_fees: number;
+    acquisition_tax: number;
+    lawyer_fees: number;
+    agent_commission: number;
+    other_costs: number;
+    renovation_cost: number;
+    parking_price: number;
+    total_acquisition: number;
+  };
   location_score: number;
   risk_score: number;
   market_trend_score: number;
@@ -212,6 +223,65 @@ const RESEARCH_LINKS: Record<string, { name: string; url: string; icon: string }
     { name: 'Land Registry', url: 'https://landregistry.data.gov.uk', icon: '📊' },
   ],
 };
+
+// Country-specific acquisition cost guides
+const ACQUISITION_COSTS: Record<string, { label_en: string; label_bg: string; items: { key: string; label_en: string; label_bg: string; pct: string; hint_en: string; hint_bg: string }[] }> = {
+  'Bulgaria': {
+    label_en: 'Bulgarian Acquisition Costs',
+    label_bg: 'Разходи по придобиване (БГ)',
+    items: [
+      { key: 'notary_fees', label_en: 'Notary fees', label_bg: 'Нотариални такси', pct: '~0.5-1.5%', hint_en: 'Notary deed + registration fees. Typically 0.5-1.5% of price.', hint_bg: 'Нотариален акт + регистрация. Обикновено 0.5-1.5% от цената.' },
+      { key: 'acquisition_tax', label_en: 'Local transfer tax', label_bg: 'Местен данък придобиване', pct: '~2-3%', hint_en: 'Municipal transfer tax, varies 2-3% by municipality.', hint_bg: 'Общински данък, варира 2-3% от данъчната оценка.' },
+      { key: 'lawyer_fees', label_en: 'Lawyer', label_bg: 'Адвокат', pct: '~€300-1000', hint_en: 'Legal review + due diligence. Fixed fee or 0.5-1%.', hint_bg: 'Правна проверка + due diligence. Фиксирана такса или 0.5-1%.' },
+      { key: 'agent_commission', label_en: 'Agent commission', label_bg: 'Агентска комисионна', pct: '~2-3%', hint_en: 'Real estate agent fee, typically 2-3% + VAT.', hint_bg: 'Комисионна на брокера, обикновено 2-3% + ДДС.' },
+    ],
+  },
+  'United Kingdom': {
+    label_en: 'UK Acquisition Costs',
+    label_bg: 'Разходи по придобиване (UK)',
+    items: [
+      { key: 'notary_fees', label_en: 'Solicitor / Conveyancer', label_bg: 'Нотариус / Conveyancer', pct: '~£1000-2500', hint_en: 'Conveyancing solicitor fees including searches.', hint_bg: 'Такса нотариус включително проверки.' },
+      { key: 'acquisition_tax', label_en: 'Stamp Duty (SDLT)', label_bg: 'Stamp Duty (SDLT)', pct: '0-12%', hint_en: 'Stamp Duty Land Tax. 0% up to £250k, 5% £250-925k, 10% £925k-1.5M, 12% above. +3% for additional properties.', hint_bg: 'Stamp Duty. 0% до £250k, 5% £250-925k, 10% £925k-1.5M. +3% за допълнителни имоти.' },
+      { key: 'lawyer_fees', label_en: 'Survey / Inspection', label_bg: 'Оглед / Инспекция', pct: '~£400-1500', hint_en: 'RICS Home Survey or Building Survey. Essential before purchase.', hint_bg: 'RICS оглед на имота. Задължителен преди покупка.' },
+      { key: 'agent_commission', label_en: 'Agent fee (seller pays)', label_bg: 'Агентска комисионна (плаща продавач)', pct: '1-3%', hint_en: 'In UK, seller typically pays agent fees. Buyer pays nothing.', hint_bg: 'В UK продавачът плаща комисионната. Купувачът не плаща.' },
+    ],
+  },
+  'UAE': {
+    label_en: 'UAE Acquisition Costs',
+    label_bg: 'Разходи по придобиване (ОАЕ)',
+    items: [
+      { key: 'notary_fees', label_en: 'DLD Registration', label_bg: 'DLD регистрация', pct: '4%', hint_en: 'Dubai Land Department transfer fee. Fixed at 4% of price + AED 580 admin.', hint_bg: 'Такса прехвърляне DLD. Фиксирана 4% от цената + AED 580.' },
+      { key: 'acquisition_tax', label_en: 'NOC Fee', label_bg: 'NOC такса', pct: '~AED 500-5000', hint_en: 'No Objection Certificate from developer. Varies AED 500-5000.', hint_bg: 'Сертификат от предприемача. Варира AED 500-5000.' },
+      { key: 'lawyer_fees', label_en: 'Conveyancer', label_bg: 'Conveyancer', pct: '~AED 5000-10000', hint_en: 'Legal fees for contract review and transfer processing.', hint_bg: 'Правни такси за преглед на договор и прехвърляне.' },
+      { key: 'agent_commission', label_en: 'Agent commission', label_bg: 'Агентска комисионна', pct: '2%', hint_en: 'Standard 2% commission to agent.', hint_bg: 'Стандартна 2% комисионна.' },
+    ],
+  },
+};
+
+// 3 key purchase mistakes checklist
+const PURCHASE_RULES = [
+  {
+    icon: '🔍',
+    title_en: 'Always inspect before buying',
+    title_bg: 'Винаги прави инспекция',
+    desc_en: 'Hidden issues (roof, pipes, electrical, structural) can cost €3,000-30,000+. Never skip a professional inspection.',
+    desc_bg: 'Скрити проблеми (покрив, тръби, ел. инсталация, конструкция) могат да струват €3 000-30 000+. Никога не пропускай професионален оглед.',
+  },
+  {
+    icon: '🧮',
+    title_en: 'Always calculate ALL costs',
+    title_bg: 'Винаги смятай ВСИЧКИ разходи',
+    desc_en: 'Beyond the price: notary fees, transfer tax, lawyer, agent commission, renovation. Total can be 10-25% above asking price.',
+    desc_bg: 'Освен цената: нотариални такси, данък придобиване, адвокат, комисионна, ремонт. Тоталът може да е 10-25% над обявената цена.',
+  },
+  {
+    icon: '📊',
+    title_en: 'Always buy on numbers, not emotion',
+    title_bg: 'Винаги купувай на числа, не на емоция',
+    desc_en: 'Check: market price per m², rental yield, margin for profit. A cheaper property with 6.6% yield beats an expensive one at 4.3% — the 10-year difference is €11,000+.',
+    desc_bg: 'Провери: пазарна цена на м², доходност от наем, маржин за печалба. По-евтин имот с 6.6% доходност бие скъп с 4.3% — разликата за 10 години е €11 000+.',
+  },
+];
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
@@ -332,6 +402,11 @@ const EMPTY_FORM = {
   view_type: '',
   renovation_cost: '',
   monthly_fees: '',
+  notary_fees: '',
+  acquisition_tax: '',
+  lawyer_fees: '',
+  agent_commission: '',
+  other_costs: '',
   construction_type: '',
   near_metro: false,
   near_school: false,
@@ -482,6 +557,11 @@ export default function DealAnalyzerPage() {
       view_type: a.view_type || '',
       renovation_cost: a.renovation_cost ? String(a.renovation_cost) : '',
       monthly_fees: a.monthly_fees ? String(a.monthly_fees) : '',
+      notary_fees: '',
+      acquisition_tax: '',
+      lawyer_fees: '',
+      agent_commission: '',
+      other_costs: '',
       construction_type: a.construction_type || '',
       near_metro: a.near_metro ?? false,
       near_school: a.near_school ?? false,
@@ -533,6 +613,11 @@ export default function DealAnalyzerPage() {
         view_type: form.has_view ? form.view_type : '',
         renovation_cost: Number(form.renovation_cost || 0),
         monthly_fees: Number(form.monthly_fees || 0),
+        notary_fees: Number(form.notary_fees || 0),
+        acquisition_tax: Number(form.acquisition_tax || 0),
+        lawyer_fees: Number(form.lawyer_fees || 0),
+        agent_commission: Number(form.agent_commission || 0),
+        other_costs: Number(form.other_costs || 0),
         construction_type: form.construction_type || null,
         near_metro: form.near_metro,
         near_school: form.near_school,
@@ -687,10 +772,40 @@ export default function DealAnalyzerPage() {
                     <Input label={t('analyzer.renovation_cost', locale)} type="number" value={form.renovation_cost} onChange={(e) => updateForm('renovation_cost', e.target.value)} placeholder="0" />
                     <Input label={t('analyzer.monthly_fees', locale)} type="number" value={form.monthly_fees} onChange={(e) => updateForm('monthly_fees', e.target.value)} placeholder="0" />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">
+
+                  {/* Acquisition costs */}
+                  <div className="mt-4 pt-3 border-t border-gray-100">
+                    <h4 className="text-xs font-semibold text-gray-700 mb-2 flex items-center gap-1">
+                      📋 {locale === 'bg' ? 'Разходи по придобиване' : 'Acquisition Costs'}
+                    </h4>
+                    {form.country && ACQUISITION_COSTS[form.country] && (
+                      <div className="mb-3 p-2 bg-amber-50 border border-amber-100 rounded-lg">
+                        <p className="text-[11px] text-amber-700 font-medium mb-1">
+                          {locale === 'bg' ? ACQUISITION_COSTS[form.country].label_bg : ACQUISITION_COSTS[form.country].label_en}
+                        </p>
+                        <div className="space-y-0.5">
+                          {ACQUISITION_COSTS[form.country].items.map((item) => (
+                            <div key={item.key} className="flex justify-between text-[11px] text-amber-600">
+                              <span>{locale === 'bg' ? item.label_bg : item.label_en}</span>
+                              <span className="font-mono">{item.pct}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label={locale === 'bg' ? 'Нотариални такси' : 'Notary / Solicitor'} type="number" value={form.notary_fees} onChange={(e) => updateForm('notary_fees', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Данък придобиване / SDLT' : 'Transfer tax / SDLT'} type="number" value={form.acquisition_tax} onChange={(e) => updateForm('acquisition_tax', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Адвокат / Инспекция' : 'Lawyer / Survey'} type="number" value={form.lawyer_fees} onChange={(e) => updateForm('lawyer_fees', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Агентска комисионна' : 'Agent commission'} type="number" value={form.agent_commission} onChange={(e) => updateForm('agent_commission', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Други разходи' : 'Other costs'} type="number" value={form.other_costs} onChange={(e) => updateForm('other_costs', e.target.value)} placeholder="0" />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-gray-400 mt-2">
                     {locale === 'bg'
-                      ? 'Ремонтът се добавя към общата цена. Месечните такси се изваждат от нетния наем.'
-                      : 'Renovation is added to total cost. Monthly fees are deducted from net rental income.'}
+                      ? 'Всички разходи (ремонт + придобиване) се добавят към общата инвестиция. Месечните такси се изваждат от нетния наем.'
+                      : 'All costs (renovation + acquisition) are added to total investment. Monthly fees are deducted from net rental income.'}
                   </p>
                 </FormSection>
               </div>
@@ -876,6 +991,55 @@ export default function DealAnalyzerPage() {
                     {(result.renovation_cost ?? 0) > 0 && ` (incl. €${result.renovation_cost} renovation)`}
                   </p>
                 </Card>
+
+                {/* Real costs breakdown */}
+                {result.cost_breakdown && (
+                  <Card>
+                    <h3 className="text-sm font-semibold text-gray-900 mb-3">
+                      {locale === 'bg' ? '💰 Реални разходи' : '💰 Real Costs Breakdown'}
+                    </h3>
+                    <div className="space-y-1.5">
+                      {[
+                        { key: 'asking_price', label_en: 'Purchase price', label_bg: 'Покупна цена' },
+                        { key: 'notary_fees', label_en: 'Notary / Solicitor', label_bg: 'Нотариални такси' },
+                        { key: 'acquisition_tax', label_en: 'Transfer tax / SDLT', label_bg: 'Данък придобиване' },
+                        { key: 'lawyer_fees', label_en: 'Lawyer / Survey', label_bg: 'Адвокат / Инспекция' },
+                        { key: 'agent_commission', label_en: 'Agent commission', label_bg: 'Агентска комисионна' },
+                        { key: 'renovation_cost', label_en: 'Renovation', label_bg: 'Ремонт' },
+                        { key: 'parking_price', label_en: 'Parking', label_bg: 'Паркомясто' },
+                        { key: 'other_costs', label_en: 'Other costs', label_bg: 'Други' },
+                      ].map((item) => {
+                        const val = (result.cost_breakdown as Record<string, number>)[item.key] || 0;
+                        if (val === 0) return null;
+                        return (
+                          <div key={item.key} className="flex justify-between text-sm py-1">
+                            <span className="text-gray-600">{locale === 'bg' ? item.label_bg : item.label_en}</span>
+                            <span className="font-medium text-red-600">-{fmt(val)}</span>
+                          </div>
+                        );
+                      })}
+                      {result.cost_breakdown.total_acquisition > 0 && (
+                        <div className="flex justify-between text-xs py-1 text-gray-400 border-t border-gray-100">
+                          <span>{locale === 'bg' ? 'Разходи по придобиване' : 'Acquisition costs'}</span>
+                          <span>-{fmt(result.cost_breakdown.total_acquisition)} ({((result.cost_breakdown.total_acquisition / result.cost_breakdown.asking_price) * 100).toFixed(1)}%)</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-sm font-bold py-2 border-t-2 border-gray-200">
+                        <span className="text-gray-900">{locale === 'bg' ? 'ТОТАЛ ИНВЕСТИЦИЯ' : 'TOTAL INVESTMENT'}</span>
+                        <span className="text-gray-900">{fmt(result.total_cost)}</span>
+                      </div>
+                      {result.cost_breakdown.total_acquisition > 0 && (
+                        <div className="mt-2 p-2 bg-amber-50 border border-amber-100 rounded-lg">
+                          <p className="text-[11px] text-amber-700">
+                            {locale === 'bg'
+                              ? `⚠️ Реалната инвестиция е ${((result.total_cost / result.cost_breakdown.asking_price - 1) * 100).toFixed(1)}% над покупната цена. Ако тоталът е над бюджета – не купувай.`
+                              : `⚠️ Real investment is ${((result.total_cost / result.cost_breakdown.asking_price - 1) * 100).toFixed(1)}% above asking price. If total exceeds budget — don't buy.`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
 
                 {/* Rental analysis */}
                 <Card>
@@ -1079,6 +1243,50 @@ export default function DealAnalyzerPage() {
                     </p>
                   </Card>
                 )}
+
+                {/* 3 Purchase Rules Checklist */}
+                <Card className="mt-4 border-amber-200 bg-gradient-to-b from-amber-50/50 to-white">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    ✅ {locale === 'bg' ? '3 правила преди покупка' : '3 Rules Before Buying'}
+                  </h3>
+                  <div className="space-y-3">
+                    {PURCHASE_RULES.map((rule, i) => {
+                      // Determine if the rule is satisfied based on the analysis
+                      const checks = [
+                        // Rule 1: Inspection — needs_work condition flagged
+                        result.risk_factors && result.risk_factors.length > 0,
+                        // Rule 2: All costs calculated — acquisition costs entered
+                        result.cost_breakdown && result.cost_breakdown.total_acquisition > 0,
+                        // Rule 3: Numbers checked — analysis was done
+                        result.verdict_score > 0,
+                      ];
+                      const isMet = checks[i];
+                      return (
+                        <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMet ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`}>
+                          <span className="text-xl shrink-0">{rule.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-sm font-semibold text-gray-900">
+                                {locale === 'bg' ? rule.title_bg : rule.title_en}
+                              </h4>
+                              {isMet && <span className="text-green-600 text-xs">✓</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                              {locale === 'bg' ? rule.desc_bg : rule.desc_en}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded-lg">
+                    <p className="text-[11px] text-red-700 leading-relaxed">
+                      {locale === 'bg'
+                        ? '⚠️ Ако направиш и 3-те грешки: загуба от €15 000-25 000 за 5 години. Следвай тези 3 правила и ще ги спестиш.'
+                        : '⚠️ Making all 3 mistakes can cost €15,000-25,000 over 5 years. Follow these 3 rules and save that money.'}
+                    </p>
+                  </div>
+                </Card>
               </div>
             ) : !form.country || nearbyAreas.length === 0 ? (
               <Card className="text-center py-16">
