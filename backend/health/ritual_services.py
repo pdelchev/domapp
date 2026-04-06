@@ -21,8 +21,8 @@ def seed_protocol(user, profile=None):
     items = [
         # === MORNING ===
         {'name': 'Wake + Hydrate', 'category': 'hydration', 'dose': '500ml water', 'scheduled_time': time(6, 30), 'timing': 'morning', 'sort_order': 10, 'color': 'blue'},
-        {'name': 'Telplus 10/2.5/80', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — morning', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 20, 'color': 'red', 'warning': 'CoQ10 also lowers BP — monitor for dizziness'},
-        {'name': 'Febuxostat 80mg', 'category': 'medication', 'dose': '1 tablet', 'instructions': 'Gout — daily, uric acid lowering', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 25, 'color': 'red'},
+        {'name': 'Olmesta A Plus 40/10/12.5', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — morning (Olmesartan 40 + Amlodipine 10 + HCTZ 12.5)', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 20, 'color': 'red', 'warning': 'CoQ10 also lowers BP — monitor for dizziness', 'prescription_note': 'Д-р Иванка Гоновска (кардиолог)\nDoctors Gonovski, Пловдив, ж.к. Тракия, ул. Шипка 23\nУИН: 2300013756\nRp: Olmesta A Plus 40/10/12.5 — 1/2 x 1т сутрин'},
+        {'name': 'Febuxostat 80mg', 'category': 'medication', 'dose': '1 tablet', 'instructions': 'Gout — daily, uric acid lowering', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 25, 'color': 'red', 'prescription_note': 'Д-р Кр. Груновски (ортопед-травматолог)\n16.12.2024\nRp: Febuxostat 80mg — 1т дневно'},
         {'name': 'Saxenda Injection', 'category': 'injection', 'dose': 'Per dose schedule', 'instructions': 'Fasted — no food until 13:00', 'scheduled_time': time(9, 0), 'timing': 'morning', 'sort_order': 30, 'color': 'purple'},
 
         # === FASTED WINDOW ===
@@ -38,7 +38,7 @@ def seed_protocol(user, profile=None):
         {'name': 'Omega-3', 'category': 'supplement', 'dose': '1000mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 71, 'color': 'yellow'},
         {'name': 'Zinc', 'category': 'supplement', 'dose': '25mg', 'instructions': 'With food — separated from Febuxostat', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 72, 'color': 'yellow', 'warning': 'Take 6h after Febuxostat to avoid absorption interference'},
         {'name': 'Boron', 'category': 'supplement', 'dose': '3mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 73, 'color': 'yellow'},
-        {'name': 'Coenzyme Q10', 'category': 'supplement', 'dose': '250mg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 74, 'color': 'yellow', 'warning': 'Also lowers BP — synergy with Telplus, monitor'},
+        {'name': 'Coenzyme Q10', 'category': 'supplement', 'dose': '250mg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 74, 'color': 'yellow', 'warning': 'Also lowers BP — synergy with Olmesta A Plus, monitor'},
         {'name': 'Resveratrol', 'category': 'supplement', 'dose': '500mg', 'instructions': 'With food + fat — pairs with NMN (Sinclair)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 75, 'color': 'yellow'},
         {'name': 'Vitamin C', 'category': 'supplement', 'dose': '500mg', 'instructions': 'Optional — helps lower uric acid', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 76, 'color': 'yellow'},
 
@@ -59,7 +59,7 @@ def seed_protocol(user, profile=None):
         {'name': 'Social / Family Time', 'category': 'social', 'dose': '', 'instructions': 'Disconnect from work — quality time', 'scheduled_time': time(18, 0), 'timing': 'evening', 'sort_order': 120, 'color': 'purple'},
 
         # === EVENING ===
-        {'name': 'Moxonidine 0.4mg', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — evening', 'scheduled_time': time(20, 0), 'timing': 'evening', 'sort_order': 130, 'color': 'red', 'warning': 'Additive BP lowering with Mg Taurate — monitor for low BP'},
+        {'name': 'Moxonidine 0.4mg', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — evening', 'scheduled_time': time(20, 0), 'timing': 'evening', 'sort_order': 130, 'color': 'red', 'warning': 'Additive BP lowering with Mg Taurate — monitor for low BP', 'prescription_note': 'Д-р Иванка Кулевска Головска (кардиолог)\nУИН: 2300013756\nRp: Мокедин 0.4mg — 0.5 x от вечер'},
 
         # === BEDTIME ===
         {'name': 'Magnesium Taurate', 'category': 'supplement', 'dose': 'Full daily dose', 'instructions': 'Before bed — supports sleep + heart', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 140, 'color': 'indigo', 'warning': 'Also lowers BP — additive with evening Moxonidine'},
@@ -67,6 +67,10 @@ def seed_protocol(user, profile=None):
 
         # === SLEEP ===
         {'name': 'Sleep', 'category': 'sleep', 'dose': '7-8 hours', 'instructions': 'Lights out by 22:00 — aim for 22:00-06:30', 'scheduled_time': time(22, 0), 'timing': 'bedtime', 'sort_order': 150, 'color': 'gray'},
+
+        # === AS NEEDED (gout flare) ===
+        {'name': 'Arcoxia 120mg', 'category': 'medication', 'dose': '1 tablet/day, max 5 days', 'instructions': 'ONLY during gout flare — NSAID anti-inflammatory', 'scheduled_time': None, 'timing': 'anytime', 'condition': 'as_needed', 'sort_order': 190, 'color': 'red', 'prescription_note': 'Д-р Кр. Груновски (ортопед-травматолог)\n16.12.2024\nRp: Arcoxia 120mg — 5 дни по 1 таблетка'},
+        {'name': 'Sanaxa Gel', 'category': 'medication', 'dose': '3x daily, topical', 'instructions': 'ONLY during gout flare — apply to affected joint', 'scheduled_time': None, 'timing': 'anytime', 'condition': 'as_needed', 'sort_order': 191, 'color': 'red', 'prescription_note': 'Д-р Кр. Груновски (ортопед-травматолог)\n16.12.2024\nRp: Sanaxa gel — 3 пъти дневно'},
 
         # === HYDRATION (anytime) ===
         {'name': 'Water Intake', 'category': 'hydration', 'dose': '2.5-3.0 L total', 'instructions': 'Track throughout the day', 'scheduled_time': None, 'timing': 'anytime', 'sort_order': 200, 'color': 'blue'},
@@ -115,6 +119,7 @@ def get_ritual_dashboard(user, profile_id=None, date=None):
             'warning': item.warning,
             'color': item.color,
             'sort_order': item.sort_order,
+            'prescription_note': item.prescription_note,
             'completed': log.completed if log else False,
             'completed_at': log.completed_at.isoformat() if log and log.completed_at else None,
             'skipped': log.skipped if log else False,

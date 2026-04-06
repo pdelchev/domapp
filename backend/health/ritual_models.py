@@ -96,6 +96,9 @@ class RitualItem(models.Model):
     # Interaction warnings
     warning = models.CharField(max_length=500, blank=True, default='', help_text='Interaction or caution note')
 
+    # Prescription reference (doctor, clinic, date — for pharmacy orders)
+    prescription_note = models.TextField(blank=True, default='', help_text='Doctor name, clinic, prescription details for pharmacy reference')
+
     # Display
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)

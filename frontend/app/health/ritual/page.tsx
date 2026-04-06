@@ -6,7 +6,7 @@ import { getRitualDashboard, toggleRitualItem, seedRitualProtocol, getRitualAdhe
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Spinner, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Badge, Spinner, Alert, BottomSheet } from '../../components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -16,6 +16,7 @@ interface RitualItem {
   timing: string; condition: string; warning: string; color: string;
   sort_order: number; completed: boolean; completed_at: string | null;
   skipped: boolean; log_id: number | null;
+  prescription_note: string;
 }
 
 interface Dashboard {
@@ -69,6 +70,7 @@ export default function RitualPage() {
   const [error, setError] = useState('');
   const [toggling, setToggling] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showRx, setShowRx] = useState<number | null>(null); // prescription detail popup
 
   useEffect(() => {
     loadData();
@@ -291,12 +293,21 @@ export default function RitualPage() {
                         )}
                       </div>
 
-                      {/* Warning badge */}
-                      {item.warning && !item.completed && (
-                        <div className="shrink-0" title={item.warning}>
-                          <span className="text-amber-500 text-sm cursor-help">⚠️</span>
-                        </div>
-                      )}
+                      {/* Rx + Warning badges */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item.prescription_note && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setShowRx(item.id); }}
+                            className="px-1.5 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 active:scale-95"
+                            title={locale === 'bg' ? 'Рецепта' : 'Prescription'}
+                          >
+                            Rx
+                          </button>
+                        )}
+                        {item.warning && !item.completed && (
+                          <span className="text-amber-500 text-sm cursor-help" title={item.warning}>⚠️</span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -324,6 +335,40 @@ export default function RitualPage() {
             </Card>
           );
         })()}
+
+        {/* Prescription detail bottom sheet */}
+        <BottomSheet
+          open={showRx !== null}
+          onClose={() => setShowRx(null)}
+          title={locale === 'bg' ? 'Рецепта / Prescription' : 'Prescription Details'}
+        >
+          {showRx !== null && (() => {
+            const item = dashboard.items.find(i => i.id === showRx);
+            if (!item) return null;
+            return (
+              <div className="space-y-4">
+                <div className="p-4 bg-gray-50 rounded-2xl">
+                  <p className="text-base font-bold text-gray-900">{item.name}</p>
+                  <p className="text-sm text-gray-600 mt-1">{item.dose}</p>
+                  {item.instructions && <p className="text-xs text-gray-500 mt-1">{item.instructions}</p>}
+                </div>
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl">
+                  <p className="text-xs font-semibold text-blue-800 mb-2">
+                    {locale === 'bg' ? '📋 Показване в аптека:' : '📋 Show at pharmacy:'}
+                  </p>
+                  <pre className="text-sm text-blue-900 whitespace-pre-wrap font-sans leading-relaxed">
+                    {item.prescription_note}
+                  </pre>
+                </div>
+                {item.warning && (
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <p className="text-xs text-amber-700">⚠️ {item.warning}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </BottomSheet>
 
         {/* Bottom padding for mobile tab bar */}
         <div className="h-4" />
