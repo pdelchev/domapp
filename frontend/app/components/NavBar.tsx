@@ -85,6 +85,9 @@ const DESKTOP_NAV = [
   { key: 'nav.life', href: '/life', sub: [
     { href: '/life', key: 'life.title' },
     { href: '/health', key: 'nav.health' },
+    { href: '/health/ritual', key: 'nav.ritual' },
+    { href: '/health/bp', key: 'nav.bp' },
+    { href: '/health/gout', key: 'nav.gout' },
     { href: '/health/recovery', key: 'nav.recovery' },
   ]},
   { key: 'nav.vehicles', href: '/vehicles' },

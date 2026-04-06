@@ -22,6 +22,8 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.life': { en: 'Life', bg: 'Живот' },
   'nav.apps': { en: 'Apps', bg: 'Всичко' },
   'nav.more': { en: 'More', bg: 'Още' },
+  'nav.ritual': { en: 'Daily Ritual', bg: 'Дневен ритуал' },
+  'nav.gout': { en: 'Gout & Joints', bg: 'Подагра и стави' },
   'nav.other': { en: 'Other', bg: 'Други' },
 
   // Dashboard
