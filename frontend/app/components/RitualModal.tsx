@@ -132,7 +132,6 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
   };
 
   const skipBp = () => {
-    if (bpReadings.length === 0 && (skipWeight || !weight.weight_kg)) { onClose(); return; }
     setStep(5);
   };
 
