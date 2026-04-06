@@ -1647,3 +1647,81 @@ export async function getGoutStatistics(profileId?: number, days?: number) {
   if (!res.ok) throw new Error('Failed to fetch statistics');
   return res.json();
 }
+
+// ═══ DAILY RITUAL / HEALTH PROTOCOL ═══
+
+export async function getRitualDashboard(date?: string) {
+  const params = date ? `?date=${date}` : '';
+  const res = await apiFetch(`/api/health/ritual/dashboard/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch ritual');
+  return res.json();
+}
+
+export async function toggleRitualItem(itemId: number, date?: string) {
+  const res = await apiFetch(`/api/health/ritual/toggle/${itemId}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ date }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle');
+  return res.json();
+}
+
+export async function seedRitualProtocol(profileId?: number) {
+  const res = await apiFetch('/api/health/ritual/seed/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile: profileId }),
+  });
+  if (!res.ok) throw new Error('Failed to seed');
+  return res.json();
+}
+
+export async function getRitualAdherence(days?: number) {
+  const params = days ? `?days=${days}` : '';
+  const res = await apiFetch(`/api/health/ritual/adherence/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch adherence');
+  return res.json();
+}
+
+export async function createRitualItem(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/ritual/items/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create item');
+  return res.json();
+}
+
+export async function updateRitualItem(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/ritual/items/${id}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update');
+  return res.json();
+}
+
+export async function deleteRitualItem(id: number) {
+  const res = await apiFetch(`/api/health/ritual/items/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete');
+}
+
+export async function getBodyMeasurements(site?: string) {
+  const params = site ? `?site=${site}` : '';
+  const res = await apiFetch(`/api/health/ritual/measurements/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch measurements');
+  return res.json();
+}
+
+export async function createBodyMeasurement(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/ritual/measurements/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create measurement');
+  return res.json();
+}

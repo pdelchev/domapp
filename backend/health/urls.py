@@ -20,6 +20,8 @@ urlpatterns = [
     path('whoop/', include('health.whoop_urls')),
     # §GOUT: Gout & joint health tracker
     path('gout/', include('health.gout_urls')),
+    # §RITUAL: Daily health protocol / ritual
+    path('ritual/', include('health.ritual_urls')),
     # §WEIGHT/VITALS: Weight tracking + BP fusion (weight/*, vitals/*)
     path('', include('health.weight_urls')),
     # §LIFE: Unified HealthScore + Intervention log

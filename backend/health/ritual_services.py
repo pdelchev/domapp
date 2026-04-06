@@ -1,0 +1,205 @@
+"""
+# ═══ RITUAL SERVICES ═══
+# Pre-load protocol, adherence stats, measurement progress.
+"""
+
+from datetime import timedelta, time
+from django.utils import timezone
+from django.db.models import Count, Q
+
+from .ritual_models import RitualItem, RitualLog, BodyMeasurement
+
+
+def seed_protocol(user, profile=None):
+    """
+    Pre-load the full health protocol for the user.
+    Only creates items that don't already exist.
+    """
+    if RitualItem.objects.filter(user=user).exists():
+        return []
+
+    items = [
+        # === MORNING ===
+        {'name': 'Wake + Hydrate', 'category': 'hydration', 'dose': '500ml water', 'scheduled_time': time(6, 30), 'timing': 'morning', 'sort_order': 10, 'color': 'blue'},
+        {'name': 'Telplus 10/2.5/80', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — morning', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 20, 'color': 'red', 'warning': 'CoQ10 also lowers BP — monitor for dizziness'},
+        {'name': 'Febuxostat 80mg', 'category': 'medication', 'dose': '1 tablet', 'instructions': 'Gout — daily, uric acid lowering', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 25, 'color': 'red'},
+        {'name': 'Saxenda Injection', 'category': 'injection', 'dose': 'Per dose schedule', 'instructions': 'Fasted — no food until 13:00', 'scheduled_time': time(9, 0), 'timing': 'morning', 'sort_order': 30, 'color': 'purple'},
+
+        # === FASTED WINDOW ===
+        {'name': 'NMN', 'category': 'supplement', 'dose': '250-500mg', 'instructions': 'Fasted — water only, does not break fast', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 40, 'color': 'indigo'},
+        {'name': 'Spermidine', 'category': 'supplement', 'dose': '1-2mg', 'instructions': 'Fasted — autophagy support (Sinclair)', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 45, 'color': 'indigo'},
+
+        # === DEEP WORK ===
+        {'name': 'Deep Work Block', 'category': 'work', 'dose': '', 'instructions': 'Focus time — no meetings', 'scheduled_time': time(9, 30), 'timing': 'morning', 'sort_order': 50, 'color': 'gray'},
+
+        # === FIRST MEAL (13:00) ===
+        {'name': 'First Meal', 'category': 'meal', 'dose': '', 'instructions': 'Break fast — include healthy fats for supplement absorption', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 60, 'color': 'green'},
+        {'name': 'Vitamin D3 + K2', 'category': 'supplement', 'dose': 'D3 4000IU + K2 200mcg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 70, 'color': 'yellow'},
+        {'name': 'Omega-3', 'category': 'supplement', 'dose': '1000mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 71, 'color': 'yellow'},
+        {'name': 'Zinc', 'category': 'supplement', 'dose': '25mg', 'instructions': 'With food — separated from Febuxostat', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 72, 'color': 'yellow', 'warning': 'Take 6h after Febuxostat to avoid absorption interference'},
+        {'name': 'Boron', 'category': 'supplement', 'dose': '3mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 73, 'color': 'yellow'},
+        {'name': 'Coenzyme Q10', 'category': 'supplement', 'dose': '250mg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 74, 'color': 'yellow', 'warning': 'Also lowers BP — synergy with Telplus, monitor'},
+        {'name': 'Resveratrol', 'category': 'supplement', 'dose': '500mg', 'instructions': 'With food + fat — pairs with NMN (Sinclair)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 75, 'color': 'yellow'},
+        {'name': 'Vitamin C', 'category': 'supplement', 'dose': '500mg', 'instructions': 'Optional — helps lower uric acid', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 76, 'color': 'yellow'},
+
+        # === WORK BLOCK 2 ===
+        {'name': 'Work Block 2', 'category': 'work', 'dose': '', 'instructions': 'Afternoon productivity', 'scheduled_time': time(14, 0), 'timing': 'anytime', 'sort_order': 80, 'color': 'gray'},
+
+        # === PRE-WORKOUT (conditional) ===
+        {'name': 'L-Citrulline Malate', 'category': 'supplement', 'dose': '6-8g', 'instructions': '30-45 min before gym or 60-90 min before sex', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 90, 'color': 'blue'},
+        {'name': 'Panax Ginseng', 'category': 'supplement', 'dose': '200-400mg', 'instructions': '30-45 min before gym or sex. SKIP on gout flare days', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 91, 'color': 'blue', 'warning': 'Can raise BP — monitor. Pause during gout flares'},
+
+        # === GYM ===
+        {'name': 'Gym / Training', 'category': 'exercise', 'dose': '45-60 min', 'instructions': 'Strength training 3-4x/week', 'scheduled_time': time(16, 0), 'timing': 'anytime', 'condition': 'gym_day', 'sort_order': 100, 'color': 'green'},
+
+        # === LAST MEAL ===
+        {'name': 'Last Meal', 'category': 'meal', 'dose': '', 'instructions': 'Light meal — low-purine foods preferred. Eating window closes.', 'scheduled_time': time(17, 30), 'timing': 'with_meal_2', 'sort_order': 110, 'color': 'green'},
+
+        # === SOCIAL/FAMILY ===
+        {'name': 'Social / Family Time', 'category': 'social', 'dose': '', 'instructions': 'Disconnect from work — quality time', 'scheduled_time': time(18, 0), 'timing': 'evening', 'sort_order': 120, 'color': 'purple'},
+
+        # === EVENING ===
+        {'name': 'Moxonidine 0.4mg', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — evening', 'scheduled_time': time(20, 0), 'timing': 'evening', 'sort_order': 130, 'color': 'red', 'warning': 'Additive BP lowering with Mg Taurate — monitor for low BP'},
+
+        # === BEDTIME ===
+        {'name': 'Magnesium Taurate', 'category': 'supplement', 'dose': 'Full daily dose', 'instructions': 'Before bed — supports sleep + heart', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 140, 'color': 'indigo', 'warning': 'Also lowers BP — additive with evening Moxonidine'},
+        {'name': 'Glycine', 'category': 'supplement', 'dose': '3g', 'instructions': 'Before bed — sleep quality + collagen (Sinclair)', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 141, 'color': 'indigo'},
+
+        # === SLEEP ===
+        {'name': 'Sleep', 'category': 'sleep', 'dose': '7-8 hours', 'instructions': 'Lights out by 22:00 — aim for 22:00-06:30', 'scheduled_time': time(22, 0), 'timing': 'bedtime', 'sort_order': 150, 'color': 'gray'},
+
+        # === HYDRATION (anytime) ===
+        {'name': 'Water Intake', 'category': 'hydration', 'dose': '2.5-3.0 L total', 'instructions': 'Track throughout the day', 'scheduled_time': None, 'timing': 'anytime', 'sort_order': 200, 'color': 'blue'},
+    ]
+
+    created = []
+    for item_data in items:
+        item = RitualItem.objects.create(
+            user=user,
+            profile=profile,
+            **item_data,
+        )
+        created.append(item)
+
+    return created
+
+
+def get_ritual_dashboard(user, profile_id=None, date=None):
+    """Get today's ritual items with completion status."""
+    if date is None:
+        date = timezone.now().date()
+
+    filters = {'user': user, 'is_active': True}
+    if profile_id:
+        filters['profile_id'] = profile_id
+
+    items = RitualItem.objects.filter(**filters)
+    logs = {
+        log.item_id: log
+        for log in RitualLog.objects.filter(item__in=items, date=date)
+    }
+
+    result = []
+    for item in items:
+        log = logs.get(item.id)
+        result.append({
+            'id': item.id,
+            'name': item.name,
+            'category': item.category,
+            'category_display': item.get_category_display(),
+            'dose': item.dose,
+            'instructions': item.instructions,
+            'scheduled_time': item.scheduled_time.strftime('%H:%M') if item.scheduled_time else None,
+            'timing': item.timing,
+            'condition': item.condition,
+            'warning': item.warning,
+            'color': item.color,
+            'sort_order': item.sort_order,
+            'completed': log.completed if log else False,
+            'completed_at': log.completed_at.isoformat() if log and log.completed_at else None,
+            'skipped': log.skipped if log else False,
+            'log_id': log.id if log else None,
+        })
+
+    # Stats
+    total = len([r for r in result if r['condition'] == 'daily' or r['condition'] == 'gym_day'])
+    done = len([r for r in result if r['completed']])
+
+    return {
+        'date': date.isoformat(),
+        'items': result,
+        'total': total,
+        'completed': done,
+        'pct': round(done / total * 100) if total > 0 else 0,
+    }
+
+
+def toggle_ritual_item(item_id, user, date=None):
+    """Toggle completion of a ritual item for a date."""
+    if date is None:
+        date = timezone.now().date()
+
+    item = RitualItem.objects.filter(id=item_id, user=user).first()
+    if not item:
+        return None
+
+    log, created = RitualLog.objects.get_or_create(
+        item=item, date=date,
+        defaults={'completed': True, 'completed_at': timezone.now()},
+    )
+    if not created:
+        log.completed = not log.completed
+        log.completed_at = timezone.now() if log.completed else None
+        log.save()
+
+    return log
+
+
+def get_adherence_stats(user, days=30):
+    """Get adherence stats over a period."""
+    today = timezone.now().date()
+    start = today - timedelta(days=days)
+
+    daily_items = RitualItem.objects.filter(
+        user=user, is_active=True, condition='daily'
+    ).count()
+
+    if daily_items == 0:
+        return {'days': days, 'avg_pct': 0, 'streak': 0, 'daily': []}
+
+    logs = RitualLog.objects.filter(
+        item__user=user,
+        item__is_active=True,
+        item__condition='daily',
+        date__gte=start,
+        date__lte=today,
+    )
+
+    by_date = {}
+    for log in logs:
+        d = log.date.isoformat()
+        if d not in by_date:
+            by_date[d] = {'done': 0, 'total': daily_items}
+        if log.completed:
+            by_date[d]['done'] += 1
+
+    daily = []
+    streak = 0
+    for i in range(days, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        entry = by_date.get(d, {'done': 0, 'total': daily_items})
+        pct = round(entry['done'] / entry['total'] * 100) if entry['total'] > 0 else 0
+        daily.append({'date': d, 'pct': pct})
+        if i == 0 or pct >= 80:
+            streak += 1
+        else:
+            streak = 0
+
+    avg_pct = round(sum(d['pct'] for d in daily) / len(daily)) if daily else 0
+
+    return {
+        'days': days,
+        'avg_pct': avg_pct,
+        'streak': streak,
+        'daily': daily[-14:],  # Last 14 days for display
+    }

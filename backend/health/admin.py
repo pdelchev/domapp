@@ -8,6 +8,7 @@ from .whoop_models import (
     WhoopConnection, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout,
 )
 from .gout_models import GoutAttack, AttackTrigger, UricAcidReading, MedicalProcedure
+from .ritual_models import RitualItem, RitualLog, BodyMeasurement
 
 
 class BiomarkerInline(admin.TabularInline):
@@ -135,3 +136,24 @@ class MedicalProcedureAdmin(admin.ModelAdmin):
     list_display = ('user', 'procedure_date', 'procedure_type', 'joint', 'doctor')
     list_filter = ('procedure_type',)
     date_hierarchy = 'procedure_date'
+
+
+# ═══ DAILY RITUAL ═══
+
+@admin.register(RitualItem)
+class RitualItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'dose', 'scheduled_time', 'timing', 'condition', 'is_active', 'sort_order')
+    list_filter = ('category', 'timing', 'condition', 'is_active')
+    list_editable = ('sort_order', 'is_active')
+
+@admin.register(RitualLog)
+class RitualLogAdmin(admin.ModelAdmin):
+    list_display = ('item', 'date', 'completed', 'skipped')
+    list_filter = ('completed', 'skipped', 'date')
+    date_hierarchy = 'date'
+
+@admin.register(BodyMeasurement)
+class BodyMeasurementAdmin(admin.ModelAdmin):
+    list_display = ('user', 'measured_at', 'site', 'value_cm')
+    list_filter = ('site',)
+    date_hierarchy = 'measured_at'
