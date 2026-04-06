@@ -549,43 +549,53 @@ export default function LifePage() {
               {t('life.vitals_section', locale)}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.weight', locale)}</div>
-                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.weight_hint', locale)}</div>
-                {vitals?.latest_weight ? (
-                  <>
-                    <div className="text-3xl font-semibold text-gray-900">
-                      {Number(vitals.latest_weight.weight_kg).toFixed(1)}
-                      <span className="text-lg text-gray-500 ml-1">kg</span>
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {new Date(vitals.latest_weight.measured_at).toLocaleDateString()}
-                    </div>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {vitals.latest_weight.bmi && <Badge color="indigo">BMI {vitals.latest_weight.bmi}</Badge>}
-                      {vitals.latest_weight.waist_hip_ratio && <Badge color="blue">WHR {vitals.latest_weight.waist_hip_ratio}</Badge>}
-                    </div>
-                  </>
-                ) : <div className="text-sm text-gray-500 py-4">{t('weight.no_readings', locale)}</div>}
-              </Card>
+              <Link href="/health/weight" className="block">
+                <Card className="hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-start justify-between">
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.weight', locale)}</div>
+                    <span className="text-xs text-gray-400">→</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.weight_hint', locale)}</div>
+                  {vitals?.latest_weight ? (
+                    <>
+                      <div className="text-3xl font-semibold text-gray-900">
+                        {Number(vitals.latest_weight.weight_kg).toFixed(1)}
+                        <span className="text-lg text-gray-500 ml-1">kg</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(vitals.latest_weight.measured_at).toLocaleDateString()}
+                      </div>
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {vitals.latest_weight.bmi && <Badge color="indigo">BMI {vitals.latest_weight.bmi}</Badge>}
+                        {vitals.latest_weight.waist_hip_ratio && <Badge color="blue">WHR {vitals.latest_weight.waist_hip_ratio}</Badge>}
+                      </div>
+                    </>
+                  ) : <div className="text-sm text-gray-500 py-4">{t('weight.no_readings', locale)}</div>}
+                </Card>
+              </Link>
 
-              <Card>
-                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.bp', locale)}</div>
-                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.bp_hint', locale)}</div>
-                {vitals?.latest_bp_session ? (
-                  <>
-                    <div className="text-3xl font-semibold text-gray-900">
-                      {Math.round(vitals.latest_bp_session.avg_systolic)}/{Math.round(vitals.latest_bp_session.avg_diastolic)}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {new Date(vitals.latest_bp_session.measured_at).toLocaleDateString()}
-                    </div>
-                    <Badge color={STAGE_COLORS[vitals.latest_bp_session.stage] || 'gray'}>
-                      {vitals.latest_bp_session.stage.replace('_', ' ')}
-                    </Badge>
-                  </>
-                ) : <div className="text-sm text-gray-500 py-4">{t('vitals.no_bp', locale)}</div>}
-              </Card>
+              <Link href="/health/bp" className="block">
+                <Card className="hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-start justify-between">
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.bp', locale)}</div>
+                    <span className="text-xs text-gray-400">→</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.bp_hint', locale)}</div>
+                  {vitals?.latest_bp_session ? (
+                    <>
+                      <div className="text-3xl font-semibold text-gray-900">
+                        {Math.round(vitals.latest_bp_session.avg_systolic)}/{Math.round(vitals.latest_bp_session.avg_diastolic)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(vitals.latest_bp_session.measured_at).toLocaleDateString()}
+                      </div>
+                      <Badge color={STAGE_COLORS[vitals.latest_bp_session.stage] || 'gray'}>
+                        {vitals.latest_bp_session.stage.replace('_', ' ')}
+                      </Badge>
+                    </>
+                  ) : <div className="text-sm text-gray-500 py-4">{t('vitals.no_bp', locale)}</div>}
+                </Card>
+              </Link>
 
               <Card>
                 <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('vitals.bp_per_kg', locale)}</div>

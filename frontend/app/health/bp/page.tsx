@@ -4,9 +4,12 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t, Locale } from '../../lib/i18n';
-import { getHealthProfiles, getHealthDashboard } from '../../lib/api';
+import {
+  getHealthProfiles, getHealthDashboard,
+  getBPReadings, createBPReading, createBPSession,
+} from '../../lib/api';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, Card, Button, Badge, Alert, Spinner, Input, Textarea, EmptyState } from '../../components/ui';
+import { PageShell, PageContent, Card, Button, Badge, Alert, Spinner, Textarea, EmptyState } from '../../components/ui';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -16,61 +19,26 @@ interface Profile {
 }
 
 interface BpReading {
-  id: string;
-  profile_id: number;
+  id: number;
+  profile: number;
   systolic: number;
   diastolic: number;
   pulse: number | null;
   arm: 'left' | 'right';
   posture: 'sitting' | 'standing' | 'lying';
-  context: string[];
+  is_after_caffeine: boolean;
+  is_after_exercise: boolean;
+  is_after_medication: boolean;
+  is_stressed: boolean;
+  is_clinic_reading: boolean;
+  is_fasting: boolean;
   notes: string;
   measured_at: string;
-  session_id: string | null;
-}
-
-interface BpMedication {
-  id: string;
-  profile_id: number;
-  name: string;
-  dose: string;
-  frequency: string;
-  start_date: string;
-  end_date: string | null;
-  is_active: boolean;
-  adherence: Record<string, boolean>;
-}
-
-interface SessionState {
-  step: number;
-  readings: BpReading[];
-  timer: number;
-  session_id: string;
+  session: number | null;
+  stage: string;
 }
 
 type Period = '7d' | '30d' | '90d' | 'all';
-
-// ── Storage helpers ────────────────────────────────────────────────
-
-const BP_READINGS_KEY = 'domapp_bp_readings';
-const BP_MEDS_KEY = 'domapp_bp_medications';
-
-function loadReadings(): BpReading[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(BP_READINGS_KEY) || '[]'); } catch { return []; }
-}
-
-function saveReadings(readings: BpReading[]) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(BP_READINGS_KEY, JSON.stringify(readings));
-}
-
-function loadMedications(): BpMedication[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(BP_MEDS_KEY) || '[]'); } catch { return []; }
-}
-
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
 // ── BP Classification (AHA) ───────────────────────────────────────
 
@@ -97,16 +65,23 @@ const STAGE_BG: Record<BpStage, string> = {
 };
 
 const CONTEXT_OPTIONS = [
-  { key: 'caffeine',   icon: '\u2615', en: 'After caffeine', bg: '\u0421\u043b\u0435\u0434 \u043a\u0430\u0444\u0435' },
-  { key: 'exercise',   icon: '\ud83c\udfc3', en: 'After exercise', bg: '\u0421\u043b\u0435\u0434 \u0443\u043f\u0440\u0430\u0436\u043d\u0435\u043d\u0438\u0435' },
-  { key: 'medication', icon: '\ud83d\udc8a', en: 'After medication', bg: '\u0421\u043b\u0435\u0434 \u043b\u0435\u043a\u0430\u0440\u0441\u0442\u0432\u043e' },
-  { key: 'stressed',   icon: '\ud83d\ude30', en: 'Stressed', bg: '\u0421\u0442\u0440\u0435\u0441\u0438\u0440\u0430\u043d' },
-  { key: 'clinic',     icon: '\ud83c\udfe5', en: 'Clinic reading', bg: '\u041a\u043b\u0438\u043d\u0438\u0447\u043d\u043e' },
-  { key: 'fasting',    icon: '\ud83c\udf74', en: 'Fasting', bg: '\u041d\u0430 \u0433\u043b\u0430\u0434\u043d\u043e' },
+  { key: 'caffeine',   flag: 'is_after_caffeine',   icon: '\u2615', en: 'After caffeine', bg: 'След кафе' },
+  { key: 'exercise',   flag: 'is_after_exercise',   icon: '\ud83c\udfc3', en: 'After exercise', bg: 'След упражнение' },
+  { key: 'medication', flag: 'is_after_medication', icon: '\ud83d\udc8a', en: 'After medication', bg: 'След лекарство' },
+  { key: 'stressed',   flag: 'is_stressed',         icon: '\ud83d\ude30', en: 'Stressed', bg: 'Стресиран' },
+  { key: 'clinic',     flag: 'is_clinic_reading',   icon: '\ud83c\udfe5', en: 'Clinic reading', bg: 'Клинично' },
+  { key: 'fasting',    flag: 'is_fasting',          icon: '\ud83c\udf74', en: 'Fasting', bg: 'На гладно' },
 ];
 
-function contextIcon(key: string) {
-  return CONTEXT_OPTIONS.find(c => c.key === key)?.icon || '';
+function getContextIcons(r: BpReading): string {
+  const icons: string[] = [];
+  if (r.is_after_caffeine) icons.push('\u2615');
+  if (r.is_after_exercise) icons.push('\ud83c\udfc3');
+  if (r.is_after_medication) icons.push('\ud83d\udc8a');
+  if (r.is_stressed) icons.push('\ud83d\ude30');
+  if (r.is_clinic_reading) icons.push('\ud83c\udfe5');
+  if (r.is_fasting) icons.push('\ud83c\udf74');
+  return icons.join(' ');
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
@@ -184,7 +159,6 @@ function TrendChart({ readings, locale }: { readings: BpReading[]; locale: Local
   return (
     <div className="w-full overflow-x-auto">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[500px]" preserveAspectRatio="xMidYMid meet">
-        {/* Threshold lines */}
         {thresholds.map(th => {
           const y = yScale(th.value);
           if (y < PY || y > H - PY) return null;
@@ -195,35 +169,25 @@ function TrendChart({ readings, locale }: { readings: BpReading[]; locale: Local
             </g>
           );
         })}
-
-        {/* Y-axis labels */}
         {[minV, Math.round((minV + maxV) / 2), maxV].map(v => (
           <text key={v} x={PX - 8} y={yScale(v) + 4} fontSize="10" fill="#9ca3af" textAnchor="end">{v}</text>
         ))}
-
-        {/* X-axis date labels */}
         {sorted.map((r, i) => {
           if (sorted.length > 10 && i % Math.ceil(sorted.length / 8) !== 0 && i !== sorted.length - 1) return null;
           const d = new Date(r.measured_at);
           const label = `${d.getDate()}/${d.getMonth() + 1}`;
           return <text key={i} x={xScale(i)} y={H - 5} fontSize="9" fill="#9ca3af" textAnchor="middle">{label}</text>;
         })}
-
-        {/* Systolic line */}
         <polyline points={sysPoints} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinejoin="round" />
         {sorted.map((r, i) => {
           const stage = classifyBp(r.systolic, r.diastolic);
           const fill = stage === 'normal' ? '#10b981' : stage === 'elevated' ? '#f59e0b' : stage === 'stage1' ? '#f97316' : '#ef4444';
           return <circle key={`s${i}`} cx={xScale(i)} cy={yScale(r.systolic)} r="4" fill={fill} stroke="white" strokeWidth="1.5" />;
         })}
-
-        {/* Diastolic line */}
         <polyline points={diaPoints} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" />
         {sorted.map((r, i) => (
           <circle key={`d${i}`} cx={xScale(i)} cy={yScale(r.diastolic)} r="3.5" fill="#6366f1" stroke="white" strokeWidth="1.5" />
         ))}
-
-        {/* Legend */}
         <circle cx={PX + 10} cy={15} r="4" fill="#ef4444" />
         <text x={PX + 18} y={19} fontSize="10" fill="#6b7280">{locale === 'bg' ? 'Систолично' : 'Systolic'}</text>
         <circle cx={PX + 100} cy={15} r="3.5" fill="#6366f1" />
@@ -235,14 +199,15 @@ function TrendChart({ readings, locale }: { readings: BpReading[]; locale: Local
 
 // ── Quick Log Modal ───────────────────────────────────────────────
 
-function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
-  profileId: number; locale: Locale; onSave: (r: BpReading) => void; onClose: () => void; sessionId?: string | null;
+function QuickLogModal({ profileId, locale, onSave, onClose }: {
+  profileId: number; locale: Locale; onSave: () => void; onClose: () => void;
 }) {
   const [form, setForm] = useState({
     systolic: '', diastolic: '', pulse: '', arm: 'left' as 'left' | 'right',
     posture: 'sitting' as 'sitting' | 'standing' | 'lying', context: [] as string[], notes: '',
   });
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const sysRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { sysRef.current?.focus(); }, []);
@@ -254,20 +219,37 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
     }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const sys = parseInt(form.systolic);
     const dia = parseInt(form.diastolic);
     if (!sys || sys < 60 || sys > 300) { setError(locale === 'bg' ? 'Невалидно систолично' : 'Invalid systolic value'); return; }
     if (!dia || dia < 30 || dia > 200) { setError(locale === 'bg' ? 'Невалидно диастолично' : 'Invalid diastolic value'); return; }
     if (dia >= sys) { setError(locale === 'bg' ? 'Диастоличното трябва да е по-малко от систоличното' : 'Diastolic must be less than systolic'); return; }
 
-    const reading: BpReading = {
-      id: genId(), profile_id: profileId, systolic: sys, diastolic: dia,
-      pulse: form.pulse ? parseInt(form.pulse) : null, arm: form.arm, posture: form.posture,
-      context: form.context, notes: form.notes, measured_at: new Date().toISOString(),
-      session_id: sessionId || null,
-    };
-    onSave(reading);
+    setSaving(true);
+    try {
+      await createBPReading({
+        profile: profileId,
+        systolic: sys,
+        diastolic: dia,
+        pulse: form.pulse ? parseInt(form.pulse) : null,
+        measured_at: new Date().toISOString(),
+        arm: form.arm,
+        posture: form.posture,
+        is_after_caffeine: form.context.includes('caffeine'),
+        is_after_exercise: form.context.includes('exercise'),
+        is_after_medication: form.context.includes('medication'),
+        is_stressed: form.context.includes('stressed'),
+        is_clinic_reading: form.context.includes('clinic'),
+        is_fasting: form.context.includes('fasting'),
+        notes: form.notes,
+      });
+      onSave();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -287,17 +269,13 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
 
           <Alert type="error" message={error} />
 
-          {/* Systolic / Diastolic / Pulse */}
           <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="text-center">
               <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                 {locale === 'bg' ? 'Систолично' : 'Systolic'}
               </label>
               <input
-                ref={sysRef}
-                type="number"
-                inputMode="numeric"
-                value={form.systolic}
+                ref={sysRef} type="number" inputMode="numeric" value={form.systolic}
                 onChange={e => setForm(prev => ({ ...prev, systolic: e.target.value }))}
                 placeholder="120"
                 className="w-full h-16 text-3xl font-bold text-center text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -309,9 +287,7 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
                 {locale === 'bg' ? 'Диастолично' : 'Diastolic'}
               </label>
               <input
-                type="number"
-                inputMode="numeric"
-                value={form.diastolic}
+                type="number" inputMode="numeric" value={form.diastolic}
                 onChange={e => setForm(prev => ({ ...prev, diastolic: e.target.value }))}
                 placeholder="80"
                 className="w-full h-16 text-3xl font-bold text-center text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -323,9 +299,7 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
                 {locale === 'bg' ? 'Пулс' : 'Pulse'}
               </label>
               <input
-                type="number"
-                inputMode="numeric"
-                value={form.pulse}
+                type="number" inputMode="numeric" value={form.pulse}
                 onChange={e => setForm(prev => ({ ...prev, pulse: e.target.value }))}
                 placeholder="72"
                 className="w-full h-16 text-3xl font-bold text-center text-gray-900 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -334,7 +308,6 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             </div>
           </div>
 
-          {/* Preview stage */}
           {form.systolic && form.diastolic && parseInt(form.systolic) > 0 && parseInt(form.diastolic) > 0 && (
             <div className={`text-center py-2 rounded-lg mb-4 ${STAGE_BG[classifyBp(parseInt(form.systolic), parseInt(form.diastolic))]}`}>
               <span className={`text-sm font-medium ${STAGE_META[classifyBp(parseInt(form.systolic), parseInt(form.diastolic))].color}`}>
@@ -345,7 +318,6 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             </div>
           )}
 
-          {/* Arm selector */}
           <div className="mb-4">
             <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
               {locale === 'bg' ? 'Ръка' : 'Arm'}
@@ -363,7 +335,6 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             </div>
           </div>
 
-          {/* Posture selector */}
           <div className="mb-4">
             <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
               {locale === 'bg' ? 'Поза' : 'Posture'}
@@ -383,7 +354,6 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             </div>
           </div>
 
-          {/* Context checkboxes */}
           <div className="mb-4">
             <label className="block text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
               {locale === 'bg' ? 'Контекст' : 'Context'}
@@ -401,7 +371,6 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             </div>
           </div>
 
-          {/* Notes */}
           <Textarea
             label={locale === 'bg' ? 'Бележки' : 'Notes'}
             value={form.notes}
@@ -410,10 +379,9 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
             placeholder={locale === 'bg' ? 'Незадължително...' : 'Optional...'}
           />
 
-          {/* Save */}
           <div className="flex gap-3 mt-6">
-            <Button className="flex-1" onClick={handleSave}>
-              {locale === 'bg' ? 'Запази' : 'Save Reading'}
+            <Button className="flex-1" onClick={handleSave} disabled={saving}>
+              {saving ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Запази' : 'Save Reading')}
             </Button>
             <Button variant="secondary" onClick={onClose}>
               {t('common.cancel', locale)}
@@ -427,88 +395,112 @@ function QuickLogModal({ profileId, locale, onSave, onClose, sessionId }: {
 
 // ── Session Flow ──────────────────────────────────────────────────
 
+interface SessionDraft { systolic: string; diastolic: string; pulse: string; }
+
 function SessionFlow({ profileId, locale, onComplete, onCancel }: {
   profileId: number; locale: Locale;
-  onComplete: (readings: BpReading[]) => void; onCancel: () => void;
+  onComplete: () => void; onCancel: () => void;
 }) {
-  const [session, setSession] = useState<SessionState>({
-    step: 1, readings: [], timer: 0, session_id: genId(),
-  });
+  const [readings, setReadings] = useState<SessionDraft[]>([]);
+  const [current, setCurrent] = useState<SessionDraft>({ systolic: '', diastolic: '', pulse: '' });
+  const [timer, setTimer] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [showInput, setShowInput] = useState(true);
+  const sysRef = useRef<HTMLInputElement>(null);
 
-  const handleReadingSave = (reading: BpReading) => {
-    const newReadings = [...session.readings, reading];
-    setShowInput(false);
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
+  useEffect(() => { if (timer === 0 && !done) sysRef.current?.focus(); }, [timer, done]);
 
-    if (newReadings.length < 3) {
-      // Start rest timer
-      setSession(prev => ({ ...prev, readings: newReadings, step: prev.step + 1, timer: 60 }));
-      timerRef.current = setInterval(() => {
-        setSession(prev => {
-          if (prev.timer <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            return { ...prev, timer: 0 };
-          }
-          return { ...prev, timer: prev.timer - 1 };
-        });
-      }, 1000);
-    } else {
-      setSession(prev => ({ ...prev, readings: newReadings, step: 99 }));
+  const startTimer = () => {
+    setTimer(60);
+    timerRef.current = setInterval(() => {
+      setTimer(prev => {
+        if (prev <= 1) { if (timerRef.current) clearInterval(timerRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const handleSaveReading = () => {
+    const sys = parseInt(current.systolic);
+    const dia = parseInt(current.diastolic);
+    if (!sys || sys < 60 || sys > 300) { setError(locale === 'bg' ? 'Невалидно систолично' : 'Invalid systolic'); return; }
+    if (!dia || dia < 30 || dia > 200) { setError(locale === 'bg' ? 'Невалидно диастолично' : 'Invalid diastolic'); return; }
+    if (dia >= sys) { setError(locale === 'bg' ? 'Диастоличното трябва да е по-малко' : 'Diastolic must be lower'); return; }
+    setError('');
+    const next = [...readings, current];
+    setReadings(next);
+    setCurrent({ systolic: '', diastolic: '', pulse: '' });
+    if (next.length >= 3) { setDone(true); }
+    else { startTimer(); }
+  };
+
+  const skipTimer = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setTimer(0);
+  };
+
+  const avgN = (nums: number[]) => nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+  const sysAvg = avgN(readings.map(r => parseInt(r.systolic)).filter(n => n > 0));
+  const diaAvg = avgN(readings.map(r => parseInt(r.diastolic)).filter(n => n > 0));
+  const pulseAvg = avgN(readings.map(r => parseInt(r.pulse)).filter(n => n > 0));
+
+  const handleFinish = async () => {
+    setSaving(true); setError('');
+    try {
+      await createBPSession({
+        profile: profileId,
+        measured_at: new Date().toISOString(),
+        readings: readings.map(r => ({
+          systolic: parseInt(r.systolic),
+          diastolic: parseInt(r.diastolic),
+          pulse: r.pulse ? parseInt(r.pulse) : null,
+          arm: 'left',
+          posture: 'sitting',
+        })),
+      });
+      onComplete();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save session');
+      setSaving(false);
     }
   };
 
-  const startNextReading = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setShowInput(true);
-  };
-
-  const finishSession = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    onComplete(session.readings);
-  };
-
-  useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
-
-  // Session complete view
-  if (session.step === 99 || (session.readings.length >= 2 && !showInput && session.timer === 0 && session.step > 2)) {
-    const allReadings = session.readings;
-    const avgSys = avg(allReadings.map(r => r.systolic));
-    const avgDia = avg(allReadings.map(r => r.diastolic));
-    const avgPulse = avg(allReadings.filter(r => r.pulse !== null).map(r => r.pulse!));
-    const stage = classifyBp(avgSys, avgDia);
-
+  if (done || (readings.length >= 2 && timer === 0)) {
+    const stage = classifyBp(sysAvg, diaAvg);
     return (
       <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50">
         <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             {locale === 'bg' ? 'Резултати от сесията' : 'Session Results'}
           </h2>
+          <Alert type="error" message={error} />
 
-          {/* Individual readings */}
           <div className="space-y-2 mb-4">
-            {allReadings.map((r, i) => (
-              <div key={r.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="text-sm text-gray-500">#{i + 1}</span>
-                <span className="text-lg font-bold text-gray-900">{r.systolic}/{r.diastolic}</span>
-                <span className="text-sm text-gray-500">{r.pulse ? `${r.pulse} bpm` : '—'}</span>
-                <Badge color={STAGE_META[classifyBp(r.systolic, r.diastolic)].badgeColor}>
-                  {locale === 'bg' ? STAGE_META[classifyBp(r.systolic, r.diastolic)].label_bg : STAGE_META[classifyBp(r.systolic, r.diastolic)].label_en}
-                </Badge>
-              </div>
-            ))}
+            {readings.map((r, i) => {
+              const s = classifyBp(parseInt(r.systolic), parseInt(r.diastolic));
+              return (
+                <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-500">#{i + 1}</span>
+                  <span className="text-lg font-bold text-gray-900">{r.systolic}/{r.diastolic}</span>
+                  <span className="text-sm text-gray-500">{r.pulse ? `${r.pulse} bpm` : '—'}</span>
+                  <Badge color={STAGE_META[s].badgeColor}>
+                    {locale === 'bg' ? STAGE_META[s].label_bg : STAGE_META[s].label_en}
+                  </Badge>
+                </div>
+              );
+            })}
           </div>
 
-          {/* Average */}
           <Card className={`${STAGE_BG[stage]} border-0`}>
             <div className="text-center">
               <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1">
                 {locale === 'bg' ? 'Средно от сесията' : 'Session Average'}
               </div>
-              <div className="text-4xl font-bold text-gray-900">{avgSys}/{avgDia}</div>
-              {avgPulse > 0 && <div className="text-sm text-gray-500 mt-1">{avgPulse} bpm</div>}
+              <div className="text-4xl font-bold text-gray-900">{sysAvg}/{diaAvg}</div>
+              {pulseAvg > 0 && <div className="text-sm text-gray-500 mt-1">{pulseAvg} bpm</div>}
               <div className={`text-sm font-medium mt-2 ${STAGE_META[stage].color}`}>
                 {locale === 'bg' ? STAGE_META[stage].label_bg : STAGE_META[stage].label_en}
               </div>
@@ -516,9 +508,14 @@ function SessionFlow({ profileId, locale, onComplete, onCancel }: {
           </Card>
 
           <div className="flex gap-3 mt-6">
-            <Button className="flex-1" onClick={finishSession}>
-              {locale === 'bg' ? 'Запази и затвори' : 'Save & Close'}
+            <Button className="flex-1" onClick={handleFinish} disabled={saving}>
+              {saving ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Запази и затвори' : 'Save & Close')}
             </Button>
+            {!done && readings.length < 3 && (
+              <Button variant="secondary" onClick={() => { setDone(false); }}>
+                {locale === 'bg' ? 'Още едно' : 'One more'}
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -539,59 +536,70 @@ function SessionFlow({ profileId, locale, onComplete, onCancel }: {
           </button>
         </div>
 
-        {/* Progress */}
         <div className="flex items-center gap-2 mb-6">
           {[1, 2, 3].map(step => (
             <div key={step} className={`flex-1 h-1.5 rounded-full ${
-              session.readings.length >= step ? 'bg-indigo-600' : 'bg-gray-200'
+              readings.length >= step ? 'bg-indigo-600' : 'bg-gray-200'
             }`} />
           ))}
         </div>
 
-        {/* Timer view */}
-        {session.timer > 0 && !showInput && (
+        <Alert type="error" message={error} />
+
+        {timer > 0 ? (
           <div className="text-center py-8">
-            <div className="text-6xl font-bold text-indigo-600 tabular-nums mb-4">
-              {session.timer}s
-            </div>
+            <div className="text-6xl font-bold text-indigo-600 tabular-nums mb-4">{timer}s</div>
             <p className="text-sm text-gray-500 mb-6">
               {locale === 'bg' ? 'Починете преди следващото измерване...' : 'Rest before next reading...'}
             </p>
-            <Button variant="secondary" onClick={startNextReading}>
+            <Button variant="secondary" onClick={skipTimer}>
               {locale === 'bg' ? 'Пропусни таймера' : 'Skip Timer'}
             </Button>
           </div>
-        )}
-
-        {/* Ready for next reading */}
-        {session.timer === 0 && !showInput && session.readings.length < 3 && (
-          <div className="text-center py-8">
-            <p className="text-sm text-gray-500 mb-4">
+        ) : (
+          <>
+            <div className="text-[13px] font-medium text-gray-700 mb-4">
               {locale === 'bg'
-                ? `Вземете измерване #${session.readings.length + 1}`
-                : `Take reading #${session.readings.length + 1}`}
-            </p>
-            <div className="flex gap-3 justify-center">
-              <Button onClick={startNextReading}>
-                {locale === 'bg' ? 'Следващо измерване' : 'Next Reading'}
+                ? `Измерване #${readings.length + 1}`
+                : `Reading #${readings.length + 1}`}
+            </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center">
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">SYS</label>
+                <input ref={sysRef} type="number" inputMode="numeric" value={current.systolic}
+                  onChange={e => setCurrent(p => ({ ...p, systolic: e.target.value }))}
+                  placeholder="120"
+                  className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="text-center">
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">DIA</label>
+                <input type="number" inputMode="numeric" value={current.diastolic}
+                  onChange={e => setCurrent(p => ({ ...p, diastolic: e.target.value }))}
+                  placeholder="80"
+                  className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div className="text-center">
+                <label className="block text-[10px] font-semibold text-gray-400 uppercase mb-1">PULSE</label>
+                <input type="number" inputMode="numeric" value={current.pulse}
+                  onChange={e => setCurrent(p => ({ ...p, pulse: e.target.value }))}
+                  placeholder="72"
+                  className="w-full h-14 text-2xl font-bold text-center border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button className="flex-1" onClick={handleSaveReading}>
+                {locale === 'bg' ? 'Запази' : 'Save reading'}
               </Button>
-              {session.readings.length >= 2 && (
-                <Button variant="secondary" onClick={() => setSession(prev => ({ ...prev, step: 99 }))}>
-                  {locale === 'bg' ? 'Приключи сесията' : 'Finish Session'}
+              {readings.length >= 2 && (
+                <Button variant="secondary" onClick={() => setDone(true)}>
+                  {locale === 'bg' ? 'Приключи' : 'Finish'}
                 </Button>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Input form */}
-        {showInput && (
-          <QuickLogModal
-            profileId={profileId} locale={locale}
-            sessionId={session.session_id}
-            onSave={handleReadingSave}
-            onClose={onCancel}
-          />
+          </>
         )}
       </div>
     </div>
@@ -608,11 +616,20 @@ export default function BpDashboardPage() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
   const [readings, setReadings] = useState<BpReading[]>([]);
-  const [medications, setMedications] = useState<BpMedication[]>([]);
   const [period, setPeriod] = useState<Period>('30d');
   const [showLogModal, setShowLogModal] = useState(false);
   const [showSession, setShowSession] = useState(false);
   const [hasBloodData, setHasBloodData] = useState(false);
+
+  const fetchReadings = useCallback(async (profileId: number) => {
+    try {
+      const data = await getBPReadings(`profile=${profileId}`);
+      const list: BpReading[] = Array.isArray(data) ? data : data.results || [];
+      setReadings(list.sort((a: BpReading, b: BpReading) => b.measured_at.localeCompare(a.measured_at)));
+    } catch {
+      setReadings([]);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -622,9 +639,7 @@ export default function BpDashboardPage() {
       const primary = profs.find((p: Profile) => p.is_primary) || profs[0];
       if (primary) {
         setSelectedProfile(primary.id);
-        const allReadings = loadReadings().filter((r: BpReading) => r.profile_id === primary.id);
-        setReadings(allReadings.sort((a: BpReading, b: BpReading) => b.measured_at.localeCompare(a.measured_at)));
-        setMedications(loadMedications().filter((m: BpMedication) => m.profile_id === primary.id && m.is_active));
+        await fetchReadings(primary.id);
         try {
           const dash = await getHealthDashboard(primary.id);
           setHasBloodData(dash?.has_data || false);
@@ -636,34 +651,24 @@ export default function BpDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [router, fetchReadings]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const handleProfileChange = (id: string) => {
+  const handleProfileChange = async (id: string) => {
     const numId = Number(id);
     setSelectedProfile(numId);
-    const allReadings = loadReadings().filter((r: BpReading) => r.profile_id === numId);
-    setReadings(allReadings.sort((a: BpReading, b: BpReading) => b.measured_at.localeCompare(a.measured_at)));
-    setMedications(loadMedications().filter((m: BpMedication) => m.profile_id === numId && m.is_active));
+    await fetchReadings(numId);
   };
 
-  const handleSaveReading = (reading: BpReading) => {
-    const all = loadReadings();
-    all.push(reading);
-    saveReadings(all);
-    const profileReadings = all.filter(r => r.profile_id === selectedProfile).sort((a, b) => b.measured_at.localeCompare(a.measured_at));
-    setReadings(profileReadings);
+  const handleSaveReading = async () => {
     setShowLogModal(false);
+    if (selectedProfile) await fetchReadings(selectedProfile);
   };
 
-  const handleSessionComplete = (sessionReadings: BpReading[]) => {
-    const all = loadReadings();
-    all.push(...sessionReadings);
-    saveReadings(all);
-    const profileReadings = all.filter(r => r.profile_id === selectedProfile).sort((a, b) => b.measured_at.localeCompare(a.measured_at));
-    setReadings(profileReadings);
+  const handleSessionComplete = async () => {
     setShowSession(false);
+    if (selectedProfile) await fetchReadings(selectedProfile);
   };
 
   if (loading) return (
@@ -692,7 +697,7 @@ export default function BpDashboardPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
-              <button onClick={() => router.push('/health')} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => router.push('/life')} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
                 </svg>
@@ -755,7 +760,6 @@ export default function BpDashboardPage() {
           <>
             {/* Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-              {/* Latest Reading */}
               <Card>
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                   {locale === 'bg' ? 'Последно измерване' : 'Latest Reading'}
@@ -779,7 +783,6 @@ export default function BpDashboardPage() {
                 )}
               </Card>
 
-              {/* Period Average */}
               <Card>
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                   {locale === 'bg' ? 'Средно за периода' : 'Period Average'}
@@ -800,7 +803,6 @@ export default function BpDashboardPage() {
                 )}
               </Card>
 
-              {/* Current Stage */}
               <Card className={avgStage ? STAGE_BG[avgStage] : ''}>
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
                   {locale === 'bg' ? 'Текущ стадий' : 'Current Stage'}
@@ -834,7 +836,6 @@ export default function BpDashboardPage() {
 
             {/* Two-column: Circadian + Cardiovascular */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-              {/* Circadian Pattern */}
               <Card>
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">
                   {locale === 'bg' ? 'Денонощен ритъм' : 'Circadian Pattern'}
@@ -886,14 +887,12 @@ export default function BpDashboardPage() {
                 )}
               </Card>
 
-              {/* Cardiovascular Risk */}
               <Card>
                 <div className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-4">
                   {locale === 'bg' ? 'Сърдечно-съдов риск' : 'Cardiovascular Risk'}
                 </div>
                 {hasBloodData ? (
                   <div className="space-y-3">
-                    {/* Pulse pressure */}
                     {latest && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">{locale === 'bg' ? 'Пулсово налягане' : 'Pulse Pressure'}</span>
@@ -909,7 +908,6 @@ export default function BpDashboardPage() {
                         </div>
                       </div>
                     )}
-                    {/* MAP */}
                     {latest && (
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-gray-600">{locale === 'bg' ? 'Средно артер. налягане' : 'Mean Arterial Pressure'}</span>
@@ -969,7 +967,7 @@ export default function BpDashboardPage() {
                     {recent10.map(r => {
                       const stage = classifyBp(r.systolic, r.diastolic);
                       return (
-                        <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer" onClick={() => router.push('/health/bp/readings')}>
+                        <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(r.measured_at, locale)}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`text-lg font-bold ${STAGE_META[stage].color}`}>{r.systolic}/{r.diastolic}</span>
@@ -981,7 +979,7 @@ export default function BpDashboardPage() {
                             </Badge>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="text-base">{r.context.map(c => contextIcon(c)).join(' ')}</span>
+                            <span className="text-base">{getContextIcons(r)}</span>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500 max-w-[150px] truncate">{r.notes || '—'}</td>
                         </tr>
@@ -990,49 +988,6 @@ export default function BpDashboardPage() {
                   </tbody>
                 </table>
               </div>
-            </Card>
-
-            {/* Active Medications */}
-            <Card className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                  {locale === 'bg' ? 'Активни медикаменти' : 'Active Medications'}
-                </h3>
-                <Button variant="ghost" size="sm" onClick={() => router.push('/health/bp/medications')}>
-                  {locale === 'bg' ? 'Управление' : 'Manage'} &rarr;
-                </Button>
-              </div>
-              {medications.length > 0 ? (
-                <div className="space-y-3">
-                  {medications.map(med => {
-                    const adherenceDays = Object.keys(med.adherence || {}).sort().reverse();
-                    let streak = 0;
-                    const today = new Date();
-                    for (let i = 0; i < 30; i++) {
-                      const day = new Date(today.getTime() - i * 86400000).toISOString().slice(0, 10);
-                      if (med.adherence?.[day]) streak++;
-                      else break;
-                    }
-                    return (
-                      <div key={med.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <div className="font-medium text-sm text-gray-900">{med.name}</div>
-                          <div className="text-xs text-gray-500">{med.dose} &middot; {med.frequency}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500">
-                            {locale === 'bg' ? 'Поредни дни' : 'Streak'}: <span className="font-semibold text-emerald-600">{streak}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-sm text-gray-400">
-                  {locale === 'bg' ? 'Няма активни медикаменти.' : 'No active medications.'}
-                </p>
-              )}
             </Card>
 
             {/* Navigation links */}
