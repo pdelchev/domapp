@@ -15,7 +15,7 @@ import { t } from '../lib/i18n';
 import {
   getLifeSummary, deleteIntervention,
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
-  getStageRegressionForecast,
+  getStageRegressionForecast, saveInterventionLogs,
 } from '../lib/api';
 import { RitualModal } from '../components/RitualModal';
 
@@ -46,6 +46,8 @@ type Intervention = {
   source_url: string;
   notes: string;
   is_active: boolean;
+  last_taken_date: string | null;
+  taken_today: boolean | null;
 };
 
 type PhenoAge = {
@@ -288,6 +290,26 @@ export default function LifePage() {
     }
   };
 
+  const handleMarkTaken = async (iv: Intervention) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const newTaken = !iv.taken_today;
+    // Optimistic update
+    if (data) {
+      setData({
+        ...data,
+        active_interventions: data.active_interventions.map(i =>
+          i.id === iv.id ? { ...i, taken_today: newTaken, last_taken_date: newTaken ? today : i.last_taken_date } : i
+        ),
+      });
+    }
+    try {
+      await saveInterventionLogs(today, [{ intervention: iv.id, taken: newTaken }]);
+    } catch (e) {
+      await load(); // revert on error
+      setError(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
   if (loading) {
     return (
       <PageShell>
@@ -416,7 +438,7 @@ export default function LifePage() {
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           {locale === 'bg' ? 'Бързи инструменти' : 'Quick Tools'}
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <Link href="/health/recovery" className="block group">
             <Card className="hover:shadow-md transition-shadow h-full">
               <div className="flex items-center gap-3">
@@ -435,17 +457,6 @@ export default function LifePage() {
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
                   <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'КН и сърдечен риск' : 'Track BP & CV risk'}</p>
-                </div>
-              </div>
-            </Card>
-          </Link>
-          <Link href="/life/lab-order" className="block group">
-            <Card className="hover:shadow-md transition-shadow h-full">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">&#x1F9EA;</span>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Тестове' : 'Follow-up Tests'}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'След 3 месеца' : 'Repeat in 3 months'}</p>
                 </div>
               </div>
             </Card>
@@ -649,65 +660,109 @@ export default function LifePage() {
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           {locale === 'bg' ? 'Лекарства и добавки' : 'Medications & Supplements'}
         </div>
-        <Card>
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <div className="text-[13px] font-medium text-gray-700">
-                {t('life.active_interventions', locale)}
-              </div>
-              <div className="text-[10px] text-gray-400 leading-snug">
-                {locale === 'bg'
-                  ? 'Управлявайте вашите добавки и лекарства. Добавете нови през ритуала.'
-                  : 'Manage your supplements & meds. Add new ones via the morning ritual.'}
-              </div>
-            </div>
-          </div>
-          {(data?.active_interventions ?? []).length === 0 ? (
+        {(data?.active_interventions ?? []).length === 0 ? (
+          <Card>
             <EmptyState
               icon="💊"
               message={locale === 'bg'
                 ? 'Няма активни добавки. Добавете нови чрез ритуала.'
                 : 'No active supplements or meds. Add via the ritual.'}
             />
-          ) : (
-            <div className="space-y-2">
-              {data!.active_interventions.map((iv) => (
-                <div key={iv.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-900">{iv.name}</span>
-                      <Badge color="indigo">{iv.category}</Badge>
-                      {iv.frequency && iv.frequency !== 'daily' && (
-                        <Badge color="blue">{FREQ_LABELS[iv.frequency] || iv.frequency}</Badge>
-                      )}
-                      <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
-                        {iv.evidence_grade}
-                      </Badge>
-                    </div>
-                    {iv.dose && <div className="text-xs text-gray-600 mt-0.5">{iv.dose}</div>}
-                    {iv.reminder_times && iv.reminder_times.length > 0 && (
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {locale === 'bg' ? 'Напомняне:' : 'Remind:'} {iv.reminder_times.join(', ')}
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {data!.active_interventions.map((iv) => {
+              const isMed = iv.category === 'medication';
+              const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : iv.category === 'diet' ? '🥗' : iv.category === 'exercise' ? '🏃' : '⚡';
+              const takenToday = iv.taken_today === true;
+              const daysSinceStart = Math.floor((Date.now() - new Date(iv.started_on).getTime()) / 86400000);
+              const lastTakenLabel = iv.last_taken_date
+                ? (() => {
+                    const daysAgo = Math.floor((Date.now() - new Date(iv.last_taken_date).getTime()) / 86400000);
+                    if (daysAgo === 0) return locale === 'bg' ? 'днес' : 'today';
+                    if (daysAgo === 1) return locale === 'bg' ? 'вчера' : 'yesterday';
+                    return locale === 'bg' ? `преди ${daysAgo} дни` : `${daysAgo}d ago`;
+                  })()
+                : (locale === 'bg' ? 'няма запис' : 'no log');
+
+              return (
+                <Card key={iv.id} className="!p-0 overflow-hidden">
+                  <div className="flex">
+                    {/* Take button — left strip */}
+                    <button
+                      type="button"
+                      onClick={() => handleMarkTaken(iv)}
+                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                        takenToday
+                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                      title={takenToday
+                        ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
+                        : (locale === 'bg' ? 'Маркирай като взето' : 'Mark taken')}
+                    >
+                      <span className="text-xl">{takenToday ? '✓' : '○'}</span>
+                      <span className="text-[9px] font-medium leading-tight">
+                        {takenToday
+                          ? (locale === 'bg' ? 'Взето' : 'Taken')
+                          : (locale === 'bg' ? 'Вземи' : 'Take')}
+                      </span>
+                    </button>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg flex-shrink-0">{icon}</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-gray-900 truncate">{iv.name}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {iv.dose && (
+                                <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                  {iv.dose}
+                                </span>
+                              )}
+                              {iv.frequency && iv.frequency !== 'daily' && (
+                                <span className="text-xs text-gray-500">{FREQ_LABELS[iv.frequency] || iv.frequency}</span>
+                              )}
+                              {iv.reminder_times && iv.reminder_times.length > 0 && (
+                                <span className="text-xs text-gray-400">⏰ {iv.reminder_times.join(', ')}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                          {iv.evidence_grade}
+                        </Badge>
                       </div>
-                    )}
-                    {iv.hypothesis && <div className="text-xs text-gray-500 italic mt-0.5">&ldquo;{iv.hypothesis}&rdquo;</div>}
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {t('life.since', locale)} {iv.started_on}
+
+                      {/* Footer: last taken + days active + end action */}
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                          <span>
+                            {locale === 'bg' ? 'Последно:' : 'Last:'}{' '}
+                            <span className={iv.last_taken_date ? 'text-gray-600' : 'text-amber-500'}>{lastTakenLabel}</span>
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {locale === 'bg' ? `Ден ${daysSinceStart}` : `Day ${daysSinceStart}`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEnd(iv.id)}
+                          className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          {locale === 'bg' ? 'Приключи' : 'End'}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEnd(iv.id)}>
-                      {t('life.end', locale)}
-                    </Button>
-                    <Button variant="danger" size="sm" onClick={() => handleDelete(iv.id)}>
-                      ×
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+                </Card>
+              );
+            })}
+          </div>
+        )}
 
         {/* ═══ BLOOD TEST RESULTS (from lifestyle) ═══ */}
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">

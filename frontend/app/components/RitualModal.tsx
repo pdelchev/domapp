@@ -482,7 +482,7 @@ export function RitualModal({ profileId, locale, onClose, onDone }: {
                     label={locale === 'bg' ? 'Доза' : 'Dose'}
                     value={newIntervention.dose}
                     onChange={e => setNewIntervention(p => ({ ...p, dose: e.target.value }))}
-                    placeholder="400 mg/day"
+                    placeholder={locale === 'bg' ? '400 mg, 1.2 mL, 2 табл.' : '400 mg, 1.2 mL, 2 tabs'}
                   />
                   <Select
                     label={locale === 'bg' ? 'Честота' : 'Frequency'}

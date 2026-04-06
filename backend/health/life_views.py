@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from datetime import date as date_cls, timedelta
+from django.db.models import Max
 
 from .models import Intervention, HealthProfile, HealthScoreSnapshot, InterventionLog
 from .life_serializers import InterventionSerializer, HealthScoreSnapshotSerializer
@@ -92,6 +93,28 @@ class LifeSummaryView(APIView):
             user=user, ended_on__isnull=True,
         ).order_by('-started_on')[:10]
 
+        # Enrich with adherence info: last_taken_date + taken_today
+        today = date_cls.today()
+        iv_ids = [iv.id for iv in active_interventions]
+        # last taken date per intervention
+        last_taken_qs = (
+            InterventionLog.objects.filter(
+                intervention_id__in=iv_ids, taken=True,
+            ).values('intervention_id').annotate(last_date=Max('date'))
+        )
+        last_taken_map = {r['intervention_id']: r['last_date'] for r in last_taken_qs}
+        # today's logs
+        today_logs = {
+            l.intervention_id: l.taken
+            for l in InterventionLog.objects.filter(intervention_id__in=iv_ids, date=today)
+        }
+        iv_data = InterventionSerializer(active_interventions, many=True).data
+        for item in iv_data:
+            iv_id = item['id']
+            last_d = last_taken_map.get(iv_id)
+            item['last_taken_date'] = last_d.isoformat() if last_d else None
+            item['taken_today'] = today_logs.get(iv_id)  # True/False/None
+
         return Response({
             'profile': {
                 'id': profile.id,
@@ -102,7 +125,7 @@ class LifeSummaryView(APIView):
             'today': today_data,
             'deltas': get_deltas(user, profile),
             'history': history,
-            'active_interventions': InterventionSerializer(active_interventions, many=True).data,
+            'active_interventions': iv_data,
             'phenoage': compute_phenoage(profile),
             'briefing': compute_briefing(user, profile),
         })
