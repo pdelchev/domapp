@@ -1559,3 +1559,91 @@ export async function getTaxSummary() {
   if (!res.ok) throw new Error('Failed to fetch tax summary');
   return res.json();
 }
+
+// ═══ GOUT & JOINT HEALTH ═══
+
+export async function getGoutDashboard(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/gout/dashboard/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch gout dashboard');
+  return res.json();
+}
+
+export async function getGoutAttacks(profileId?: number, joint?: string) {
+  const params = new URLSearchParams();
+  if (profileId) params.set('profile', String(profileId));
+  if (joint) params.set('joint', joint);
+  const q = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/health/gout/attacks/${q}`);
+  if (!res.ok) throw new Error('Failed to fetch attacks');
+  return res.json();
+}
+
+export async function createGoutAttack(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/gout/attacks/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create attack');
+  return res.json();
+}
+
+export async function updateGoutAttack(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/gout/attacks/${id}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update attack');
+  return res.json();
+}
+
+export async function deleteGoutAttack(id: number) {
+  const res = await apiFetch(`/api/health/gout/attacks/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete attack');
+}
+
+export async function getUricAcidReadings(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/gout/uric-acid/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch readings');
+  return res.json();
+}
+
+export async function createUricAcidReading(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/gout/uric-acid/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create reading');
+  return res.json();
+}
+
+export async function getGoutProcedures(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/gout/procedures/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch procedures');
+  return res.json();
+}
+
+export async function createGoutProcedure(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/gout/procedures/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create procedure');
+  return res.json();
+}
+
+export async function getGoutStatistics(profileId?: number, days?: number) {
+  const params = new URLSearchParams();
+  if (profileId) params.set('profile', String(profileId));
+  if (days) params.set('days', String(days));
+  const q = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/health/gout/statistics/${q}`);
+  if (!res.ok) throw new Error('Failed to fetch statistics');
+  return res.json();
+}

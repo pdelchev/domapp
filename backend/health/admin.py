@@ -7,6 +7,7 @@ from .models import (
 from .whoop_models import (
     WhoopConnection, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout,
 )
+from .gout_models import GoutAttack, AttackTrigger, UricAcidReading, MedicalProcedure
 
 
 class BiomarkerInline(admin.TabularInline):
@@ -114,3 +115,23 @@ class WhoopSleepAdmin(admin.ModelAdmin):
 class WhoopWorkoutAdmin(admin.ModelAdmin):
     list_display = ('whoop_id', 'user', 'sport_name', 'start', 'score_state', 'strain', 'average_heart_rate')
     list_filter = ('score_state', 'sport_name')
+
+
+# ═══ GOUT & JOINT HEALTH ═══
+
+@admin.register(GoutAttack)
+class GoutAttackAdmin(admin.ModelAdmin):
+    list_display = ('user', 'onset_date', 'joint', 'side', 'severity', 'medication', 'resolved_date')
+    list_filter = ('joint', 'severity', 'medication')
+    date_hierarchy = 'onset_date'
+
+@admin.register(UricAcidReading)
+class UricAcidReadingAdmin(admin.ModelAdmin):
+    list_display = ('user', 'measured_at', 'value')
+    date_hierarchy = 'measured_at'
+
+@admin.register(MedicalProcedure)
+class MedicalProcedureAdmin(admin.ModelAdmin):
+    list_display = ('user', 'procedure_date', 'procedure_type', 'joint', 'doctor')
+    list_filter = ('procedure_type',)
+    date_hierarchy = 'procedure_date'

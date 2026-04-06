@@ -18,6 +18,8 @@ urlpatterns = [
     path('bp/', include('health.bp_urls')),
     # §WHOOP: WHOOP wearable integration sub-module
     path('whoop/', include('health.whoop_urls')),
+    # §GOUT: Gout & joint health tracker
+    path('gout/', include('health.gout_urls')),
     # §WEIGHT/VITALS: Weight tracking + BP fusion (weight/*, vitals/*)
     path('', include('health.weight_urls')),
     # §LIFE: Unified HealthScore + Intervention log
