@@ -6,7 +6,7 @@ import { getExpenses, createExpense, updateExpense, deleteExpense, getProperties
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Select, Input, Textarea, Alert, EmptyState, Spinner } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Badge, Select, Input, Textarea, Alert, Spinner, EmptyState, DataTable } from '../../components/ui';
 
 interface Expense {
   id: number;
@@ -226,50 +226,60 @@ export default function ExpensesPage() {
         )}
 
         {/* Table */}
-        {filtered.length === 0 ? (
-          <EmptyState icon="📋" message={t('common.no_data', locale)} />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('expenses.category', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('expenses.property', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">{t('expenses.description', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('expenses.amount', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('expenses.paid_date', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((expense) => (
-                  <tr key={expense.id} className="hover:bg-gray-50">
-                    <td className="px-5 py-3">
-                      <Badge color="indigo">{t(`expenses.${expense.category}`, locale)}</Badge>
-                      {expense.recurring && <Badge color="purple" >{t('expenses.recurring', locale)}</Badge>}
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{expense.property_name}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden lg:table-cell">{expense.description || '—'}</td>
-                    <td className="px-5 py-3 text-sm font-medium text-gray-900 text-right">{fmt(expense.amount)}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">
-                      {expense.paid_date || <span className="text-yellow-600">{t('finance.pending', locale)}</span>}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(expense)}>
-                          {t('common.edit', locale)}
-                        </Button>
-                        <Button variant="danger" size="sm" onClick={() => handleDelete(expense.id)}>
-                          {t('common.delete', locale)}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
+        <DataTable<Expense>
+          columns={[
+            {
+              key: 'category',
+              header: t('expenses.category', locale),
+              primary: true,
+              render: (row) => (
+                <>
+                  <Badge color="indigo">{t(`expenses.${row.category}`, locale)}</Badge>
+                  {row.recurring && <Badge color="purple">{t('expenses.recurring', locale)}</Badge>}
+                </>
+              ),
+            },
+            {
+              key: 'property',
+              header: t('expenses.property', locale),
+              secondary: true,
+              hideOnMobile: true,
+              render: (row) => row.property_name,
+            },
+            {
+              key: 'description',
+              header: t('expenses.description', locale),
+              hideOnMobile: true,
+              render: (row) => row.description || '—',
+            },
+            {
+              key: 'amount',
+              header: t('expenses.amount', locale),
+              className: 'text-right',
+              render: (row) => <span className="font-medium">{fmt(row.amount)}</span>,
+            },
+            {
+              key: 'paid_date',
+              header: t('expenses.paid_date', locale),
+              hideOnMobile: true,
+              render: (row) => row.paid_date || <span className="text-yellow-600">{t('finance.pending', locale)}</span>,
+            },
+          ]}
+          data={filtered}
+          keyExtractor={(row) => row.id}
+          rowActions={(row) => (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
+                {t('common.edit', locale)}
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => handleDelete(row.id)}>
+                {t('common.delete', locale)}
+              </Button>
+            </>
+          )}
+          emptyIcon="📋"
+          emptyMessage={t('common.no_data', locale)}
+        />
       </PageContent>
     </PageShell>
   );

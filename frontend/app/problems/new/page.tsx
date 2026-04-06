@@ -6,7 +6,7 @@ import { createProblem, getProperties } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, StickyActionBar } from '../../components/ui';
 
 interface PropertyItem {
   id: number;
@@ -153,14 +153,14 @@ export default function NewProblemPage() {
               />
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving}>
+            <StickyActionBar>
+              <Button type="submit" disabled={saving} className="flex-1 md:flex-none">
                 {saving ? t('common.loading', locale) : t('common.save', locale)}
               </Button>
-              <Button variant="secondary" type="button" onClick={() => router.push('/problems')}>
+              <Button variant="secondary" type="button" onClick={() => router.push('/problems')} className="flex-1 md:flex-none">
                 {t('common.cancel', locale)}
               </Button>
-            </div>
+            </StickyActionBar>
           </form>
         </Card>
       </PageContent>

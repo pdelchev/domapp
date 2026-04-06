@@ -12,8 +12,6 @@ input, textarea, select {
   }
 }
 
-/* PWA standalone — no bottom tab bar padding needed anymore */
-
 /* FAB speed-dial animations */
 @keyframes fab-backdrop {
   from { opacity: 0; }
@@ -47,7 +45,7 @@ input, textarea, select {
   animation: slide-up 0.25s ease-out;
 }
 
-/* Hide scrollbar but keep scroll functionality (used in recently-played) */
+/* Hide scrollbar but keep scroll functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -68,4 +66,20 @@ input, textarea, select {
   .safe-bottom-tabs {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+/* Bottom sheet animations */
+@keyframes bsheet-slide {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes bsheet-backdrop {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.bsheet-in {
+  animation: bsheet-slide 0.3s ease-out;
+}
+.bsheet-backdrop-in {
+  animation: bsheet-backdrop 0.2s ease-out;
 }

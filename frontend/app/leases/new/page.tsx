@@ -6,7 +6,7 @@ import { createLease, getProperties, getTenants, getUnits } from '../../lib/api'
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, FormSection } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, FormSection, StickyActionBar } from '../../components/ui';
 
 interface Property { id: number; name: string; units?: { id: number; unit_number: string }[] }
 interface Tenant { id: number; full_name: string; }
@@ -165,18 +165,16 @@ export default function NewLeasePage() {
           </div>
         </Card>
 
-        <Card className="mt-4">
-          <form onSubmit={handleSubmit}>
-            <div className="flex gap-3">
-              <Button type="submit" disabled={saving}>
-                {saving ? '...' : t('common.save', locale)}
-              </Button>
-              <Button type="button" variant="secondary" onClick={() => router.push('/leases')}>
-                {t('common.cancel', locale)}
-              </Button>
-            </div>
-          </form>
-        </Card>
+        <form onSubmit={handleSubmit}>
+          <StickyActionBar>
+            <Button type="submit" disabled={saving} className="flex-1 md:flex-none">
+              {saving ? '...' : t('common.save', locale)}
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => router.push('/leases')} className="flex-1 md:flex-none">
+              {t('common.cancel', locale)}
+            </Button>
+          </StickyActionBar>
+        </form>
       </PageContent>
     </PageShell>
   );

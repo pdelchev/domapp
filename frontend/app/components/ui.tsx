@@ -3,24 +3,25 @@
 import React from 'react';
 
 // ============================================================================
-// DESIGN SYSTEM — DomApp
+// DESIGN SYSTEM — DomApp v2
 // ============================================================================
 // Colors:    Indigo-600 primary, gray-900 text, gray-500 muted, white surfaces
-// Radius:    lg (8px) for all controls, xl (12px) for cards
-// Spacing:   h-10 (40px) for all controls (inputs, buttons, selects)
-// Font:      text-sm (14px) for controls, text-[13px] for labels
-// Shadows:   shadow-sm for cards, none for controls
+// Radius:    lg (8px) controls, 2xl (16px) cards
+// Spacing:   h-11 (44px) controls on md+, h-10 mobile; Apple HIG touch targets
+// Font:      text-sm (14px) controls, text-[13px] labels
+// Shadows:   shadow-xs cards, none controls
+// Feedback:  active:scale-[0.97] on interactive elements
 // ============================================================================
 
 // --- Button -----------------------------------------------------------------
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
-const BTN_BASE = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none';
+const BTN_BASE = 'inline-flex items-center justify-center gap-2 font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:pointer-events-none active:scale-[0.97]';
 
 const BTN_SIZES = {
   sm: 'h-8 px-3 text-xs',
-  md: 'h-10 px-4 text-sm',
+  md: 'h-10 md:h-11 px-4 text-sm',
   lg: 'h-11 px-6 text-sm',
 };
 
@@ -53,7 +54,7 @@ export function Button({
 
 // --- Input ------------------------------------------------------------------
 
-const INPUT_BASE = 'w-full h-10 px-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500';
+const INPUT_BASE = 'w-full h-10 md:h-11 px-3 text-sm text-gray-900 bg-white border border-gray-300 rounded-lg transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-50 disabled:text-gray-500';
 
 export function Input({
   label,
@@ -152,7 +153,10 @@ export function Card({
   onClick?: () => void;
 }) {
   return (
-    <div onClick={onClick} className={`bg-white border border-gray-200 rounded-xl shadow-sm ${padding ? 'p-6' : 'overflow-x-auto'} ${className}`}>
+    <div
+      onClick={onClick}
+      className={`bg-white border border-gray-200 rounded-2xl shadow-xs ${padding ? 'p-5 md:p-6' : 'overflow-x-auto'} ${onClick ? 'cursor-pointer active:scale-[0.99] transition-transform' : ''} ${className}`}
+    >
       {children}
     </div>
   );
@@ -173,7 +177,7 @@ export function PageContent({
 }) {
   const widths = { sm: 'max-w-2xl', md: 'max-w-4xl', lg: 'max-w-6xl' };
   return (
-    <main className={`${widths[size]} mx-auto px-4 sm:px-6 lg:px-8 py-8`}>
+    <main className={`${widths[size]} mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8`}>
       {children}
     </main>
   );
@@ -195,11 +199,11 @@ export function PageHeader({
   onBack?: () => void;
 }) {
   return (
-    <div className="mb-6">
+    <div className="mb-5 md:mb-6">
       {(backHref || onBack) && (
         <button
           onClick={onBack || undefined}
-          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-3 transition-colors active:scale-[0.97]"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -207,8 +211,8 @@ export function PageHeader({
           {backLabel || 'Back'}
         </button>
       )}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-gray-900 truncate">{title}</h1>
         {action}
       </div>
     </div>
@@ -237,7 +241,7 @@ export function Badge({
   color?: BadgeColor;
 }) {
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-md ${BADGE_COLORS[color]}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${BADGE_COLORS[color]}`}>
       {children}
     </span>
   );
@@ -253,7 +257,7 @@ export function EmptyState({
   message: string;
 }) {
   return (
-    <Card className="py-16 text-center">
+    <Card className="!py-16 text-center">
       <span className="text-4xl block mb-3">{icon}</span>
       <p className="text-sm text-gray-500">{message}</p>
     </Card>
@@ -274,7 +278,7 @@ export function Alert({
     ? 'bg-red-50 border-red-200 text-red-700'
     : 'bg-green-50 border-green-200 text-green-700';
   return (
-    <div className={`p-3 border rounded-lg text-sm mb-4 ${styles}`}>
+    <div className={`p-3 border rounded-xl text-sm mb-4 ${styles}`}>
       {message}
     </div>
   );
@@ -339,19 +343,19 @@ export function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-gray-200 rounded-2xl overflow-hidden">
       <div className="flex items-center bg-gray-50 hover:bg-gray-100 transition-colors">
         <button
           type="button"
           onClick={onToggle}
-          className="flex-1 flex items-center justify-between px-4 py-3 text-left"
+          className="flex-1 flex items-center justify-between px-4 py-3 text-left active:bg-gray-100"
         >
           <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
             {icon && <span className="text-base">{icon}</span>}
             {title}
           </span>
           <svg
-            className={`w-4 h-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -368,5 +372,188 @@ export function FormSection({
       </div>
       {open && <div className="p-4 space-y-4 bg-white">{children}</div>}
     </div>
+  );
+}
+
+// --- Data Table (responsive: cards on mobile, table on desktop) -------------
+
+export interface DataColumn<T> {
+  key: string;
+  header: string;
+  render: (row: T) => React.ReactNode;
+  hideOnMobile?: boolean;
+  primary?: boolean;
+  secondary?: boolean;
+  className?: string;
+}
+
+export function DataTable<T>({
+  columns,
+  data,
+  onRowClick,
+  rowActions,
+  keyExtractor,
+  emptyIcon = '📋',
+  emptyMessage = 'No data',
+}: {
+  columns: DataColumn<T>[];
+  data: T[];
+  onRowClick?: (row: T) => void;
+  rowActions?: (row: T) => React.ReactNode;
+  keyExtractor: (row: T) => string | number;
+  emptyIcon?: string;
+  emptyMessage?: string;
+}) {
+  if (data.length === 0) {
+    return <EmptyState icon={emptyIcon} message={emptyMessage} />;
+  }
+
+  const primaryCol = columns.find(c => c.primary);
+  const secondaryCol = columns.find(c => c.secondary);
+  const detailCols = columns.filter(c => !c.primary && !c.secondary && !c.hideOnMobile);
+
+  return (
+    <>
+      {/* Mobile: card view */}
+      <div className="md:hidden space-y-2">
+        {data.map((row) => (
+          <div
+            key={keyExtractor(row)}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            className={`bg-white border border-gray-200 rounded-2xl p-4 ${onRowClick ? 'cursor-pointer active:bg-gray-50 active:scale-[0.99] transition-all' : ''}`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                {primaryCol && (
+                  <div className="text-sm font-semibold text-gray-900 truncate">
+                    {primaryCol.render(row)}
+                  </div>
+                )}
+                {secondaryCol && (
+                  <div className="text-xs text-gray-500 mt-0.5 truncate">
+                    {secondaryCol.render(row)}
+                  </div>
+                )}
+              </div>
+              {rowActions && (
+                <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>
+                  {rowActions(row)}
+                </div>
+              )}
+            </div>
+            {detailCols.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2">
+                {detailCols.map((col) => (
+                  <div key={col.key} className="text-xs text-gray-500">
+                    <span className="text-gray-400">{col.header}: </span>
+                    {col.render(row)}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop: table view */}
+      <div className="hidden md:block">
+        <Card padding={false}>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-200 text-left">
+                {columns.map((col) => (
+                  <th key={col.key} className={`px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider ${col.className || ''}`}>
+                    {col.header}
+                  </th>
+                ))}
+                {rowActions && (
+                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">
+                    Actions
+                  </th>
+                )}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.map((row) => (
+                <tr
+                  key={keyExtractor(row)}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                  className={`${onRowClick ? 'hover:bg-gray-50 cursor-pointer' : ''} transition-colors`}
+                >
+                  {columns.map((col) => (
+                    <td key={col.key} className={`px-5 py-3.5 text-sm ${col.primary ? 'font-medium text-gray-900' : 'text-gray-500'} ${col.className || ''}`}>
+                      {col.render(row)}
+                    </td>
+                  ))}
+                  {rowActions && (
+                    <td className="px-5 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        {rowActions(row)}
+                      </div>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+    </>
+  );
+}
+
+// --- Bottom Sheet (mobile modal from bottom) --------------------------------
+
+export function BottomSheet({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/40 z-[70] bsheet-backdrop-in" onClick={onClose} />
+      <div className="fixed inset-x-0 bottom-0 z-[71] bg-white rounded-t-2xl shadow-2xl bsheet-in max-h-[85vh] flex flex-col safe-bottom">
+        <div className="flex items-center justify-center pt-3 pb-1">
+          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+        </div>
+        {title && (
+          <div className="flex items-center justify-between px-5 pb-3 border-b border-gray-100">
+            <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+            <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 active:scale-[0.9]">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto p-5">
+          {children}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// --- Sticky Action Bar (fixed save/cancel on mobile) ------------------------
+
+export function StickyActionBar({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {/* Mobile: fixed bottom bar */}
+      <div className="md:hidden fixed bottom-14 left-0 right-0 z-40 bg-white border-t border-gray-200 px-4 py-3 safe-bottom flex gap-3">
+        {children}
+      </div>
+      {/* Desktop: inline */}
+      <div className="hidden md:flex gap-3 pt-4">
+        {children}
+      </div>
+    </>
   );
 }

@@ -6,7 +6,7 @@ import { getLeases, deleteLease } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Input, Select, EmptyState, Spinner } from '../components/ui';
+import { PageShell, PageContent, PageHeader, Button, Badge, Input, Select, Spinner, DataTable } from '../components/ui';
 
 interface Lease {
   id: number;
@@ -104,75 +104,82 @@ export default function LeasesPage() {
           </Select>
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState icon="📄" message={t('common.no_data', locale)} />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leases.tenant', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('leases.property', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leases.rent_amount', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">{t('leases.rent_frequency', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">{t('leases.end_date', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('leases.status', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((lease) => (
-                  <tr
-                    key={lease.id}
-                    onClick={() => router.push(`/leases/${lease.id}`)}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <span className="text-sm font-medium text-gray-900">{lease.tenant_name}</span>
-                      <p className="text-xs text-gray-500 md:hidden">
-                        {lease.property_name}{lease.unit_name ? ` — ${lease.unit_name}` : ''}
-                      </p>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">
-                      {lease.property_name}{lease.unit_name ? <span className="text-gray-400"> — {lease.unit_name}</span> : ''}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-sm font-medium text-gray-900">{fmt(lease.monthly_rent)}</span>
-                      {lease.overdue_count > 0 && (
-                        <Badge color="red">{lease.overdue_count} overdue</Badge>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 hidden lg:table-cell">
-                      <Badge color="indigo">{freqLabel(lease.rent_frequency)}</Badge>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden lg:table-cell">{lease.end_date}</td>
-                    <td className="px-5 py-3">
-                      <Badge color={statusColor(lease.status)}>
-                        {t(`leases.${lease.status}`, locale)}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/leases/${lease.id}`); }}
-                        >
-                          {t('common.edit', locale)}
-                        </Button>
-                        <Button
-                          variant="danger" size="sm"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(lease.id); }}
-                        >
-                          {t('common.delete', locale)}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
+        <DataTable<Lease>
+          columns={[
+            {
+              key: 'tenant',
+              header: t('leases.tenant', locale),
+              primary: true,
+              render: (row) => row.tenant_name,
+            },
+            {
+              key: 'property',
+              header: t('leases.property', locale),
+              secondary: true,
+              hideOnMobile: true,
+              render: (row) => (
+                <>
+                  {row.property_name}
+                  {row.unit_name ? <span className="text-gray-400"> — {row.unit_name}</span> : ''}
+                </>
+              ),
+            },
+            {
+              key: 'rent',
+              header: t('leases.rent_amount', locale),
+              render: (row) => (
+                <>
+                  <span className="font-medium text-gray-900">{fmt(row.monthly_rent)}</span>
+                  {row.overdue_count > 0 && (
+                    <> <Badge color="red">{row.overdue_count} overdue</Badge></>
+                  )}
+                </>
+              ),
+            },
+            {
+              key: 'frequency',
+              header: t('leases.rent_frequency', locale),
+              hideOnMobile: true,
+              render: (row) => <Badge color="indigo">{freqLabel(row.rent_frequency)}</Badge>,
+            },
+            {
+              key: 'end_date',
+              header: t('leases.end_date', locale),
+              hideOnMobile: true,
+              render: (row) => row.end_date,
+            },
+            {
+              key: 'status',
+              header: t('leases.status', locale),
+              render: (row) => (
+                <Badge color={statusColor(row.status)}>
+                  {t(`leases.${row.status}`, locale)}
+                </Badge>
+              ),
+            },
+          ]}
+          data={filtered}
+          keyExtractor={(row) => row.id}
+          onRowClick={(row) => router.push(`/leases/${row.id}`)}
+          rowActions={(row) => (
+            <>
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => router.push(`/leases/${row.id}`)}
+              >
+                {t('common.edit', locale)}
+              </Button>
+              <Button
+                variant="danger" size="sm"
+                onClick={() => handleDelete(row.id)}
+              >
+                {t('common.delete', locale)}
+              </Button>
+            </>
+          )}
+          emptyIcon="📄"
+          emptyMessage={t('common.no_data', locale)}
+        />
       </PageContent>
     </PageShell>
   );

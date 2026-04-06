@@ -317,10 +317,10 @@ export default function NavBar() {
         </div>
       </nav>
 
-      {/* ═══ MOBILE BOTTOM TAB BAR (< md) ═══ */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 safe-bottom-tabs">
+      {/* ═══ MOBILE BOTTOM TAB BAR (< md) — 4 tabs ═══ */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-200 safe-bottom-tabs">
         <div className="flex items-center justify-around h-14 max-w-lg mx-auto">
-          {/* Home tab */}
+          {/* Dashboard tab */}
           <TabButton
             icon="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
             label={t('nav.dashboard', locale)}
@@ -328,7 +328,7 @@ export default function NavBar() {
             onClick={() => navigate('/dashboard')}
           />
 
-          {/* Property tab */}
+          {/* Properties tab */}
           <TabButton
             icon="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
             label={t('nav.properties', locale)}
@@ -336,28 +336,20 @@ export default function NavBar() {
             onClick={() => navigate('/properties')}
           />
 
-          {/* Center + button */}
+          {/* Center + FAB */}
           <button
             onClick={() => setAddOpen(!addOpen)}
-            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 -mt-4 ${
-              addOpen ? 'bg-gray-700 rotate-45' : 'bg-indigo-600 active:scale-95'
+            className={`w-13 h-13 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 -mt-5 ${
+              addOpen ? 'bg-gray-700 rotate-45 scale-90' : 'bg-indigo-600 active:scale-90'
             }`}
           >
             <Icon d="M12 4.5v15m7.5-7.5h-15" className="w-6 h-6 text-white" />
           </button>
 
-          {/* Life tab */}
-          <TabButton
-            icon="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"
-            label={t('nav.life', locale)}
-            active={activeSection === 'life'}
-            onClick={() => navigate('/health')}
-          />
-
-          {/* Apps grid tab */}
+          {/* More tab (opens apps grid) */}
           <TabButton
             icon="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
-            label={t('nav.apps', locale)}
+            label={t('nav.more', locale)}
             active={appsOpen}
             onClick={() => setAppsOpen(!appsOpen)}
           />
@@ -463,7 +455,7 @@ function TabButton({ icon, label, active, onClick }: {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-0.5 w-16 py-1 transition-colors ${
+      className={`flex flex-col items-center justify-center gap-0.5 w-[72px] py-1.5 transition-colors active:scale-95 ${
         active ? 'text-indigo-600' : 'text-gray-400'
       }`}
     >

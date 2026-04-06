@@ -6,6 +6,27 @@
   "display": "standalone",
   "background_color": "#f9fafb",
   "theme_color": "#4f46e5",
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Properties",
+      "short_name": "Properties",
+      "url": "/properties",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Payments",
+      "short_name": "Payments",
+      "url": "/finance/payments",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "New Property",
+      "short_name": "Add Property",
+      "url": "/properties/new",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",

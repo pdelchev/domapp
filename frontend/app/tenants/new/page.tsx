@@ -6,7 +6,7 @@ import { createTenant } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Alert, StickyActionBar } from '../../components/ui';
 
 export default function NewTenantPage() {
   const router = useRouter();
@@ -58,14 +58,14 @@ export default function NewTenantPage() {
               <Input label={t('tenants.id_number', locale)} value={form.id_number} onChange={(e) => set('id_number', e.target.value)} />
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving}>
+            <StickyActionBar>
+              <Button type="submit" disabled={saving} className="flex-1 md:flex-none">
                 {saving ? '...' : t('common.save', locale)}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => router.push('/tenants')}>
+              <Button type="button" variant="secondary" onClick={() => router.push('/tenants')} className="flex-1 md:flex-none">
                 {t('common.cancel', locale)}
               </Button>
-            </div>
+            </StickyActionBar>
           </form>
         </Card>
 

@@ -6,7 +6,7 @@ import { getProperties, deleteProperty, getOwners } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Input, Select, EmptyState, Spinner } from '../components/ui';
+import { PageShell, PageContent, PageHeader, Button, Badge, Input, Select, Spinner, DataTable, DataColumn } from '../components/ui';
 
 interface Property {
   id: number;
@@ -116,74 +116,37 @@ export default function PropertiesPage() {
           </Select>
         </div>
 
-        {/* Table */}
-        {filtered.length === 0 ? (
-          <EmptyState icon="🏠" message={t('common.no_data', locale)} />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('properties.name', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('properties.city', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">{t('properties.owner', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('properties.type', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right hidden md:table-cell">{t('properties.current_value', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((prop) => (
-                  <tr
-                    key={prop.id}
-                    onClick={() => router.push(`/properties/${prop.id}`)}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <div>
-                        <span className="text-sm font-medium text-gray-900">{prop.name}</span>
-                        {prop.parent_property_name && (
-                          <span className="ml-1.5 text-xs text-gray-400">
-                            → {prop.parent_property_name}
-                          </span>
-                        )}
-                        <p className="text-xs text-gray-500 md:hidden">{prop.city}</p>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{prop.city}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden lg:table-cell">{prop.owner_name}</td>
-                    <td className="px-5 py-3">
-                      <Badge color={TYPE_BADGE[prop.property_type] || 'gray'}>
-                        {t(`type.${prop.property_type}`, locale)}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-700 text-right font-medium hidden md:table-cell">
-                      {prop.current_value ? fmt(prop.current_value) : '—'}
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/properties/${prop.id}/edit`); }}
-                        >
-                          {t('common.edit', locale)}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(prop.id); }}
-                        >
-                          {t('common.delete', locale)}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
+        {/* Property list — responsive cards on mobile, table on desktop */}
+        <DataTable<Property>
+          columns={[
+            { key: 'name', header: t('properties.name', locale), primary: true, render: (p) => (
+              <>{p.name}{p.parent_property_name && <span className="ml-1.5 text-xs text-gray-400">→ {p.parent_property_name}</span>}</>
+            )},
+            { key: 'city', header: t('properties.city', locale), secondary: true, render: (p) => p.city },
+            { key: 'owner', header: t('properties.owner', locale), hideOnMobile: true, render: (p) => p.owner_name },
+            { key: 'type', header: t('properties.type', locale), render: (p) => (
+              <Badge color={TYPE_BADGE[p.property_type] || 'gray'}>{t(`type.${p.property_type}`, locale)}</Badge>
+            )},
+            { key: 'value', header: t('properties.current_value', locale), hideOnMobile: true, className: 'text-right', render: (p) => (
+              <span className="font-medium">{p.current_value ? fmt(p.current_value) : '—'}</span>
+            )},
+          ]}
+          data={filtered}
+          keyExtractor={(p) => p.id}
+          onRowClick={(p) => router.push(`/properties/${p.id}`)}
+          rowActions={(p) => (
+            <>
+              <Button variant="ghost" size="sm" onClick={() => router.push(`/properties/${p.id}/edit`)}>
+                {t('common.edit', locale)}
+              </Button>
+              <Button variant="danger" size="sm" onClick={() => handleDelete(p.id)}>
+                {t('common.delete', locale)}
+              </Button>
+            </>
+          )}
+          emptyIcon="🏠"
+          emptyMessage={t('common.no_data', locale)}
+        />
       </PageContent>
     </PageShell>
   );

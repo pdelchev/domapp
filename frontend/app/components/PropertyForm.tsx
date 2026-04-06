@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getOwners, getProperties } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
-import { Button, Input, Select, Textarea, Alert, FormSection } from './ui';
+import { Button, Input, Select, Textarea, Alert, FormSection, StickyActionBar } from './ui';
 
 interface Owner {
   id: number;
@@ -273,15 +273,15 @@ export default function PropertyForm({
         <Textarea value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={4} />
       </FormSection>
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-2">
-        <Button type="submit" disabled={saving}>
+      {/* Actions — sticky on mobile */}
+      <StickyActionBar>
+        <Button type="submit" disabled={saving} className="flex-1 md:flex-none">
           {saving ? '...' : t('common.save', locale)}
         </Button>
-        <Button type="button" variant="secondary" onClick={() => router.push('/properties')}>
+        <Button type="button" variant="secondary" onClick={() => router.push('/properties')} className="flex-1 md:flex-none">
           {t('common.cancel', locale)}
         </Button>
-      </div>
+      </StickyActionBar>
     </form>
   );
 }

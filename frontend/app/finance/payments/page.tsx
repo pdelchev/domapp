@@ -6,7 +6,7 @@ import { getRentPayments, updateRentPayment } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Select, Input, EmptyState, Spinner } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Button, Badge, Select, Input, Spinner, DataTable, BottomSheet } from '../../components/ui';
 
 interface Payment {
   id: number;
@@ -111,82 +111,75 @@ export default function PaymentsPage() {
           </Select>
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState icon="💳" message={t('common.no_data', locale)} />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('payments.tenant', locale)}</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">{t('payments.property', locale)}</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('payments.due_date', locale)}</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('payments.amount_due', locale)}</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('payments.status', locale)}</th>
-                  <th className="px-4 py-2.5 text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">{t('payments.method', locale)}</th>
-                  <th className="px-4 py-2.5"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((p) => (
-                  <tr key={p.id} className={p.status === 'overdue' ? 'bg-red-50/40' : ''}>
-                    <td className="px-4 py-2.5">
-                      <span className="text-sm font-medium text-gray-900">{p.tenant_name}</span>
-                      <p className="text-xs text-gray-400 sm:hidden">{p.property_name}</p>
-                      <p className="text-xs text-gray-400 md:hidden">{p.due_date}</p>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-gray-500 hidden sm:table-cell">{p.property_name}</td>
-                    <td className="px-4 py-2.5 text-sm text-gray-500 hidden md:table-cell">
-                      {p.due_date}
-                      {p.payment_date && p.status === 'paid' && (
-                        <span className="block text-xs text-gray-400">{p.payment_date}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-sm font-semibold text-gray-900 text-right">{fmt(p.amount_due)}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge color={statusColor(p.status)}>
-                        {t(`payments.${p.status}`, locale)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-gray-500 hidden lg:table-cell">
-                      {p.method ? t(`payments.${p.method}`, locale) : '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      {p.status !== 'paid' && markingId !== p.id && (
-                        <Button variant="ghost" size="sm" onClick={() => openMarkPaid(p.id)}>
-                          {t('payments.mark_paid', locale)}
-                        </Button>
-                      )}
-                      {markingId === p.id && (
-                        <div className="flex items-center gap-2 justify-end">
-                          <input
-                            type="date"
-                            value={markDate}
-                            onChange={(e) => setMarkDate(e.target.value)}
-                            className="h-7 px-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          />
-                          <select
-                            value={markMethod}
-                            onChange={(e) => setMarkMethod(e.target.value)}
-                            className="h-7 px-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                          >
-                            <option value="bank">{t('payments.bank', locale)}</option>
-                            <option value="cash">{t('payments.cash', locale)}</option>
-                            <option value="revolut">{t('payments.revolut', locale)}</option>
-                          </select>
-                          <Button size="sm" onClick={() => handleMarkPaid(p)}>OK</Button>
-                          <Button variant="ghost" size="sm" onClick={() => setMarkingId(null)}>
-                            {t('common.cancel', locale)}
-                          </Button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
+        <DataTable<Payment>
+          columns={[
+            { key: 'tenant', header: t('payments.tenant', locale), primary: true, render: (p) => p.tenant_name },
+            { key: 'property', header: t('payments.property', locale), secondary: true, hideOnMobile: true, render: (p) => p.property_name },
+            { key: 'due_date', header: t('payments.due_date', locale), hideOnMobile: true, render: (p) => (
+              <>{p.due_date}{p.payment_date && p.status === 'paid' && <span className="block text-xs text-gray-400">{p.payment_date}</span>}</>
+            )},
+            { key: 'amount', header: t('payments.amount_due', locale), className: 'text-right', render: (p) => (
+              <span className="font-semibold">{fmt(p.amount_due)}</span>
+            )},
+            { key: 'status', header: t('payments.status', locale), render: (p) => (
+              <Badge color={statusColor(p.status)}>{t(`payments.${p.status}`, locale)}</Badge>
+            )},
+            { key: 'method', header: t('payments.method', locale), hideOnMobile: true, render: (p) => p.method ? t(`payments.${p.method}`, locale) : '—' },
+          ]}
+          data={filtered}
+          keyExtractor={(p) => p.id}
+          rowActions={(p) => p.status !== 'paid' ? (
+            <Button variant="ghost" size="sm" onClick={() => openMarkPaid(p.id)}>
+              {t('payments.mark_paid', locale)}
+            </Button>
+          ) : null}
+          emptyIcon="💳"
+          emptyMessage={t('common.no_data', locale)}
+        />
+
+        {/* Mark paid bottom sheet (mobile + desktop) */}
+        <BottomSheet
+          open={markingId !== null}
+          onClose={() => setMarkingId(null)}
+          title={t('payments.mark_paid', locale)}
+        >
+          {markingId && (() => {
+            const payment = payments.find(p => p.id === markingId);
+            if (!payment) return null;
+            return (
+              <div className="space-y-4">
+                <div className="p-3 bg-gray-50 rounded-xl">
+                  <p className="text-sm font-medium text-gray-900">{payment.tenant_name}</p>
+                  <p className="text-xs text-gray-500">{payment.property_name}</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">{fmt(payment.amount_due)}</p>
+                </div>
+                <Input
+                  label={t('payments.payment_date', locale)}
+                  type="date"
+                  value={markDate}
+                  onChange={(e) => setMarkDate(e.target.value)}
+                />
+                <Select
+                  label={t('payments.method', locale)}
+                  value={markMethod}
+                  onChange={(e) => setMarkMethod(e.target.value)}
+                >
+                  <option value="bank">{t('payments.bank', locale)}</option>
+                  <option value="cash">{t('payments.cash', locale)}</option>
+                  <option value="revolut">{t('payments.revolut', locale)}</option>
+                </Select>
+                <div className="flex gap-3 pt-2">
+                  <Button className="flex-1" onClick={() => handleMarkPaid(payment)}>
+                    {t('payments.mark_paid', locale)}
+                  </Button>
+                  <Button variant="secondary" className="flex-1" onClick={() => setMarkingId(null)}>
+                    {t('common.cancel', locale)}
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </BottomSheet>
       </PageContent>
     </PageShell>
   );

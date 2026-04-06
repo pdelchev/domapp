@@ -6,7 +6,7 @@ import { getTenants, deleteTenant } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Badge, Input, EmptyState, Spinner } from '../components/ui';
+import { PageShell, PageContent, PageHeader, Button, Badge, Input, Spinner, DataTable, DataColumn } from '../components/ui';
 
 interface Tenant {
   id: number;
@@ -71,63 +71,40 @@ export default function TenantsPage() {
           />
         </div>
 
-        {filtered.length === 0 ? (
-          <EmptyState icon="🔑" message={t('common.no_data', locale)} />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 text-left">
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('tenants.full_name', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('tenants.email', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">{t('tenants.phone', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('tenants.property', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">{t('tenants.status', locale)}</th>
-                  <th className="px-5 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">{t('common.actions', locale)}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((tenant) => (
-                  <tr
-                    key={tenant.id}
-                    onClick={() => router.push(`/tenants/${tenant.id}`)}
-                    className="hover:bg-gray-50 cursor-pointer transition-colors"
-                  >
-                    <td className="px-5 py-3">
-                      <span className="text-sm font-medium text-gray-900">{tenant.full_name}</span>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{tenant.email || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500 hidden md:table-cell">{tenant.phone || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-gray-500">
-                      {tenant.active_property || <span className="text-gray-400">{t('tenants.no_lease', locale)}</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge color={tenant.is_active ? 'green' : 'gray'}>
-                        {tenant.is_active ? t('tenants.active', locale) : t('tenants.inactive', locale)}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button
-                          variant="ghost" size="sm"
-                          onClick={(e) => { e.stopPropagation(); router.push(`/tenants/${tenant.id}`); }}
-                        >
-                          {t('common.edit', locale)}
-                        </Button>
-                        <Button
-                          variant="danger" size="sm"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(tenant.id); }}
-                        >
-                          {t('common.delete', locale)}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-        )}
+        <DataTable<Tenant>
+          columns={[
+            { key: 'full_name', header: t('tenants.full_name', locale), primary: true, render: (row) => row.full_name },
+            { key: 'email', header: t('tenants.email', locale), secondary: true, hideOnMobile: true, render: (row) => row.email || '—' },
+            { key: 'phone', header: t('tenants.phone', locale), hideOnMobile: true, render: (row) => row.phone || '—' },
+            { key: 'property', header: t('tenants.property', locale), render: (row) => row.active_property || <span className="text-gray-400">{t('tenants.no_lease', locale)}</span> },
+            { key: 'status', header: t('tenants.status', locale), render: (row) => (
+              <Badge color={row.is_active ? 'green' : 'gray'}>
+                {row.is_active ? t('tenants.active', locale) : t('tenants.inactive', locale)}
+              </Badge>
+            )},
+          ]}
+          data={filtered}
+          keyExtractor={(row) => row.id}
+          onRowClick={(row) => router.push(`/tenants/${row.id}`)}
+          rowActions={(row) => (
+            <>
+              <Button
+                variant="ghost" size="sm"
+                onClick={() => router.push(`/tenants/${row.id}`)}
+              >
+                {t('common.edit', locale)}
+              </Button>
+              <Button
+                variant="danger" size="sm"
+                onClick={() => handleDelete(row.id)}
+              >
+                {t('common.delete', locale)}
+              </Button>
+            </>
+          )}
+          emptyIcon="🔑"
+          emptyMessage={t('common.no_data', locale)}
+        />
       </PageContent>
     </PageShell>
   );

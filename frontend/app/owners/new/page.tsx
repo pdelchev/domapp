@@ -6,7 +6,7 @@ import { createOwner } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Textarea, Alert } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Textarea, Alert, StickyActionBar } from '../../components/ui';
 
 export default function NewOwnerPage() {
   const router = useRouter();
@@ -71,14 +71,14 @@ export default function NewOwnerPage() {
 
             <Textarea label={t('owners.notes', locale)} value={form.notes} onChange={(e) => set('notes', e.target.value)} rows={3} />
 
-            <div className="flex gap-3 pt-2">
-              <Button type="submit" disabled={saving}>
+            <StickyActionBar>
+              <Button type="submit" disabled={saving} className="flex-1 md:flex-none">
                 {saving ? '...' : t('common.save', locale)}
               </Button>
-              <Button type="button" variant="secondary" onClick={() => router.push('/owners')}>
+              <Button type="button" variant="secondary" onClick={() => router.push('/owners')} className="flex-1 md:flex-none">
                 {t('common.cancel', locale)}
               </Button>
-            </div>
+            </StickyActionBar>
           </form>
         </Card>
       </PageContent>

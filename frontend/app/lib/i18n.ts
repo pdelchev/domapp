@@ -21,8 +21,8 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.property_mgmt': { en: 'Property', bg: 'Имоти' },
   'nav.life': { en: 'Life', bg: 'Живот' },
   'nav.apps': { en: 'Apps', bg: 'Всичко' },
-  'nav.other': { en: 'Other', bg: 'Други' },
   'nav.more': { en: 'More', bg: 'Още' },
+  'nav.other': { en: 'Other', bg: 'Други' },
 
   // Dashboard
   'dash.action_required': { en: 'Action Required', bg: 'Изисква действие' },
