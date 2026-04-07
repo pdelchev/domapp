@@ -16,7 +16,7 @@ import { getMarketData, analyzeProperty, reanalyzeProperty, getPropertyAnalyses,
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Badge, Alert, Spinner, FormSection } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Badge, Alert, Spinner, FormSection } from '../../components/ui';
 import type { LocationResult } from '../../components/LocationPicker';
 
 // Dynamic import — Leaflet requires window (no SSR)
@@ -156,6 +156,8 @@ interface SavedAnalysis {
   has_gym: boolean;
   has_view: boolean;
   view_type: string;
+  exposure: string;
+  layout_description: string;
   renovation_cost: number;
   monthly_fees: number;
   verdict: string;
@@ -505,6 +507,8 @@ const EMPTY_FORM = {
   has_gym: false,
   has_view: false,
   view_type: '',
+  exposure: '',
+  layout_description: '',
   renovation_cost: '',
   monthly_fees: '',
   notary_fees: '',
@@ -702,6 +706,8 @@ export default function DealAnalyzerPage() {
       has_gym: a.has_gym ?? false,
       has_view: a.has_view ?? false,
       view_type: a.view_type || '',
+      exposure: a.exposure || '',
+      layout_description: a.layout_description || '',
       renovation_cost: a.renovation_cost ? String(a.renovation_cost) : '',
       monthly_fees: a.monthly_fees ? String(a.monthly_fees) : '',
       notary_fees: '',
@@ -762,6 +768,8 @@ export default function DealAnalyzerPage() {
         has_gym: form.has_gym,
         has_view: form.has_view,
         view_type: form.has_view ? form.view_type : '',
+        exposure: form.exposure || '',
+        layout_description: form.layout_description || '',
         renovation_cost: Number(form.renovation_cost || 0),
         monthly_fees: Number(form.monthly_fees || 0),
         notary_fees: Number(form.notary_fees || 0),
@@ -985,11 +993,45 @@ export default function DealAnalyzerPage() {
                       {FURNISHINGS.map((f) => <option key={f} value={f}>{t(`analyzer.${f}`, locale)}</option>)}
                     </Select>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <Input label={t('analyzer.floor', locale)} type="number" value={form.floor} onChange={(e) => updateForm('floor', e.target.value)} />
                     <Input label={t('analyzer.total_floors', locale)} type="number" value={form.total_floors} onChange={(e) => updateForm('total_floors', e.target.value)} />
                     <Input label={t('analyzer.year_built', locale)} type="number" value={form.year_built} onChange={(e) => updateForm('year_built', e.target.value)} />
+                    <Select label={locale === 'bg' ? 'Изложение' : 'Exposure'} value={form.exposure} onChange={(e) => updateForm('exposure', e.target.value)}>
+                      <option value="">{locale === 'bg' ? 'Не е избрано' : 'Not specified'}</option>
+                      <option value="south">{locale === 'bg' ? 'Юг ☀️' : 'South ☀️'}</option>
+                      <option value="southeast">{locale === 'bg' ? 'Югоизток ☀️' : 'Southeast ☀️'}</option>
+                      <option value="southwest">{locale === 'bg' ? 'Югозапад' : 'Southwest'}</option>
+                      <option value="east">{locale === 'bg' ? 'Изток' : 'East'}</option>
+                      <option value="west">{locale === 'bg' ? 'Запад' : 'West'}</option>
+                      <option value="northeast">{locale === 'bg' ? 'Североизток' : 'Northeast'}</option>
+                      <option value="northwest">{locale === 'bg' ? 'Северозапад' : 'Northwest'}</option>
+                      <option value="north">{locale === 'bg' ? 'Север ❄️' : 'North ❄️'}</option>
+                    </Select>
                   </div>
+                  <Textarea
+                    label={locale === 'bg' ? 'Разпределение' : 'Layout description'}
+                    value={form.layout_description}
+                    onChange={(e) => updateForm('layout_description', e.target.value)}
+                    rows={2}
+                    placeholder={locale === 'bg' ? 'Входно антре, всекидневна с кухненски бокс, спалня, баня с тоалетна...' : 'Entrance hall, living room with kitchenette, bedroom, bathroom...'}
+                  />
+                  {form.floor === '1' && form.total_floors && Number(form.total_floors) > 1 && !form.has_garden && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <span>⚠️</span>
+                      {locale === 'bg'
+                        ? 'Партер без двор — по-нисък наем, шум, влага. Добавете двор в удобствата ако има.'
+                        : 'Ground floor without garden — lower rent, noise, humidity risk. Add garden in amenities if applicable.'}
+                    </p>
+                  )}
+                  {form.exposure && ['north', 'northwest'].includes(form.exposure) && (
+                    <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                      <span>❄️</span>
+                      {locale === 'bg'
+                        ? 'Северно изложение — по-малко светлина, по-високи разходи за отопление.'
+                        : 'North-facing — less natural light, higher heating costs.'}
+                    </p>
+                  )}
                 </FormSection>
               </div>
 

@@ -524,6 +524,8 @@ class AnalyzePropertyView(APIView):
             has_gym=data.get('has_gym', False),
             has_view=data.get('has_view', False),
             view_type=data.get('view_type', ''),
+            exposure=data.get('exposure', ''),
+            layout_description=data.get('layout_description', ''),
             renovation_cost=data.get('renovation_cost', 0),
             monthly_fees=data.get('monthly_fees', 0),
             notes=data.get('notes', ''),

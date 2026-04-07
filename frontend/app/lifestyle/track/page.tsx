@@ -433,7 +433,7 @@ export default function HealthTrackPage() {
                   <label key={field} className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-lg hover:bg-gray-50">
                     <input
                       type="checkbox"
-                      checked={ritual ? Boolean((ritual as Record<string, unknown>)[field]) : field !== 'supplements_taken'}
+                      checked={ritual ? Boolean((ritual as unknown as Record<string, unknown>)[field]) : field !== 'supplements_taken'}
                       onChange={(e) => updateRitualField(field, e.target.checked)}
                       className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5"
                     />

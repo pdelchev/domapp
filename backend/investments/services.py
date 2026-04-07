@@ -118,22 +118,37 @@ def _score_area_heat(appr_pct: float, high_value: bool) -> int:
 
 
 def _score_property_quality(condition: str, furnishing: str, floor: int | None, total_floors: int | None, extras: dict | None = None) -> int:
-    """§SCORING:quality — 10 points max"""
+    """§SCORING:quality — 10 points max
+    Factors: condition, furnishing, floor position, exposure, amenities (with sizes).
+    """
     score = 0.0
     cond_scores = {'new': 3.0, 'renovated': 2.5, 'good': 2.0, 'needs_work': 0.5}
     score += cond_scores.get(condition, 2.0)
     furn_scores = {'fully': 2.5, 'semi': 2.0, 'unfurnished': 1.0}
     score += furn_scores.get(furnishing, 1.0)
+
+    # Floor position scoring (ground floor with garden is OK, otherwise penalized)
+    has_garden = extras.get('has_garden', False) if extras else False
     if floor and total_floors and total_floors > 1:
-        ratio = floor / total_floors
-        if ratio >= 0.8:
-            score += 2.0
-        elif ratio >= 0.5:
+        if floor == 1 and not has_garden:
+            # Ground floor without garden — noise, privacy, humidity concerns
+            score += 0.3
+        elif floor == 1 and has_garden:
+            # Ground floor WITH garden — the garden compensates
             score += 1.5
         else:
-            score += 0.5
+            ratio = floor / total_floors
+            if ratio >= 0.8:
+                score += 2.0  # Top floors — premium
+            elif ratio >= 0.5:
+                score += 1.5  # Mid-high — good
+            elif ratio >= 0.3:
+                score += 1.0  # Mid-low — average
+            else:
+                score += 0.5  # Low floor — below average
     else:
         score += 1.0
+
     if extras:
         amenity_pts = 0.0
         if extras.get('has_garden'):
@@ -152,7 +167,17 @@ def _score_property_quality(condition: str, furnishing: str, floor: int | None, 
             amenity_pts += 0.5
         if extras.get('num_bathrooms', 1) >= 2:
             amenity_pts += 0.3
-        score += min(amenity_pts, 2.5)
+
+        # Exposure/orientation bonus (south-facing is premium in Bulgaria)
+        exposure = extras.get('exposure', '')
+        EXPOSURE_SCORES = {
+            'south': 0.5, 'southeast': 0.5, 'southwest': 0.3,
+            'east': 0.2, 'west': 0.0, 'northeast': 0.0,
+            'northwest': -0.1, 'north': -0.2,
+        }
+        amenity_pts += EXPOSURE_SCORES.get(exposure, 0)
+
+        score += min(amenity_pts, 3.0)  # raised cap to 3.0 (was 2.5) for richer amenity data
     return min(int(round(score)), 10)
 
 
@@ -263,6 +288,24 @@ def _score_risk_assessment(market: dict, user_data: dict, year_built: int | None
         risk_factors.append({'factor': 'moderate_crime', 'severity': 'low',
                              'text_en': 'Average crime rate in the area',
                              'text_bg': 'Средно ниво на престъпност в района'})
+
+    # Ground floor risk
+    floor_val = user_data.get('floor')
+    total_floors_val = user_data.get('total_floors')
+    if floor_val and int(floor_val) == 1 and total_floors_val and int(total_floors_val) > 1:
+        if not user_data.get('has_garden'):
+            score -= 0.5
+            risk_factors.append({'factor': 'ground_floor', 'severity': 'low',
+                                 'text_en': 'Ground floor — higher noise, less privacy, potential humidity issues',
+                                 'text_bg': 'Партер — повече шум, по-малко уединение, възможни проблеми с влагата'})
+
+    # North-facing exposure risk
+    exp = user_data.get('exposure', '')
+    if exp in ('north', 'northwest'):
+        score -= 0.5
+        risk_factors.append({'factor': 'poor_exposure', 'severity': 'low',
+                             'text_en': f'{exp.title()}-facing — less natural light, higher heating costs',
+                             'text_bg': f'{"Север" if exp == "north" else "Северозапад"} — по-малко естествена светлина, по-високи разходи за отопление'})
 
     # Condition risk
     if condition == 'needs_work':
@@ -540,6 +583,20 @@ def analyze_property(data: dict) -> dict:
         else:
             amenity_mult += Decimal('0.03')
 
+    # Exposure/orientation rent premium
+    exposure = data.get('exposure', '')
+    EXPOSURE_RENT_MULT = {
+        'south': Decimal('0.05'), 'southeast': Decimal('0.05'),
+        'southwest': Decimal('0.03'), 'east': Decimal('0.02'),
+        'west': Decimal('0.00'), 'northeast': Decimal('0.00'),
+        'northwest': Decimal('-0.02'), 'north': Decimal('-0.03'),
+    }
+    amenity_mult += EXPOSURE_RENT_MULT.get(exposure, Decimal('0.00'))
+
+    # Ground floor penalty (unless has garden)
+    if floor == 1 and total_floors and total_floors > 1 and not data.get('has_garden'):
+        amenity_mult -= Decimal('0.05')  # Ground floor without garden — harder to rent
+
     monthly_rent = sqm * base_rent_sqm * furn_mult * cond_mult * amenity_mult
     annual_rent = monthly_rent * 12
 
@@ -625,6 +682,7 @@ def analyze_property(data: dict) -> dict:
         'has_gym': data.get('has_gym', False),
         'has_view': data.get('has_view', False),
         'num_bathrooms': int(data.get('num_bathrooms', 1)),
+        'exposure': data.get('exposure', ''),
     }
     s_quality = _score_property_quality(condition, furnishing, floor, total_floors, extras)
     s_location = _score_location_quality(market, data)

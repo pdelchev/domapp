@@ -263,6 +263,11 @@ class PropertyAnalysis(models.Model):
     has_gym = models.BooleanField(default=False)
     has_view = models.BooleanField(default=False)
     view_type = models.CharField(max_length=20, blank=True, default='', help_text='none/city/sea/mountain/garden')
+    exposure = models.CharField(
+        max_length=20, blank=True, default='',
+        help_text='Compass orientation: south/southeast/east/southwest/west/northwest/north/northeast'
+    )
+    layout_description = models.TextField(blank=True, default='', help_text='Room layout description')
     renovation_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0, help_text='Estimated renovation cost in EUR')
     monthly_fees = models.DecimalField(max_digits=8, decimal_places=2, default=0, help_text='Monthly condo/maintenance fees')
 
