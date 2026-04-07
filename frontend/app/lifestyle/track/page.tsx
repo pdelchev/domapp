@@ -61,18 +61,22 @@ export default function HealthTrackPage() {
 
   const loadData = async (date: string) => {
     try {
-      const [s, m, f, r] = await Promise.all([
+      // Load each endpoint independently — some may not exist yet
+      const results = await Promise.allSettled([
         getHealthSummary(),
         getMeasurements(undefined, date, date),
         getFoodEntries(date),
         getDailyRituals(date),
       ]);
-      setSummary(s);
-      setMeasurements(m);
-      setFoods(f);
-      setRitual(r.length > 0 ? r[0] : null);
+      if (results[0].status === 'fulfilled') setSummary(results[0].value);
+      if (results[1].status === 'fulfilled') setMeasurements(results[1].value);
+      if (results[2].status === 'fulfilled') setFoods(results[2].value);
+      if (results[3].status === 'fulfilled') {
+        const r = results[3].value;
+        setRitual(r.length > 0 ? r[0] : null);
+      }
     } catch {
-      router.push('/login');
+      // Don't redirect — page can still render with partial data
     } finally {
       setLoading(false);
     }

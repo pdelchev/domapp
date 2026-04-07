@@ -47,6 +47,7 @@ const MODULES: ModuleItem[] = [
       { href: '/finance/payments', key: 'nav.payments' },
       { href: '/finance/expenses', key: 'nav.expenses' },
       { href: '/investments', key: 'nav.investments' },
+      { href: '/investments/analyzer', key: 'nav.deal_analyzer' },
     ],
   },
   { href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500' },

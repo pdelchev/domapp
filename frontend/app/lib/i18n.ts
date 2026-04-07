@@ -447,6 +447,7 @@ const translations: Record<string, Record<Locale, string>> = {
 
   // Investments
   'nav.investments': { en: 'Investments', bg: 'Инвестиции' },
+  'nav.deal_analyzer': { en: 'Deal Analyzer', bg: 'Анализ на сделка' },
   'investments.title': { en: 'Investments', bg: 'Инвестиции' },
   'investments.dashboard': { en: 'Dashboard', bg: 'Табло' },
   'investments.portfolios': { en: 'Portfolios', bg: 'Портфейли' },
