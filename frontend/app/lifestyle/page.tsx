@@ -148,14 +148,25 @@ export default function LifestylePage() {
         <p className="text-sm text-gray-500 -mt-4 mb-6">{t('lifestyle.subtitle', locale)}</p>
 
         {/* Quick navigation cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <div onClick={() => router.push('/lifestyle/track')} className="cursor-pointer group">
+            <Card className="hover:shadow-md transition-shadow ring-2 ring-indigo-200">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">📊</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.view_tracking', locale)}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Food, measurements & rituals' : 'Храна, измервания и ритуали'}</p>
+                </div>
+              </div>
+            </Card>
+          </div>
           <div onClick={() => router.push('/lifestyle/tests')} className="cursor-pointer group">
             <Card className="hover:shadow-md transition-shadow">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">🧪</span>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.follow_up', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Tests to repeat in 3 months' : 'Тестове за повторение след 3 месеца'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Tests in 3 months' : 'Тестове след 3 месеца'}</p>
                 </div>
               </div>
             </Card>
@@ -166,7 +177,7 @@ export default function LifestylePage() {
                 <span className="text-3xl">🥗</span>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.meal_plan', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? '30-day rotating daily menus' : '30-дневно ротиращо меню'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? '15-day rotating menus' : '15-дневно меню'}</p>
                 </div>
               </div>
             </Card>
@@ -177,7 +188,7 @@ export default function LifestylePage() {
                 <span className="text-3xl">🏋️</span>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{t('lifestyle.gym_routine', locale)}</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Gym, sports & recovery plan' : 'Фитнес, спорт и възстановяване'}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'en' ? 'Gym & sports plan' : 'Фитнес и спорт'}</p>
                 </div>
               </div>
             </Card>
