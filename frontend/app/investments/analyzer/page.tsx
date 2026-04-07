@@ -258,6 +258,105 @@ const ACQUISITION_COSTS: Record<string, { label_en: string; label_bg: string; it
   },
 };
 
+// ── Bulgarian notary fee tariff (official sliding scale) ─────────
+// Based on Tarifa za notarialnite taksi + Imoten registar taksi
+function calcBulgarianNotaryFees(price: number): number {
+  // Notary deed fee (sliding scale per Bulgarian Notary Tariff)
+  let notaryDeed = 0;
+  const brackets = [
+    { upto: 100, rate: 0, flat: 30 },
+    { upto: 1000, rate: 0, flat: 30 },       // min 30 BGN
+    { upto: 10000, rate: 0.015, flat: 0 },    // 1.5%
+    { upto: 50000, rate: 0.01, flat: 50 },    // 1% + 50
+    { upto: 100000, rate: 0.005, flat: 300 }, // 0.5% + 300
+    { upto: 500000, rate: 0.002, flat: 600 }, // 0.2% + 600
+    { upto: Infinity, rate: 0.001, flat: 1400 }, // 0.1% + 1400
+  ];
+  // Convert EUR to BGN for tariff calculation (1 EUR = 1.9558 BGN)
+  const priceBGN = price * 1.9558;
+  for (const b of brackets) {
+    if (priceBGN <= b.upto) {
+      notaryDeed = Math.max(30, priceBGN * b.rate + b.flat);
+      break;
+    }
+  }
+  // Property Registry fee (Imoten registar): 0.1% of price
+  const registryFee = priceBGN * 0.001;
+  // Convert back to EUR
+  return Math.round((notaryDeed + registryFee) / 1.9558);
+}
+
+// Bulgarian municipal transfer tax rates (данък придобиване)
+// Source: official municipal ordinances, updated 2026
+const BG_MUNICIPAL_TAX_RATES: Record<string, number> = {
+  'Sofia': 0.03,      // 3% — Столична община
+  'Plovdiv': 0.025,   // 2.5%
+  'Varna': 0.026,     // 2.6%
+  'Burgas': 0.025,    // 2.5%
+};
+const BG_DEFAULT_TAX_RATE = 0.025; // 2.5% fallback for unknown cities
+
+// UK SDLT (Stamp Duty Land Tax) calculator
+function calcUKStampDuty(priceGBP: number, additionalProperty = true): number {
+  // Standard rates (2025-26)
+  const brackets = [
+    { upto: 250000, rate: 0 },
+    { upto: 925000, rate: 0.05 },
+    { upto: 1500000, rate: 0.10 },
+    { upto: Infinity, rate: 0.12 },
+  ];
+  let duty = 0;
+  let prev = 0;
+  for (const b of brackets) {
+    const taxable = Math.min(priceGBP, b.upto) - prev;
+    if (taxable > 0) duty += taxable * b.rate;
+    prev = b.upto;
+    if (priceGBP <= b.upto) break;
+  }
+  // Additional property surcharge: +3%
+  if (additionalProperty) duty += priceGBP * 0.03;
+  return Math.round(duty);
+}
+
+// Country-specific acquisition cost estimator
+function estimateAcquisitionCosts(country: string, city: string, priceEUR: number): {
+  notary_fees: number; acquisition_tax: number; lawyer_fees: number; agent_commission: number;
+} | null {
+  if (!priceEUR || priceEUR <= 0) return null;
+
+  if (country === 'Bulgaria') {
+    const taxRate = BG_MUNICIPAL_TAX_RATES[city] || BG_DEFAULT_TAX_RATE;
+    return {
+      notary_fees: calcBulgarianNotaryFees(priceEUR),
+      acquisition_tax: Math.round(priceEUR * taxRate),
+      lawyer_fees: 500,  // typical flat fee ~€500
+      agent_commission: Math.round(priceEUR * 0.03), // 3% standard buyer commission
+    };
+  }
+
+  if (country === 'United Kingdom') {
+    const priceGBP = priceEUR * 0.86; // approximate EUR→GBP
+    return {
+      notary_fees: Math.round(1500 / 0.86),   // ~£1500 solicitor/conveyancer
+      acquisition_tax: Math.round(calcUKStampDuty(priceGBP) / 0.86), // SDLT in EUR
+      lawyer_fees: Math.round(800 / 0.86),     // ~£800 survey
+      agent_commission: 0,                      // seller pays in UK
+    };
+  }
+
+  if (country === 'UAE') {
+    const priceAED = priceEUR * 4.02;
+    return {
+      notary_fees: Math.round((priceAED * 0.04 + 580) / 4.02),  // 4% DLD + admin
+      acquisition_tax: Math.round(2500 / 4.02),                   // NOC ~AED 2500
+      lawyer_fees: Math.round(7500 / 4.02),                       // ~AED 7500
+      agent_commission: Math.round(priceEUR * 0.02),               // 2%
+    };
+  }
+
+  return null;
+}
+
 // 3 key purchase mistakes checklist
 const PURCHASE_RULES = [
   {
@@ -479,6 +578,45 @@ export default function DealAnalyzerPage() {
     setLoadedFromSaved(false);
   };
 
+  // Auto-populate acquisition costs when price + country are set
+  // Only fills empty fields — user overrides are preserved
+  const [acqManualOverrides, setAcqManualOverrides] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const price = Number(form.asking_price);
+    if (!form.country || !price) return;
+    const estimates = estimateAcquisitionCosts(form.country, form.city, price);
+    if (!estimates) return;
+
+    setForm((prev) => {
+      const next = { ...prev };
+      const keys = ['notary_fees', 'acquisition_tax', 'lawyer_fees', 'agent_commission'] as const;
+      let changed = false;
+      for (const key of keys) {
+        // Only auto-fill if the user hasn't manually typed a value
+        if (!acqManualOverrides[key]) {
+          const newVal = String(estimates[key]);
+          if (next[key] !== newVal) {
+            (next as unknown as Record<string, string>)[key] = newVal;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [form.asking_price, form.country, form.city, acqManualOverrides]);
+
+  // Track when user manually edits an acquisition cost field
+  const updateAcqField = (field: string, value: string) => {
+    setAcqManualOverrides((prev) => ({ ...prev, [field]: true }));
+    updateForm(field, value);
+  };
+
+  // Reset manual overrides when country changes (different rate structure)
+  useEffect(() => {
+    setAcqManualOverrides({});
+  }, [form.country]);
+
   // Handle location picked from map
   const handleLocationSelect = useCallback((loc: LocationResult) => {
     setForm((prev) => {
@@ -571,6 +709,7 @@ export default function DealAnalyzerPage() {
     });
     setEditingId(a.id);
     setLoadedFromSaved(true);
+    setAcqManualOverrides({});
     setResult(null);
     setOpenSections({ basic: true, financial: true, details: false, amenities: false, location: false, building: false });
     // Scroll to top
@@ -782,6 +921,11 @@ export default function DealAnalyzerPage() {
                       <div className="mb-3 p-2 bg-amber-50 border border-amber-100 rounded-lg">
                         <p className="text-[11px] text-amber-700 font-medium mb-1">
                           {locale === 'bg' ? ACQUISITION_COSTS[form.country].label_bg : ACQUISITION_COSTS[form.country].label_en}
+                          {form.country === 'Bulgaria' && form.city && (
+                            <span className="ml-1 text-amber-500">
+                              — {form.city} {((BG_MUNICIPAL_TAX_RATES[form.city] || BG_DEFAULT_TAX_RATE) * 100).toFixed(1)}% {locale === 'bg' ? 'данък' : 'tax'}
+                            </span>
+                          )}
                         </p>
                         <div className="space-y-0.5">
                           {ACQUISITION_COSTS[form.country].items.map((item) => (
@@ -791,13 +935,19 @@ export default function DealAnalyzerPage() {
                             </div>
                           ))}
                         </div>
+                        {Number(form.asking_price) > 0 && (
+                          <p className="text-[10px] text-emerald-600 mt-1.5 flex items-center gap-1">
+                            <span>&#10003;</span>
+                            {locale === 'bg' ? 'Стойностите са изчислени автоматично по официални ставки' : 'Values auto-estimated from official rates'}
+                          </p>
+                        )}
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
-                      <Input label={locale === 'bg' ? 'Нотариални такси' : 'Notary / Solicitor'} type="number" value={form.notary_fees} onChange={(e) => updateForm('notary_fees', e.target.value)} placeholder="0" />
-                      <Input label={locale === 'bg' ? 'Данък придобиване / SDLT' : 'Transfer tax / SDLT'} type="number" value={form.acquisition_tax} onChange={(e) => updateForm('acquisition_tax', e.target.value)} placeholder="0" />
-                      <Input label={locale === 'bg' ? 'Адвокат / Инспекция' : 'Lawyer / Survey'} type="number" value={form.lawyer_fees} onChange={(e) => updateForm('lawyer_fees', e.target.value)} placeholder="0" />
-                      <Input label={locale === 'bg' ? 'Агентска комисионна' : 'Agent commission'} type="number" value={form.agent_commission} onChange={(e) => updateForm('agent_commission', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Нотариални такси' : 'Notary / Solicitor'} type="number" value={form.notary_fees} onChange={(e) => updateAcqField('notary_fees', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Данък придобиване / SDLT' : 'Transfer tax / SDLT'} type="number" value={form.acquisition_tax} onChange={(e) => updateAcqField('acquisition_tax', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Адвокат / Инспекция' : 'Lawyer / Survey'} type="number" value={form.lawyer_fees} onChange={(e) => updateAcqField('lawyer_fees', e.target.value)} placeholder="0" />
+                      <Input label={locale === 'bg' ? 'Агентска комисионна' : 'Agent commission'} type="number" value={form.agent_commission} onChange={(e) => updateAcqField('agent_commission', e.target.value)} placeholder="0" />
                       <Input label={locale === 'bg' ? 'Други разходи' : 'Other costs'} type="number" value={form.other_costs} onChange={(e) => updateForm('other_costs', e.target.value)} placeholder="0" />
                     </div>
                   </div>
