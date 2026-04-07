@@ -14,7 +14,7 @@ class MeasurementViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = Measurement.objects.filter(user=self.request.user.get_data_owner())
+        qs = Measurement.objects.filter(user=self.request.user.get_health_owner())
         mtype = self.request.query_params.get('type')
         if mtype:
             qs = qs.filter(measurement_type=mtype)
@@ -27,7 +27,7 @@ class MeasurementViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user.get_health_owner())
 
 
 class FoodEntryViewSet(viewsets.ModelViewSet):
@@ -35,7 +35,7 @@ class FoodEntryViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = FoodEntry.objects.filter(user=self.request.user.get_data_owner())
+        qs = FoodEntry.objects.filter(user=self.request.user.get_health_owner())
         date = self.request.query_params.get('date')
         if date:
             qs = qs.filter(eaten_at__date=date)
@@ -45,7 +45,7 @@ class FoodEntryViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user.get_health_owner())
 
 
 class DailyRitualViewSet(viewsets.ModelViewSet):
@@ -53,14 +53,14 @@ class DailyRitualViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = DailyRitual.objects.filter(user=self.request.user.get_data_owner())
+        qs = DailyRitual.objects.filter(user=self.request.user.get_health_owner())
         date = self.request.query_params.get('date')
         if date:
             qs = qs.filter(date=date)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user.get_health_owner())
 
 
 class HealthSummaryView(APIView):
@@ -68,7 +68,7 @@ class HealthSummaryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        user = request.user.get_data_owner()
+        user = request.user.get_health_owner()
         today = timezone.now().date()
 
         # Today's food

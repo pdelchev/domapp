@@ -67,6 +67,7 @@ const MORE_ITEMS: ModuleItem[] = [
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
   { href: '/tenants', key: 'nav.tenants', icon: '🏘️', color: 'bg-lime-600' },
   { href: '/leases', key: 'nav.leases', icon: '📋', color: 'bg-violet-500' },
+  { href: '/settings', key: 'nav.settings', icon: '⚙️', color: 'bg-gray-500' },
 ];
 
 function useIsStandalone() {

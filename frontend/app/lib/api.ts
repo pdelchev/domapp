@@ -93,6 +93,36 @@ export async function getMe() {
   return res.json();
 }
 
+export async function updateProfile(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/auth/me/', { method: 'PATCH', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update profile');
+  return res.json();
+}
+
+// --- Sub-accounts ---
+export async function getSubAccounts() {
+  const res = await apiFetch('/api/auth/sub-accounts/');
+  if (!res.ok) throw new Error('Failed to fetch sub-accounts');
+  return res.json();
+}
+
+export async function createSubAccount(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/auth/sub-accounts/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create sub-account');
+  return res.json();
+}
+
+export async function updateSubAccount(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/auth/sub-accounts/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update sub-account');
+  return res.json();
+}
+
+export async function deleteSubAccount(id: number) {
+  const res = await apiFetch(`/api/auth/sub-accounts/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete sub-account');
+}
+
 export async function logout() {
   const { refresh } = getTokens();
   await apiFetch('/api/auth/logout/', {
