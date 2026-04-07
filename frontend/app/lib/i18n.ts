@@ -19,6 +19,10 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.notifications': { en: 'Notifications', bg: 'Известия' },
   'nav.logout': { en: 'Logout', bg: 'Изход' },
   'nav.more': { en: 'More', bg: 'Още' },
+  'nav.health_hub': { en: 'Health', bg: 'Здраве' },
+  'nav.daily_tracking': { en: 'Daily Tracking', bg: 'Дневно проследяване' },
+  'nav.payments': { en: 'Payments', bg: 'Плащания' },
+  'nav.expenses': { en: 'Expenses', bg: 'Разходи' },
 
   // Dashboard
   'dash.action_required': { en: 'Action Required', bg: 'Изисква действие' },

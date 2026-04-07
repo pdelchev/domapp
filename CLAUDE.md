@@ -53,7 +53,9 @@ frontend/
     context/LanguageContext.tsx  # React Context for EN/BG locale
     components/
       ui.tsx                    # Design system — all shared UI components
-      NavBar.tsx                # Top navigation bar
+      NavBar.tsx                # Top nav + mobile bottom tab bar + More sheet
+      HealthFAB.tsx             # Health tracking quick-add floating button
+      MusicPlayer.tsx           # Persistent audio player with Media Session API
       PropertyForm.tsx          # Property form with collapsible sections
     lib/
       api.ts                    # API client (fetch wrapper, token refresh, CRUD)
@@ -89,6 +91,37 @@ python manage.py shell
 cd frontend && npm run build
 cd frontend && npm run lint
 ```
+
+## App Modules & Navigation (CRITICAL GUARDRAIL)
+
+DomApp is organized into **6 top-level modules**. Every module and sub-page MUST be accessible from the navigation. When adding new pages, you MUST update the NavBar MODULES array.
+
+### Module Structure
+| Module | Icon | Color | Pages |
+|--------|------|-------|-------|
+| **Health Hub** | ❤️ | `bg-rose-500` | `/lifestyle` (hub), `/lifestyle/track` (daily tracking), `/lifestyle/meals`, `/lifestyle/gym`, `/lifestyle/tests` |
+| **Properties** | 🏠 | `bg-blue-500` | `/properties`, `/owners`, `/tenants`, `/leases`, `/documents`, `/problems` |
+| **Finance** | 💰 | `bg-emerald-500` | `/finance`, `/finance/payments`, `/finance/expenses`, `/investments` |
+| **Music** | 🎵 | `bg-purple-500` | `/music`, `/music/playlists` |
+| **Dashboard** | 📊 | `bg-indigo-500` | `/dashboard` |
+| **Notifications** | 🔔 | `bg-amber-500` | `/notifications` |
+
+### Navigation Rules (NEVER BREAK THESE)
+1. **Every page must be reachable** from NavBar — either via bottom tab, desktop dropdown, or More sheet
+2. **Mobile bottom tab bar** (PWA): 4 main modules (Health, Properties, Finance, Music) + "More" (⋯) button
+3. **More sheet**: opens from ⋯ button, shows remaining modules as colorful icon grid (Dashboard, Notifications, Documents, Problems, Investments, Owners, Tenants, Leases)
+4. **Desktop top bar**: all modules with dropdown submenus showing all sub-pages
+5. **Hamburger menu** (non-PWA mobile): shows all modules with expandable sub-items
+6. When adding a new page: add it to `MODULES` array in `NavBar.tsx`, add to `MORE_ITEMS` if not a bottom tab
+7. **Mobile-first**: design for mobile viewport first, then enhance for desktop. All forms must use `inputMode` for proper mobile keyboards
+8. **Health Hub is the primary module** — it should be the first bottom tab and the default landing for health-conscious users
+
+### Mobile Design Priorities
+- Bottom tab bar with large touch targets (48px+)
+- More sheet with colorful icon grid (like iOS/Android app launchers)
+- No tables on mobile — use card-based layouts
+- All number inputs use `inputMode="numeric"` or `inputMode="decimal"`
+- Forms should work in bottom sheets when possible (no full page navigation for quick entries)
 
 ## Design System (`app/components/ui.tsx`)
 
