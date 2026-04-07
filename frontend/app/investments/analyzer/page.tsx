@@ -144,7 +144,10 @@ interface SavedAnalysis {
   year_built: number | null;
   has_balcony: boolean;
   has_garden: boolean;
+  garden_sqm: number;
   has_patio: boolean;
+  patio_sqm: number;
+  parking_sqm: number;
   has_elevator: boolean;
   has_storage: boolean;
   has_ac: boolean;
@@ -490,7 +493,10 @@ const EMPTY_FORM = {
   year_built: '',
   has_balcony: false,
   has_garden: false,
+  garden_sqm: '',
   has_patio: false,
+  patio_sqm: '',
+  parking_sqm: '',
   has_elevator: false,
   has_storage: false,
   has_ac: false,
@@ -684,7 +690,10 @@ export default function DealAnalyzerPage() {
       year_built: a.year_built ? String(a.year_built) : '',
       has_balcony: a.has_balcony ?? false,
       has_garden: a.has_garden ?? false,
+      garden_sqm: a.garden_sqm ? String(a.garden_sqm) : '',
       has_patio: a.has_patio ?? false,
+      patio_sqm: a.patio_sqm ? String(a.patio_sqm) : '',
+      parking_sqm: a.parking_sqm ? String(a.parking_sqm) : '',
       has_elevator: a.has_elevator ?? false,
       has_storage: a.has_storage ?? false,
       has_ac: a.has_ac ?? false,
@@ -741,7 +750,10 @@ export default function DealAnalyzerPage() {
         year_built: form.year_built ? Number(form.year_built) : null,
         has_balcony: form.has_balcony,
         has_garden: form.has_garden,
+        garden_sqm: form.has_garden ? Number(form.garden_sqm || 0) : 0,
         has_patio: form.has_patio,
+        patio_sqm: form.has_patio ? Number(form.patio_sqm || 0) : 0,
+        parking_sqm: !form.parking_included ? Number(form.parking_sqm || 0) : 0,
         has_elevator: form.has_elevator,
         has_storage: form.has_storage,
         has_ac: form.has_ac,
@@ -901,7 +913,10 @@ export default function DealAnalyzerPage() {
                   </label>
                 </div>
                 {!form.parking_included && (
-                  <Input label={t('analyzer.parking_price', locale)} type="number" value={form.parking_price} onChange={(e) => updateForm('parking_price', e.target.value)} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Input label={t('analyzer.parking_price', locale)} type="number" value={form.parking_price} onChange={(e) => updateForm('parking_price', e.target.value)} />
+                    <Input label={locale === 'bg' ? 'Площ паркомясто (м²)' : 'Parking size (sqm)'} type="number" value={form.parking_sqm} onChange={(e) => updateForm('parking_sqm', e.target.value)} placeholder="15" />
+                  </div>
                 )}
               </FormSection>
 
@@ -981,14 +996,38 @@ export default function DealAnalyzerPage() {
               <div className="mt-4">
                 <FormSection title={t('analyzer.amenities', locale)} icon="✨" open={openSections.amenities} onToggle={() => toggleSection('amenities')}>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {(['has_balcony', 'has_garden', 'has_patio', 'has_elevator', 'has_storage', 'has_ac', 'has_heating', 'has_pool', 'has_gym'] as const).map((key) => (
+                    {(['has_balcony', 'has_elevator', 'has_storage', 'has_ac', 'has_heating', 'has_pool', 'has_gym'] as const).map((key) => (
                       <label key={key} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer py-1">
                         <input type="checkbox" checked={form[key] as boolean} onChange={(e) => updateForm(key, e.target.checked)} className="rounded" />
                         {t(`analyzer.${key}`, locale)}
                       </label>
                     ))}
                   </div>
+
+                  {/* Garden with size */}
                   <div className="mt-3 flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={form.has_garden} onChange={(e) => updateForm('has_garden', e.target.checked)} className="rounded" />
+                      {t('analyzer.has_garden', locale)}
+                    </label>
+                    {form.has_garden && (
+                      <Input label="" type="number" value={form.garden_sqm} onChange={(e) => updateForm('garden_sqm', e.target.value)} placeholder={locale === 'bg' ? 'м²' : 'sqm'} className="!w-24" />
+                    )}
+                  </div>
+
+                  {/* Patio / Veranda with size */}
+                  <div className="mt-2 flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={form.has_patio} onChange={(e) => updateForm('has_patio', e.target.checked)} className="rounded" />
+                      {t('analyzer.has_patio', locale)}
+                    </label>
+                    {form.has_patio && (
+                      <Input label="" type="number" value={form.patio_sqm} onChange={(e) => updateForm('patio_sqm', e.target.value)} placeholder={locale === 'bg' ? 'м²' : 'sqm'} className="!w-24" />
+                    )}
+                  </div>
+
+                  {/* View */}
+                  <div className="mt-2 flex items-center gap-3">
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={form.has_view} onChange={(e) => updateForm('has_view', e.target.checked)} className="rounded" />
                       {t('analyzer.has_view', locale)}

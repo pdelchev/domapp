@@ -137,9 +137,11 @@ def _score_property_quality(condition: str, furnishing: str, floor: int | None, 
     if extras:
         amenity_pts = 0.0
         if extras.get('has_garden'):
-            amenity_pts += 0.5
+            garden_sqm = extras.get('garden_sqm', 0)
+            amenity_pts += 0.5 + min(garden_sqm * 0.005, 0.5)  # up to +1.0 for large gardens
         if extras.get('has_balcony') or extras.get('has_patio'):
-            amenity_pts += 0.3
+            patio_sqm = extras.get('patio_sqm', 0)
+            amenity_pts += 0.3 + min(patio_sqm * 0.005, 0.3)  # up to +0.6 for large patios
         if extras.get('has_elevator'):
             amenity_pts += 0.3
         if extras.get('has_ac') or extras.get('has_heating'):
@@ -510,9 +512,15 @@ def analyze_property(data: dict) -> dict:
     cond_mult = CONDITION_RENT_MULT.get(condition, Decimal('1.0'))
     amenity_mult = Decimal('1.0')
     if data.get('has_garden'):
-        amenity_mult += Decimal('0.08')
+        garden_sqm = Decimal(str(data.get('garden_sqm', 0)))
+        # Larger gardens command higher premiums: base 8% + 0.2% per sqm (capped at 20%)
+        garden_premium = Decimal('0.08') + min(garden_sqm * Decimal('0.002'), Decimal('0.12'))
+        amenity_mult += garden_premium
     if data.get('has_balcony') or data.get('has_patio'):
-        amenity_mult += Decimal('0.03')
+        patio_sqm = Decimal(str(data.get('patio_sqm', 0)))
+        # Larger patios/verandas: base 3% + 0.15% per sqm (capped at 12%)
+        patio_premium = Decimal('0.03') + min(patio_sqm * Decimal('0.0015'), Decimal('0.09'))
+        amenity_mult += patio_premium
     if int(data.get('num_bathrooms', 1)) >= 2:
         amenity_mult += Decimal('0.05')
     if data.get('has_ac'):
@@ -604,8 +612,11 @@ def analyze_property(data: dict) -> dict:
 
     extras = {
         'has_garden': data.get('has_garden', False),
+        'garden_sqm': float(data.get('garden_sqm', 0)),
         'has_balcony': data.get('has_balcony', False),
         'has_patio': data.get('has_patio', False),
+        'patio_sqm': float(data.get('patio_sqm', 0)),
+        'parking_sqm': float(data.get('parking_sqm', 0)),
         'has_elevator': data.get('has_elevator', False),
         'has_storage': data.get('has_storage', False),
         'has_ac': data.get('has_ac', False),
