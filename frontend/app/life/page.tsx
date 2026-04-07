@@ -332,7 +332,7 @@ export default function LifePage() {
       <NavBar />
       <PageContent size="lg">
         <PageHeader
-          title={t('life.title', locale)}
+          title={t('nav.health_hub', locale)}
           action={
             <div className="flex gap-2 flex-wrap">
               <Button onClick={() => setRitualOpen(true)} disabled={!data?.profile?.id}>

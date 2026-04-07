@@ -46,8 +46,9 @@ const MODULES: Module[] = [
   { id: 'documents', icon: 'M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z', color: 'bg-amber-500', href: '/documents', key: 'nav.documents', section: 'property' },
   { id: 'problems', icon: 'M11.42 15.17l-5.04-3.36a1.5 1.5 0 010-2.49l5.04-3.36a1.5 1.5 0 012.16 1.24v6.74a1.5 1.5 0 01-2.16 1.24zM20.25 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5h2.25a.75.75 0 01.75.75z', color: 'bg-orange-500', href: '/problems', key: 'nav.problems', section: 'property' },
   // Personal / Life
-  { id: 'life', icon: 'M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z', color: 'bg-fuchsia-500', href: '/life', key: 'life.title', section: 'life' },
-  { id: 'health', icon: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z', color: 'bg-rose-500', href: '/health', key: 'nav.health', section: 'life' },
+  { id: 'life', icon: 'M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z', color: 'bg-fuchsia-500', href: '/life', key: 'nav.health_hub', section: 'life' },
+  { id: 'health', icon: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z', color: 'bg-rose-500', href: '/health', key: 'nav.health_recovery', section: 'life' },
+  { id: 'tracking', icon: 'M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5m.75-9l3-3 2.148 2.148A12.061 12.061 0 0116.5 7.605', color: 'bg-pink-500', href: '/health/tracking', key: 'nav.daily_tracking', section: 'life' },
   { id: 'recovery', icon: 'M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182', color: 'bg-green-500', href: '/health/recovery', key: 'nav.recovery', section: 'life' },
   { id: 'vehicles', icon: 'M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0H6.375c-.621 0-1.125-.504-1.125-1.125V14.25m16.5 0V6.169a2.25 2.25 0 00-1.244-2.013l-5.25-2.625A2.25 2.25 0 0014.172 1.5H9.828a2.25 2.25 0 00-1.114.294L3.464 4.406A2.25 2.25 0 002.25 6.42V14.25', color: 'bg-cyan-500', href: '/vehicles', key: 'nav.vehicles', section: 'life' },
   // Investments
@@ -82,13 +83,10 @@ const DESKTOP_NAV = [
     { href: '/documents', key: 'nav.documents' },
     { href: '/problems', key: 'nav.problems' },
   ]},
-  { key: 'nav.life', href: '/life', sub: [
-    { href: '/life', key: 'life.title' },
-    { href: '/health', key: 'nav.health' },
-    { href: '/health/ritual', key: 'nav.ritual' },
-    { href: '/health/bp', key: 'nav.bp' },
-    { href: '/health/gout', key: 'nav.gout' },
-    { href: '/health/recovery', key: 'nav.recovery' },
+  { key: 'nav.health_hub', href: '/life', sub: [
+    { href: '/life', key: 'nav.health_hub' },
+    { href: '/health', key: 'nav.health_recovery' },
+    { href: '/health/tracking', key: 'nav.daily_tracking' },
   ]},
   { key: 'nav.vehicles', href: '/vehicles' },
   { key: 'nav.investments', href: '/investments', sub: [
