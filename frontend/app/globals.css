@@ -36,6 +36,20 @@ input, textarea, select {
   }
 }
 
+/* Safe area for bottom tab bar */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Player offset when bottom bar present */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom-player {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /* Undo toast slide-up animation */
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(1rem); }

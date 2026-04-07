@@ -93,6 +93,36 @@ export async function getMe() {
   return res.json();
 }
 
+export async function updateProfile(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/auth/me/', { method: 'PATCH', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update profile');
+  return res.json();
+}
+
+// --- Sub-accounts ---
+export async function getSubAccounts() {
+  const res = await apiFetch('/api/auth/sub-accounts/');
+  if (!res.ok) throw new Error('Failed to fetch sub-accounts');
+  return res.json();
+}
+
+export async function createSubAccount(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/auth/sub-accounts/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create sub-account');
+  return res.json();
+}
+
+export async function updateSubAccount(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/auth/sub-accounts/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update sub-account');
+  return res.json();
+}
+
+export async function deleteSubAccount(id: number) {
+  const res = await apiFetch(`/api/auth/sub-accounts/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete sub-account');
+}
+
 export async function logout() {
   const { refresh } = getTokens();
   await apiFetch('/api/auth/logout/', {
@@ -1734,5 +1764,77 @@ export async function createBodyMeasurement(data: Record<string, unknown>) {
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Failed to create measurement');
+  return res.json();
+}
+
+// --- Mobile Health: Measurements (simple tracking) ---
+export async function getMeasurements(type?: string, from?: string, to?: string) {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/measurements/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch measurements');
+  return res.json();
+}
+
+export async function createMeasurement(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/measurements/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create measurement');
+  return res.json();
+}
+
+export async function deleteMeasurement(id: number) {
+  const res = await apiFetch(`/api/measurements/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete measurement');
+}
+
+// --- Mobile Health: Food Entries ---
+export async function getFoodEntries(date?: string, meal?: string) {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (meal) params.set('meal', meal);
+  const query = params.toString() ? `?${params}` : '';
+  const res = await apiFetch(`/api/food-entries/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch food entries');
+  return res.json();
+}
+
+export async function createFoodEntry(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/food-entries/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create food entry');
+  return res.json();
+}
+
+export async function deleteFoodEntry(id: number) {
+  const res = await apiFetch(`/api/food-entries/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete food entry');
+}
+
+// --- Mobile Health: Daily Rituals ---
+export async function getDailyRituals(date?: string) {
+  const query = date ? `?date=${date}` : '';
+  const res = await apiFetch(`/api/daily-rituals/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch daily rituals');
+  return res.json();
+}
+
+export async function createDailyRitual(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/daily-rituals/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create daily ritual');
+  return res.json();
+}
+
+export async function updateDailyRitual(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/daily-rituals/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update daily ritual');
+  return res.json();
+}
+
+// --- Mobile Health: Summary ---
+export async function getHealthSummary() {
+  const res = await apiFetch('/api/health/summary/');
+  if (!res.ok) throw new Error('Failed to fetch health summary');
   return res.json();
 }

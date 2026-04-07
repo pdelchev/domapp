@@ -23,6 +23,40 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
+    allowed_modules = serializers.JSONField(required=False)
+
     class Meta:
         model = User
-        fields = ('id', 'email', 'username', 'first_name', 'phone', 'role')
+        fields = ('id', 'email', 'username', 'first_name', 'phone', 'role',
+                  'allowed_modules', 'own_health_data', 'avatar_color')
+
+
+class SubAccountSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating sub-accounts under a parent user."""
+    password = serializers.CharField(write_only=True, min_length=8, required=False)
+    allowed_modules = serializers.JSONField(required=False)
+
+    class Meta:
+        model = User
+        fields = ('id', 'email', 'username', 'first_name', 'phone', 'role',
+                  'allowed_modules', 'own_health_data', 'avatar_color', 'password')
+        read_only_fields = ('id',)
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        parent = self.context['parent_user']
+        user = User(
+            username=validated_data.get('username', ''),
+            email=validated_data.get('email', ''),
+            first_name=validated_data.get('first_name', ''),
+            phone=validated_data.get('phone', ''),
+            role=validated_data.get('role', 'viewer'),
+            allowed_modules=validated_data.get('allowed_modules', []),
+            own_health_data=validated_data.get('own_health_data', True),
+            avatar_color=validated_data.get('avatar_color', 'indigo'),
+            data_owner=parent,
+        )
+        if password:
+            user.set_password(password)
+        user.save()
+        return user
