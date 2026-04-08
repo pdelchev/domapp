@@ -943,6 +943,13 @@ export async function getHealthDashboard(profileId?: number) {
   return res.json();
 }
 
+export async function getTestPanel(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/test-panel/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch test panel');
+  return res.json();
+}
+
 export async function getHealthProfiles() {
   const res = await apiFetch('/api/health/profiles/');
   if (!res.ok) throw new Error('Failed to fetch health profiles');

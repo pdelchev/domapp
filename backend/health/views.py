@@ -448,3 +448,28 @@ class HealthDashboardView(APIView):
             'report_count': report_count,
             'top_recommendations': top_recs,
         })
+
+
+class TestPanelView(APIView):
+    """Smart quarterly blood test panel: constant base + dynamic additions."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .test_panel import get_recommended_panel
+
+        profile_id = request.query_params.get('profile')
+        profiles = HealthProfile.objects.filter(user=request.user)
+
+        if not profiles.exists():
+            return Response({'error': 'No health profile found'}, status=404)
+
+        if profile_id:
+            try:
+                profile = profiles.get(id=profile_id)
+            except HealthProfile.DoesNotExist:
+                return Response({'error': 'Profile not found'}, status=404)
+        else:
+            profile = profiles.filter(is_primary=True).first() or profiles.first()
+
+        panel = get_recommended_panel(request.user, profile)
+        return Response(panel)

@@ -24,6 +24,7 @@ const MODULES: ModuleItem[] = [
     sub: [
       { href: '/lifestyle', key: 'nav.daily_hub' },
       { href: '/health', key: 'nav.blood_results' },
+      { href: '/lifestyle/tests', key: 'panel.title' },
       { href: '/lifestyle/meals', key: 'lifestyle.meal_plan' },
       { href: '/lifestyle/gym', key: 'lifestyle.gym_routine' },
     ],

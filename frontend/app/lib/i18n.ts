@@ -883,6 +883,25 @@ const translations: Record<string, Record<Locale, string>> = {
   'health.avg_week': { en: '7-day avg', bg: '7-дневна средна' },
   'health.delete_confirm': { en: 'Delete this entry?', bg: 'Изтрий този запис?' },
 
+  // Test Panel
+  'panel.title': { en: 'Blood Test Panel', bg: 'Панел кръвни изследвания' },
+  'panel.base': { en: 'Base Panel (Every 3 Months)', bg: 'Основен панел (На всеки 3 месеца)' },
+  'panel.additional': { en: 'Additional Tests', bg: 'Допълнителни изследвания' },
+  'panel.additional_desc': { en: 'Recommended based on your health data', bg: 'Препоръчани на база вашите здравни данни' },
+  'panel.next_test': { en: 'Next Test', bg: 'Следващ тест' },
+  'panel.overdue': { en: 'Overdue', bg: 'Просрочен' },
+  'panel.days_left': { en: 'days left', bg: 'дни остават' },
+  'panel.last_test': { en: 'Last test', bg: 'Последен тест' },
+  'panel.no_previous': { en: 'No previous tests — start with the base panel', bg: 'Няма предишни тестове — започнете с основния панел' },
+  'panel.total_tests': { en: 'Total Tests', bg: 'Общо тестове' },
+  'panel.trigger_blood': { en: 'Previous blood results', bg: 'Предишни кръвни резултати' },
+  'panel.trigger_bp': { en: 'Blood pressure data', bg: 'Данни от кръвно налягане' },
+  'panel.trigger_whoop': { en: 'WHOOP recovery', bg: 'WHOOP възстановяване' },
+  'panel.trigger_weight': { en: 'Weight / BMI', bg: 'Тегло / BMI' },
+  'panel.print': { en: 'Print Panel', bg: 'Принтирай панел' },
+  'panel.constant': { en: 'Constant', bg: 'Постоянен' },
+  'panel.dynamic': { en: 'Dynamic', bg: 'Динамичен' },
+
   // Settings
   'nav.settings': { en: 'Settings', bg: 'Настройки' },
   'settings.title': { en: 'Settings', bg: 'Настройки' },

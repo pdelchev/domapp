@@ -32,5 +32,6 @@ urlpatterns = [
     path('biomarker-history/<int:biomarker_id>/', views.BiomarkerHistoryView.as_view(), name='biomarker-history'),
     path('compare/', views.CompareReportsView.as_view(), name='compare-reports'),
     path('dashboard/', views.HealthDashboardView.as_view(), name='health-dashboard'),
+    path('test-panel/', views.TestPanelView.as_view(), name='test-panel'),
     path('', include(router.urls)),
 ]
