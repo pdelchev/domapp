@@ -609,7 +609,7 @@ export default function NotesPage() {
     <PageShell>
       <NavBar />
 
-      <div className="flex h-[calc(100vh-57px)] overflow-hidden">
+      <div className="flex h-[calc(100vh-57px)] md:h-[calc(100vh-57px)] overflow-hidden pb-16 md:pb-0">
 
         {/* ─── LEFT SIDEBAR ──────────────────────────── */}
         {/* §LS — folder/tag sidebar */}
@@ -617,6 +617,13 @@ export default function NotesPage() {
           mobilePanel === 'sidebar' ? 'block w-full md:w-52' : 'hidden lg:block'
         }`}>
           <div className="p-3 space-y-1">
+            {/* Mobile: close sidebar button */}
+            <div className="flex items-center justify-between lg:hidden mb-2">
+              <h3 className="text-sm font-semibold text-gray-700">{locale === 'bg' ? 'Папки' : 'Folders'}</h3>
+              <button onClick={() => setMobilePanel('list')} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
             {/* Smart views */}
             <SidebarItem
               active={activeView === 'all'}
@@ -789,6 +796,7 @@ export default function NotesPage() {
                 <button
                   onClick={() => setMobilePanel('sidebar')}
                   className="p-1 text-gray-400 hover:text-gray-600 lg:hidden"
+                  title="Folders"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
                 </button>
@@ -868,7 +876,7 @@ export default function NotesPage() {
         {/* ─── RIGHT: EDITOR ─────────────────────────── */}
         {/* §ED — note editor panel */}
         <div className={`flex-1 flex flex-col bg-white overflow-hidden ${
-          mobilePanel === 'editor' ? 'flex fixed inset-0 z-40 md:relative md:z-auto' : 'hidden md:flex'
+          mobilePanel === 'editor' ? 'flex fixed inset-0 z-[55] md:relative md:z-auto pt-0 pb-16 md:pb-0' : 'hidden md:flex'
         }`}>
           {selectedNote ? (
             <>
@@ -876,7 +884,7 @@ export default function NotesPage() {
               <div className="flex items-center justify-between px-3 md:px-4 py-2 border-b border-gray-100 shrink-0 bg-white">
                 <div className="flex items-center gap-2">
                   {/* Back button — mobile */}
-                  <button onClick={() => { flushSave(); setMobilePanel('list'); }} className="md:hidden p-1.5 -ml-1 text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                  <button onClick={() => { flushSave(); setMobilePanel('list'); }} className="md:hidden p-2 -ml-2 text-indigo-600 hover:bg-indigo-50 rounded-lg active:scale-95 min-w-[44px] min-h-[44px] flex items-center justify-center">
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                   </button>
 
