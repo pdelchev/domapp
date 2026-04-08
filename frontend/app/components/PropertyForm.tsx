@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getOwners, getProperties } from '../lib/api';
+import { getOwners, getProperties, parseNotaryDeed } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import { Button, Input, Select, Textarea, Alert, FormSection, StickyActionBar } from './ui';
@@ -26,6 +26,10 @@ interface PropertyFormData {
   country: string;
   property_type: string;
   parent_property: string;
+  notary_act_number: string;
+  notary_act_date: string;
+  seller_name: string;
+  property_registry_number: string;
   cadastral_number: string;
   square_meters: string;
   purchase_price: string;
@@ -65,6 +69,10 @@ const EMPTY_FORM: PropertyFormData = {
   country: 'Bulgaria',
   property_type: 'apartment',
   parent_property: '',
+  notary_act_number: '',
+  notary_act_date: '',
+  seller_name: '',
+  property_registry_number: '',
   cadastral_number: '',
   square_meters: '',
   purchase_price: '',
@@ -121,6 +129,10 @@ export default function PropertyForm({
     basic: true,
     land: true,
   });
+  const [deedParsing, setDeedParsing] = useState(false);
+  const [deedSuccess, setDeedSuccess] = useState('');
+  const [deedError, setDeedError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getOwners().then(setOwners).catch(() => {});
@@ -137,6 +149,65 @@ export default function PropertyForm({
   const toggle = (section: string) =>
     setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
 
+  const handleDeedUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setDeedParsing(true);
+    setDeedSuccess('');
+    setDeedError('');
+    try {
+      const result = await parseNotaryDeed(file);
+      if (result.error) {
+        setDeedError(result.error);
+      } else if (result.parsed_fields) {
+        const fields = result.parsed_fields;
+        setForm((prev) => {
+          const updated = { ...prev };
+          // Only fill empty fields — don't overwrite existing data
+          const fieldMap: Record<string, keyof PropertyFormData> = {
+            address: 'address',
+            city: 'city',
+            country: 'country',
+            property_type: 'property_type',
+            cadastral_number: 'cadastral_number',
+            square_meters: 'square_meters',
+            purchase_price: 'purchase_price',
+            purchase_date: 'purchase_date',
+            mortgage_provider: 'mortgage_provider',
+            notary_act_number: 'notary_act_number',
+            notary_act_date: 'notary_act_date',
+            seller_name: 'seller_name',
+            property_registry_number: 'property_registry_number',
+          };
+          for (const [parseKey, formKey] of Object.entries(fieldMap)) {
+            if (fields[parseKey] && !updated[formKey]) {
+              (updated as Record<string, string>)[formKey] = String(fields[parseKey]);
+            }
+          }
+          // Append extra notes
+          if (fields._extra_notes) {
+            updated.notes = updated.notes
+              ? `${updated.notes}\n\n${fields._extra_notes}`
+              : fields._extra_notes;
+          }
+          return updated;
+        });
+        setDeedSuccess(t('properties.deed_parsed', locale));
+        // Auto-open relevant sections
+        setOpenSections((prev) => ({ ...prev, notary: true, land: true, mortgage: !!fields.mortgage_provider }));
+        if (result.warnings?.length) {
+          setDeedError(result.warnings.join('; '));
+        }
+      }
+    } catch {
+      setDeedError(t('properties.deed_parse_error', locale));
+    } finally {
+      setDeedParsing(false);
+      // Reset file input so same file can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(form);
@@ -146,6 +217,38 @@ export default function PropertyForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <Alert type="error" message={error} />
       <Alert type="success" message={success} />
+
+      {/* Notary Deed Upload */}
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📜</span>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-900">{t('properties.upload_deed', locale)}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {locale === 'bg' ? 'Качете PDF и полетата ще се попълнят автоматично' : 'Upload a PDF and fields will be auto-filled'}
+            </p>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf"
+            onChange={handleDeedUpload}
+            className="hidden"
+            id="deed-upload"
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={deedParsing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {deedParsing ? t('properties.parsing_deed', locale) : locale === 'bg' ? 'Избери файл' : 'Choose File'}
+          </Button>
+        </div>
+        {deedSuccess && <p className="text-xs text-green-700 mt-2">{deedSuccess}</p>}
+        {deedError && <p className="text-xs text-amber-700 mt-2">{deedError}</p>}
+      </div>
 
       {/* Basic Information */}
       <FormSection title={t('properties.section.basic', locale)} icon="🏢" open={!!openSections.basic} onToggle={() => toggle('basic')}>
@@ -186,6 +289,16 @@ export default function PropertyForm({
               ))}
           </Select>
         )}
+      </FormSection>
+
+      {/* Notary Deed Info */}
+      <FormSection title={t('properties.section.notary', locale)} icon="📜" open={!!openSections.notary} onToggle={() => toggle('notary')}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input label={t('properties.notary_act_number', locale)} value={form.notary_act_number} onChange={(e) => set('notary_act_number', e.target.value)} />
+          <Input label={t('properties.notary_act_date', locale)} type="date" value={form.notary_act_date} onChange={(e) => set('notary_act_date', e.target.value)} />
+          <Input label={t('properties.seller_name', locale)} value={form.seller_name} onChange={(e) => set('seller_name', e.target.value)} />
+          <Input label={t('properties.property_registry_number', locale)} value={form.property_registry_number} onChange={(e) => set('property_registry_number', e.target.value)} />
+        </div>
       </FormSection>
 
       {/* Land & Acquisition */}

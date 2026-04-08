@@ -70,6 +70,12 @@ class Property(models.Model):
         help_text='Parent property this is linked to (e.g. apartment for a parking spot)'
     )
 
+    # --- Notary Deed ---
+    notary_act_number = models.CharField(max_length=255, blank=True, null=True, help_text='Нотариален акт №, том, рег., дело')
+    notary_act_date = models.DateField(blank=True, null=True, help_text='Дата на нотариален акт')
+    seller_name = models.CharField(max_length=255, blank=True, null=True, help_text='Продавач')
+    property_registry_number = models.CharField(max_length=50, blank=True, null=True, help_text='Имотна партида №')
+
     # --- Land Registry & Acquisition ---
     cadastral_number = models.CharField(max_length=100, blank=True, null=True, help_text='Кадастрален номер')
     square_meters = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)

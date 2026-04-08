@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import PropertyOwnerViewSet, PropertyViewSet, UnitViewSet
+from .views import PropertyOwnerViewSet, PropertyViewSet, UnitViewSet, ParseNotaryDeedView
 from .tax_views import (
     PropertyTaxListView, PropertyTaxDetailView, PropertyTaxMarkPaidView,
     PropertyTaxPresetsView, CountryTaxInfoView, TaxSummaryView,
@@ -13,6 +13,8 @@ router.register(r'units', UnitViewSet, basename='unit')
 
 urlpatterns = [
     path('', include(router.urls)),
+    # Notary deed parser
+    path('properties/parse-notary-deed/', ParseNotaryDeedView.as_view(), name='parse-notary-deed'),
     # Property taxes
     path('properties/<int:property_id>/taxes/', PropertyTaxListView.as_view(), name='property-tax-list'),
     path('properties/<int:property_id>/taxes/presets/', PropertyTaxPresetsView.as_view(), name='property-tax-presets'),

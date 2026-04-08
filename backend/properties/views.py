@@ -1,10 +1,11 @@
-from django.shortcuts import render
-
-# Create your views here.
-from rest_framework import viewsets
+from rest_framework import viewsets, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser
 from .models import PropertyOwner, Property, Unit
 from .serializers import PropertyOwnerSerializer, PropertySerializer, UnitSerializer
+from .notary_parser import parse_notary_deed
 
 
 class PropertyOwnerViewSet(viewsets.ModelViewSet):
@@ -33,6 +34,23 @@ class PropertyViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user.get_data_owner())
+
+
+class ParseNotaryDeedView(APIView):
+    """Parse a Bulgarian notary deed PDF and return extracted property fields."""
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser]
+
+    def post(self, request):
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file.name.lower().endswith('.pdf'):
+            return Response({'error': 'Only PDF files are supported'}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = parse_notary_deed(file)
+        return Response(result)
 
 
 class UnitViewSet(viewsets.ModelViewSet):

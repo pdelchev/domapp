@@ -205,6 +205,17 @@ export async function deleteProperty(id: number) {
   if (!res.ok) throw new Error('Failed to delete property');
 }
 
+export async function parseNotaryDeed(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await apiFetch('/api/properties/parse-notary-deed/', {
+    method: 'POST',
+    body: formData,
+  });
+  if (!res.ok) throw new Error('Failed to parse notary deed');
+  return res.json();
+}
+
 // --- Units ---
 export async function getUnits(propertyId?: number) {
   const query = propertyId ? `?property=${propertyId}` : '';
