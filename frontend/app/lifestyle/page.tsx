@@ -131,15 +131,62 @@ const TIMING_OPTIONS = [
 ];
 
 // ══════════════════════════════════════════════════════════════════
+// WELLNESS STEP CONSTANTS
+// ══════════════════════════════════════════════════════════════════
+
+const MOODS = ['😞', '😐', '🙂', '😊', '🤩'];
+const ENERGY_LEVELS = ['🪫', '🔋', '🔋🔋', '🔋🔋🔋', '⚡'];
+const SLEEP_STARS = [1, 2, 3, 4, 5];
+const STRESS_LEVELS = [
+  { value: 'low', en: 'Low', bg: 'Нисък', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+  { value: 'medium', en: 'Medium', bg: 'Среден', color: 'bg-amber-100 text-amber-700 border-amber-300' },
+  { value: 'high', en: 'High', bg: 'Висок', color: 'bg-red-100 text-red-700 border-red-300' },
+];
+
+const PAIN_LOCATIONS = [
+  { value: 'head', en: 'Head', bg: 'Глава', icon: '🧠' },
+  { value: 'neck', en: 'Neck', bg: 'Врат', icon: '🦴' },
+  { value: 'back', en: 'Back', bg: 'Гръб', icon: '🔙' },
+  { value: 'chest', en: 'Chest', bg: 'Гърди', icon: '🫁' },
+  { value: 'abdomen', en: 'Abdomen', bg: 'Корем', icon: '🤰' },
+  { value: 'knee', en: 'Knee', bg: 'Коляно', icon: '🦵' },
+  { value: 'ankle', en: 'Ankle', bg: 'Глезен', icon: '🦶' },
+  { value: 'shoulder', en: 'Shoulder', bg: 'Рамо', icon: '💪' },
+  { value: 'wrist', en: 'Wrist', bg: 'Китка', icon: '🤚' },
+  { value: 'hip', en: 'Hip', bg: 'Ханш', icon: '🦴' },
+  { value: 'other', en: 'Other', bg: 'Друго', icon: '📍' },
+];
+
+const GOUT_JOINTS = [
+  { value: 'big_toe', en: 'Big Toe', bg: 'Палец на крак' },
+  { value: 'ankle', en: 'Ankle', bg: 'Глезен' },
+  { value: 'knee', en: 'Knee', bg: 'Коляно' },
+  { value: 'wrist', en: 'Wrist', bg: 'Китка' },
+  { value: 'finger', en: 'Finger', bg: 'Пръст' },
+  { value: 'elbow', en: 'Elbow', bg: 'Лакът' },
+  { value: 'heel', en: 'Heel / Foot', bg: 'Пета / Стъпало' },
+  { value: 'other', en: 'Other', bg: 'Друго' },
+];
+
+const GOUT_MEDS = [
+  { value: 'colchicine', en: 'Colchicine', bg: 'Колхицин' },
+  { value: 'allopurinol', en: 'Allopurinol', bg: 'Алопуринол' },
+  { value: 'febuxostat', en: 'Febuxostat', bg: 'Фебуксостат' },
+  { value: 'nsaid', en: 'NSAID (Ibuprofen)', bg: 'НСПВС (Ибупрофен)' },
+  { value: 'prednisone', en: 'Prednisone', bg: 'Преднизон' },
+];
+
+// ══════════════════════════════════════════════════════════════════
 // LOG MODAL STEPS
 // ══════════════════════════════════════════════════════════════════
 
-type LogStep = 'bp' | 'weight' | 'supplements' | 'additional' | 'done';
-const LOG_STEPS: LogStep[] = ['bp', 'weight', 'supplements', 'additional', 'done'];
+type LogStep = 'bp' | 'wellness' | 'weight' | 'supplements' | 'additional' | 'done';
+const LOG_STEPS: LogStep[] = ['bp', 'wellness', 'weight', 'supplements', 'additional', 'done'];
 
 function stepTitle(step: LogStep, locale: string): string {
   const titles: Record<LogStep, { en: string; bg: string }> = {
     bp: { en: 'Blood Pressure', bg: 'Кръвно налягане' },
+    wellness: { en: 'How Do You Feel?', bg: 'Как се чувствате?' },
     weight: { en: 'Weight & Body', bg: 'Тегло и тяло' },
     supplements: { en: 'Supplements & Pills', bg: 'Добавки и лекарства' },
     additional: { en: 'Additional Vitals', bg: 'Допълнителни показатели' },
@@ -192,6 +239,15 @@ export default function DailyHubPage() {
   const [bpTimer, setBpTimer] = useState(0); // countdown seconds
   const [bpWaiting, setBpWaiting] = useState(false);
   const bpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Wellness form
+  const [wellnessForm, setWellnessForm] = useState({
+    mood: 0, energy: 0, sleep_quality: 0, stress: '',
+  });
+  const [hasPain, setHasPain] = useState(false);
+  const [painForm, setPainForm] = useState({ location: '', severity: 5, type: 'dull' as string });
+  const [hasGout, setHasGout] = useState(false);
+  const [goutForm, setGoutForm] = useState({ joint: 'big_toe', side: 'right', severity: 5, swelling: true, medication: '' });
 
   // Weight form
   const [weightForm, setWeightForm] = useState({ weight_kg: '', body_fat_pct: '' });
@@ -331,6 +387,9 @@ export default function DailyHubPage() {
     setBpSettings({ arm: 'left', posture: 'sitting' });
     setBpTimer(0); setBpWaiting(false);
     if (bpTimerRef.current) { clearInterval(bpTimerRef.current); bpTimerRef.current = null; }
+    setWellnessForm({ mood: 0, energy: 0, sleep_quality: 0, stress: '' });
+    setHasPain(false); setPainForm({ location: '', severity: 5, type: 'dull' });
+    setHasGout(false); setGoutForm({ joint: 'big_toe', side: 'right', severity: 5, swelling: true, medication: '' });
     setWeightForm({ weight_kg: '', body_fat_pct: '' });
     setBodyMeas({});
     setShowBodyMeas(false);
@@ -413,6 +472,67 @@ export default function DailyHubPage() {
     } catch { /* continue anyway */ }
     setLogSaving(false);
     if (bpTimerRef.current) { clearInterval(bpTimerRef.current); bpTimerRef.current = null; }
+    nextStep();
+  };
+
+  // Save wellness data
+  const saveWellness = async () => {
+    const summary: string[] = [];
+    setLogSaving(true);
+    try {
+      // Save mood/energy/sleep via daily ritual if any selected
+      if (wellnessForm.mood > 0 || wellnessForm.energy > 0 || wellnessForm.sleep_quality > 0 || wellnessForm.stress) {
+        const parts: string[] = [];
+        if (wellnessForm.mood > 0) parts.push(`${MOODS[wellnessForm.mood - 1]}`);
+        if (wellnessForm.energy > 0) parts.push(`${locale === 'bg' ? 'Енергия' : 'Energy'}: ${wellnessForm.energy}/5`);
+        if (wellnessForm.sleep_quality > 0) parts.push(`${locale === 'bg' ? 'Сън' : 'Sleep'}: ${'⭐'.repeat(wellnessForm.sleep_quality)}`);
+        if (wellnessForm.stress) parts.push(`${locale === 'bg' ? 'Стрес' : 'Stress'}: ${wellnessForm.stress}`);
+        summary.push(parts.join(' · '));
+
+        // Store via createMeasurement as wellness check
+        const { createMeasurement } = await import('../lib/api');
+        if (wellnessForm.mood > 0) {
+          await createMeasurement({ measurement_type: 'mood', value: wellnessForm.mood, unit: '/5', measured_at: new Date().toISOString() }).catch(() => {});
+        }
+        if (wellnessForm.energy > 0) {
+          await createMeasurement({ measurement_type: 'energy', value: wellnessForm.energy, unit: '/5', measured_at: new Date().toISOString() }).catch(() => {});
+        }
+        if (wellnessForm.sleep_quality > 0) {
+          await createMeasurement({ measurement_type: 'sleep_quality', value: wellnessForm.sleep_quality, unit: '/5', measured_at: new Date().toISOString() }).catch(() => {});
+        }
+      }
+
+      // Save pain entry
+      if (hasPain && painForm.location) {
+        const { createMeasurement } = await import('../lib/api');
+        await createMeasurement({
+          measurement_type: 'pain',
+          value: painForm.severity,
+          unit: '/10',
+          notes: `${painForm.location} (${painForm.type})`,
+          measured_at: new Date().toISOString(),
+        }).catch(() => {});
+        const locLabel = PAIN_LOCATIONS.find(l => l.value === painForm.location);
+        summary.push(`${locale === 'bg' ? 'Болка' : 'Pain'}: ${locLabel ? (locale === 'bg' ? locLabel.bg : locLabel.en) : painForm.location} ${painForm.severity}/10`);
+      }
+
+      // Save gout attack
+      if (hasGout) {
+        const { createGoutAttack } = await import('../lib/api');
+        await createGoutAttack({
+          onset_date: new Date().toISOString().split('T')[0],
+          joint: goutForm.joint,
+          side: goutForm.side,
+          severity: goutForm.severity,
+          swelling: goutForm.swelling,
+          medication: goutForm.medication || '',
+        }).catch(() => {});
+        const jointLabel = GOUT_JOINTS.find(j => j.value === goutForm.joint);
+        summary.push(`🔴 ${locale === 'bg' ? 'Подагра' : 'Gout'}: ${jointLabel ? (locale === 'bg' ? jointLabel.bg : jointLabel.en) : goutForm.joint} (${goutForm.side}) ${goutForm.severity}/10`);
+      }
+    } catch { /* continue */ }
+    if (summary.length > 0) setLogSummary(prev => [...prev, ...summary]);
+    setLogSaving(false);
     nextStep();
   };
 
@@ -1070,7 +1190,175 @@ export default function DailyHubPage() {
           </div>
         )}
 
-        {/* ── Step 2: Weight & Body Measurements ── */}
+        {/* ── Step 2: How Do You Feel? ── */}
+        {logStep === 'wellness' && (
+          <div className="space-y-5">
+            {/* Mood */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">{locale === 'bg' ? 'Настроение' : 'Mood'}</p>
+              <div className="flex gap-2">
+                {MOODS.map((emoji, i) => (
+                  <button key={i} onClick={() => setWellnessForm(p => ({ ...p, mood: i + 1 }))}
+                    className={`w-12 h-12 text-2xl rounded-xl transition-all ${wellnessForm.mood === i + 1 ? 'bg-indigo-100 ring-2 ring-indigo-500 scale-110' : 'bg-gray-50 hover:bg-gray-100'}`}>
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Energy */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">{locale === 'bg' ? 'Енергия' : 'Energy Level'}</p>
+              <div className="flex gap-2">
+                {ENERGY_LEVELS.map((icon, i) => (
+                  <button key={i} onClick={() => setWellnessForm(p => ({ ...p, energy: i + 1 }))}
+                    className={`flex-1 py-2 text-center text-sm rounded-xl border transition-all ${wellnessForm.energy === i + 1 ? 'bg-emerald-100 border-emerald-400 ring-1 ring-emerald-400' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                    {icon}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sleep quality */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">{locale === 'bg' ? 'Качество на съня' : 'Sleep Quality'}</p>
+              <div className="flex gap-1">
+                {SLEEP_STARS.map((star) => (
+                  <button key={star} onClick={() => setWellnessForm(p => ({ ...p, sleep_quality: star }))}
+                    className={`text-2xl transition-transform ${wellnessForm.sleep_quality >= star ? 'text-amber-400 scale-110' : 'text-gray-300'}`}>
+                    ⭐
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stress */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-2">{locale === 'bg' ? 'Стрес' : 'Stress Level'}</p>
+              <div className="flex gap-2">
+                {STRESS_LEVELS.map((level) => (
+                  <button key={level.value} onClick={() => setWellnessForm(p => ({ ...p, stress: level.value }))}
+                    className={`flex-1 py-2 text-sm font-medium rounded-xl border transition-all ${wellnessForm.stress === level.value ? level.color + ' ring-1' : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100'}`}>
+                    {locale === 'bg' ? level.bg : level.en}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Pain toggle */}
+            <div className="border-t border-gray-100 pt-4">
+              <button onClick={() => setHasPain(!hasPain)}
+                className={`flex items-center gap-2 w-full p-3 rounded-xl border transition-all ${hasPain ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                <span className="text-lg">🤕</span>
+                <span className="text-sm font-medium text-gray-700">{locale === 'bg' ? 'Имам болка' : 'I have pain'}</span>
+                <span className="ml-auto text-xs text-gray-400">{hasPain ? '✓' : ''}</span>
+              </button>
+
+              {hasPain && (
+                <div className="mt-3 p-3 bg-red-50/50 rounded-xl space-y-3">
+                  <p className="text-xs font-medium text-gray-500">{locale === 'bg' ? 'Къде?' : 'Where?'}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PAIN_LOCATIONS.map((loc) => (
+                      <button key={loc.value} onClick={() => setPainForm(p => ({ ...p, location: loc.value }))}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${painForm.location === loc.value ? 'bg-red-100 border-red-400 text-red-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        {loc.icon} {locale === 'bg' ? loc.bg : loc.en}
+                      </button>
+                    ))}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">{locale === 'bg' ? 'Интензивност' : 'Severity'}: {painForm.severity}/10</p>
+                    <input type="range" min="1" max="10" value={painForm.severity}
+                      onChange={(e) => setPainForm(p => ({ ...p, severity: Number(e.target.value) }))}
+                      className="w-full accent-red-500" />
+                  </div>
+                  <div className="flex gap-2">
+                    {(['dull', 'sharp', 'burning', 'throbbing'] as const).map((type) => (
+                      <button key={type} onClick={() => setPainForm(p => ({ ...p, type }))}
+                        className={`flex-1 py-1.5 text-xs font-medium rounded-lg border transition-all ${painForm.type === type ? 'bg-red-100 border-red-400 text-red-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                        {locale === 'bg'
+                          ? ({ dull: 'Тъпа', sharp: 'Остра', burning: 'Пареща', throbbing: 'Пулсираща' })[type]
+                          : type.charAt(0).toUpperCase() + type.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Gout attack toggle */}
+            <div>
+              <button onClick={() => setHasGout(!hasGout)}
+                className={`flex items-center gap-2 w-full p-3 rounded-xl border transition-all ${hasGout ? 'bg-purple-50 border-purple-300' : 'bg-gray-50 border-gray-200 hover:bg-gray-100'}`}>
+                <span className="text-lg">🦶</span>
+                <span className="text-sm font-medium text-gray-700">{locale === 'bg' ? 'Подагрозна криза' : 'Gout Attack'}</span>
+                <span className="ml-auto text-xs text-gray-400">{hasGout ? '✓' : ''}</span>
+              </button>
+
+              {hasGout && (
+                <div className="mt-3 p-3 bg-purple-50/50 rounded-xl space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{locale === 'bg' ? 'Става' : 'Joint'}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {GOUT_JOINTS.map((j) => (
+                          <button key={j.value} onClick={() => setGoutForm(p => ({ ...p, joint: j.value }))}
+                            className={`px-2 py-1 text-[11px] font-medium rounded-lg border ${goutForm.joint === j.value ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                            {locale === 'bg' ? j.bg : j.en}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 mb-1">{locale === 'bg' ? 'Страна' : 'Side'}</p>
+                      <div className="flex gap-1">
+                        {(['left', 'right', 'both'] as const).map((s) => (
+                          <button key={s} onClick={() => setGoutForm(p => ({ ...p, side: s }))}
+                            className={`flex-1 py-1 text-[11px] font-medium rounded-lg border ${goutForm.side === s ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                            {locale === 'bg' ? ({ left: 'Ляво', right: 'Дясно', both: 'Двете' })[s] : s.charAt(0).toUpperCase() + s.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">{locale === 'bg' ? 'Болка' : 'Pain'}: {goutForm.severity}/10</p>
+                    <input type="range" min="1" max="10" value={goutForm.severity}
+                      onChange={(e) => setGoutForm(p => ({ ...p, severity: Number(e.target.value) }))}
+                      className="w-full accent-purple-500" />
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={goutForm.swelling} onChange={(e) => setGoutForm(p => ({ ...p, swelling: e.target.checked }))}
+                        className="rounded border-gray-300 text-purple-600 w-4 h-4" />
+                      <span className="text-xs text-gray-600">{locale === 'bg' ? 'Подуване' : 'Swelling'}</span>
+                    </label>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 mb-1">{locale === 'bg' ? 'Лекарство' : 'Medication'}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {GOUT_MEDS.map((m) => (
+                        <button key={m.value} onClick={() => setGoutForm(p => ({ ...p, medication: p.medication === m.value ? '' : m.value }))}
+                          className={`px-2 py-1 text-[11px] font-medium rounded-lg border ${goutForm.medication === m.value ? 'bg-purple-100 border-purple-400 text-purple-700' : 'bg-white border-gray-200 text-gray-500'}`}>
+                          {locale === 'bg' ? m.bg : m.en}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-3 pt-2">
+              <Button onClick={saveWellness} disabled={logSaving} className="flex-1">
+                {logSaving ? '...' : (wellnessForm.mood > 0 || hasPain || hasGout) ? (locale === 'bg' ? 'Запази и продължи' : 'Save & Next') : (locale === 'bg' ? 'Напред' : 'Next')}
+              </Button>
+              <Button variant="ghost" onClick={skipStep}>{locale === 'bg' ? 'Пропусни' : 'Skip'}</Button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 3: Weight & Body Measurements ── */}
         {logStep === 'weight' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
