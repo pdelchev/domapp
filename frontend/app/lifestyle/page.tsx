@@ -261,6 +261,11 @@ export default function DailyHubPage() {
   const [whoopData, setWhoopData] = useState<{ latest_recovery?: { recovery_score: number; hrv_rmssd_milli: number; resting_heart_rate: number }; latest_sleep?: { performance_pct: number; total_hours: number } } | null>(null);
   const [testPanel, setTestPanel] = useState<{ days_until_next: number; is_overdue: boolean; next_test_date: string } | null>(null);
 
+  // Fasting window — persisted to localStorage
+  const [fastingWindow, setFastingWindow] = useState<{ eatStart: number; eatEnd: number }>({ eatStart: 10, eatEnd: 20 });
+  const [manualFastStart, setManualFastStart] = useState<string | null>(null); // ISO timestamp
+  const [editingFasting, setEditingFasting] = useState(false);
+
   // Add new supplement form
   const [showAddSupplement, setShowAddSupplement] = useState(false);
   const [newSupp, setNewSupp] = useState({ name: '', category: 'supplement', dose: '', timing: 'morning', condition: 'daily' });
@@ -308,7 +313,29 @@ export default function DailyHubPage() {
   useEffect(() => {
     const saved = localStorage.getItem('food_favorites');
     if (saved) setFavorites(JSON.parse(saved));
+    const fw = localStorage.getItem('fasting_window');
+    if (fw) setFastingWindow(JSON.parse(fw));
+    const mfs = localStorage.getItem('manual_fast_start');
+    if (mfs) setManualFastStart(mfs);
   }, []);
+
+  const saveFastingWindow = (eatStart: number, eatEnd: number) => {
+    const fw = { eatStart, eatEnd };
+    setFastingWindow(fw);
+    localStorage.setItem('fasting_window', JSON.stringify(fw));
+    setEditingFasting(false);
+  };
+
+  const startManualFast = () => {
+    const ts = new Date().toISOString();
+    setManualFastStart(ts);
+    localStorage.setItem('manual_fast_start', ts);
+  };
+
+  const stopManualFast = () => {
+    setManualFastStart(null);
+    localStorage.removeItem('manual_fast_start');
+  };
 
   // ---- Ritual handlers ----
   const handleToggle = async (itemId: number) => {
@@ -815,47 +842,145 @@ export default function DailyHubPage() {
               );
             })()}
 
-            {/* Next Blood Test / Fasting */}
-            <div className="p-3 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-xl space-y-2">
-              {/* Next test */}
-              {testPanel && (
-                <button onClick={() => router.push('/lifestyle/tests')} className="text-left w-full">
-                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">🧪 {locale === 'bg' ? 'Кръвен тест' : 'Blood Test'}</p>
-                  <p className={`text-sm font-bold mt-0.5 ${testPanel.is_overdue ? 'text-red-600' : testPanel.days_until_next <= 7 ? 'text-amber-600' : 'text-gray-700'}`}>
-                    {testPanel.is_overdue
-                      ? (locale === 'bg' ? 'Просрочен!' : 'Overdue!')
-                      : `${testPanel.days_until_next} ${locale === 'bg' ? 'дни' : 'days'}`}
-                  </p>
-                </button>
-              )}
-              {/* Fasting status */}
-              {(() => {
+            {/* Next Blood Test */}
+            {testPanel && (
+              <button onClick={() => router.push('/lifestyle/tests')} className="text-left p-3 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-xl hover:shadow-sm transition-shadow">
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">🧪 {locale === 'bg' ? 'Кръвен тест' : 'Blood Test'}</p>
+                <p className={`text-lg font-bold mt-0.5 ${testPanel.is_overdue ? 'text-red-600' : testPanel.days_until_next <= 7 ? 'text-amber-600' : 'text-gray-700'}`}>
+                  {testPanel.is_overdue
+                    ? (locale === 'bg' ? 'Просрочен!' : 'Overdue!')
+                    : `${testPanel.days_until_next} ${locale === 'bg' ? 'дни' : 'days'}`}
+                </p>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Fasting / Eating Window Card — full width */}
+        {isToday && (
+          <div className="mb-4">
+            {editingFasting ? (
+              <Card>
+                <p className="text-sm font-semibold text-gray-900 mb-3">⏳ {locale === 'bg' ? 'Настройка на прозорец' : 'Edit Eating Window'}</p>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">{locale === 'bg' ? 'Начало на хранене' : 'Eating starts'}</label>
+                    <select
+                      value={fastingWindow.eatStart}
+                      onChange={(e) => setFastingWindow(p => ({ ...p, eatStart: Number(e.target.value) }))}
+                      className="w-full h-10 px-3 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-gray-700 mb-1.5">{locale === 'bg' ? 'Край на хранене' : 'Eating ends'}</label>
+                    <select
+                      value={fastingWindow.eatEnd}
+                      onChange={(e) => setFastingWindow(p => ({ ...p, eatEnd: Number(e.target.value) }))}
+                      className="w-full h-10 px-3 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <option key={i} value={i}>{String(i).padStart(2, '0')}:00</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  {locale === 'bg'
+                    ? `${24 - (fastingWindow.eatEnd - fastingWindow.eatStart)}ч гладуване / ${fastingWindow.eatEnd - fastingWindow.eatStart}ч хранене`
+                    : `${24 - (fastingWindow.eatEnd - fastingWindow.eatStart)}h fasting / ${fastingWindow.eatEnd - fastingWindow.eatStart}h eating`}
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={() => saveFastingWindow(fastingWindow.eatStart, fastingWindow.eatEnd)}>{locale === 'bg' ? 'Запази' : 'Save'}</Button>
+                  <Button size="sm" variant="secondary" onClick={() => setEditingFasting(false)}>{t('common.cancel', locale)}</Button>
+                </div>
+              </Card>
+            ) : (
+              (() => {
                 const now = new Date();
                 const h = now.getHours();
                 const m = now.getMinutes();
-                const isFasting = h >= 20 || h < 10;
-                if (isFasting) {
-                  const minsUntilEat = h >= 20 ? (24 - h + 10) * 60 - m : (10 - h) * 60 - m;
-                  const hrs = Math.floor(minsUntilEat / 60);
-                  const mins = minsUntilEat % 60;
+                const { eatStart, eatEnd } = fastingWindow;
+
+                // Manual fast overrides schedule
+                if (manualFastStart) {
+                  const startTime = new Date(manualFastStart);
+                  const elapsedMs = now.getTime() - startTime.getTime();
+                  const elapsedMins = Math.floor(elapsedMs / 60000);
+                  const eHrs = Math.floor(elapsedMins / 60);
+                  const eMins = elapsedMins % 60;
+                  const startStr = startTime.toLocaleTimeString(locale === 'bg' ? 'bg-BG' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
                   return (
-                    <div className="text-left">
-                      <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
-                      <p className="text-sm font-bold text-purple-700 mt-0.5">{hrs}h {mins}m</p>
+                    <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                      <div>
+                        <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Ръчно гладуване' : 'Manual Fast'}</p>
+                        <p className="text-lg font-bold text-purple-700">{eHrs}h {eMins}m</p>
+                        <p className="text-[10px] text-purple-400">{locale === 'bg' ? 'Започнато в' : 'Started at'} {startStr}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={stopManualFast} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100">
+                          {locale === 'bg' ? 'Спри' : 'Stop'}
+                        </button>
+                        <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        </button>
+                      </div>
                     </div>
                   );
                 }
-                const minsUntilFast = (20 - h) * 60 - m;
+
+                const isFasting = h >= eatEnd || h < eatStart;
+                if (isFasting) {
+                  const minsUntilEat = h >= eatEnd ? (24 - h + eatStart) * 60 - m : (eatStart - h) * 60 - m;
+                  const fastStartH = h >= eatEnd ? eatEnd : eatEnd; // fasting started at eatEnd
+                  const hrs = Math.floor(minsUntilEat / 60);
+                  const mins = minsUntilEat % 60;
+                  // Time fasted so far
+                  const totalFastMins = (24 - eatEnd + eatStart) * 60;
+                  const fastedMins = totalFastMins - minsUntilEat;
+                  const fHrs = Math.floor(fastedMins / 60);
+                  const fMins = fastedMins % 60;
+                  return (
+                    <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-xl">
+                      <div>
+                        <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
+                        <p className="text-lg font-bold text-purple-700">{fHrs}h {fMins}m {locale === 'bg' ? 'от' : 'fasted'}</p>
+                        <p className="text-[10px] text-purple-400">
+                          {locale === 'bg' ? `От ${String(eatEnd).padStart(2, '0')}:00 · Хранене в ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)` : `Since ${String(eatEnd).padStart(2, '0')}:00 · Eat at ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)`}
+                        </p>
+                      </div>
+                      <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </button>
+                    </div>
+                  );
+                }
+                // Eating window
+                const minsUntilFast = (eatEnd - h) * 60 - m;
                 const hrs = Math.floor(minsUntilFast / 60);
                 const mins = minsUntilFast % 60;
                 return (
-                  <div className="text-left">
-                    <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wider">🍽️ {locale === 'bg' ? 'Хранителен прозорец' : 'Eating Window'}</p>
-                    <p className="text-sm font-bold text-green-700 mt-0.5">{hrs}h {mins}m {locale === 'bg' ? 'остават' : 'left'}</p>
+                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-xl">
+                    <div>
+                      <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wider">🍽️ {locale === 'bg' ? 'Хранителен прозорец' : 'Eating Window'}</p>
+                      <p className="text-lg font-bold text-green-700">{hrs}h {mins}m {locale === 'bg' ? 'остават' : 'left'}</p>
+                      <p className="text-[10px] text-green-400">{String(eatStart).padStart(2, '0')}:00 – {String(eatEnd).padStart(2, '0')}:00</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={startManualFast} className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100">
+                        ⏳ {locale === 'bg' ? 'Започни гладуване' : 'Start Fast'}
+                      </button>
+                      <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      </button>
+                    </div>
                   </div>
                 );
-              })()}
-            </div>
+              })()
+            )}
           </div>
         )}
 
