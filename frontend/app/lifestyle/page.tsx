@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   getRitualDashboard, toggleRitualItem, seedRitualProtocol, getRitualAdherence,
-  createRitualItem, uploadRxImage,
+  createRitualItem, updateRitualItem, uploadRxImage,
   createBPReading,
   createWeightReading, createBodyMeasurement,
   getFoodEntries, createFoodEntry, deleteFoodEntry,
@@ -165,8 +165,14 @@ export default function DailyHubPage() {
   const [logSaving, setLogSaving] = useState(false);
   const [logSummary, setLogSummary] = useState<string[]>([]);
 
-  // BP form
-  const [bpForm, setBpForm] = useState({ systolic: '', diastolic: '', pulse: '', arm: 'left', posture: 'sitting' });
+  // BP form — multi-reading protocol
+  interface BpReading { systolic: string; diastolic: string; pulse: string; }
+  const [bpReadings, setBpReadings] = useState<BpReading[]>([]);
+  const [bpCurrent, setBpCurrent] = useState<BpReading>({ systolic: '', diastolic: '', pulse: '' });
+  const [bpSettings, setBpSettings] = useState({ arm: 'left', posture: 'sitting' });
+  const [bpTimer, setBpTimer] = useState(0); // countdown seconds
+  const [bpWaiting, setBpWaiting] = useState(false);
+  const bpTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Weight form
   const [weightForm, setWeightForm] = useState({ weight_kg: '', body_fat_pct: '' });
@@ -179,6 +185,9 @@ export default function DailyHubPage() {
   // Add new supplement form
   const [showAddSupplement, setShowAddSupplement] = useState(false);
   const [newSupp, setNewSupp] = useState({ name: '', category: 'supplement', dose: '', timing: 'morning', condition: 'daily' });
+  // Inline edit supplement
+  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({ dose: '', timing: '' });
 
   // ---- Load data ----
   const todayStr = new Date().toISOString().split('T')[0];
@@ -291,11 +300,17 @@ export default function DailyHubPage() {
     setLogOpen(true);
     setLogStep('bp');
     setLogSummary([]);
-    setBpForm({ systolic: '', diastolic: '', pulse: '', arm: 'left', posture: 'sitting' });
+    setBpReadings([]);
+    setBpCurrent({ systolic: '', diastolic: '', pulse: '' });
+    setBpSettings({ arm: 'left', posture: 'sitting' });
+    setBpTimer(0); setBpWaiting(false);
+    if (bpTimerRef.current) { clearInterval(bpTimerRef.current); bpTimerRef.current = null; }
     setWeightForm({ weight_kg: '', body_fat_pct: '' });
     setBodyMeas({});
     setShowBodyMeas(false);
     setVitalsForm({ glucose: '', uric_acid: '', heart_rate: '', temperature: '', oxygen: '' });
+    setEditingItemId(null);
+    setShowAddSupplement(false);
   };
 
   const nextStep = () => {
@@ -305,23 +320,93 @@ export default function DailyHubPage() {
 
   const skipStep = () => nextStep();
 
+  // BP multi-reading: record current reading, start timer for next
+  const recordBpReading = () => {
+    if (!bpCurrent.systolic || !bpCurrent.diastolic) return;
+    const newReadings = [...bpReadings, { ...bpCurrent }];
+    setBpReadings(newReadings);
+    setBpCurrent({ systolic: '', diastolic: '', pulse: '' });
+
+    if (newReadings.length < 3) {
+      // Start 60-second countdown for next reading
+      setBpWaiting(true);
+      setBpTimer(60);
+      bpTimerRef.current = setInterval(() => {
+        setBpTimer(prev => {
+          if (prev <= 1) {
+            if (bpTimerRef.current) clearInterval(bpTimerRef.current);
+            bpTimerRef.current = null;
+            setBpWaiting(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
+
+  const skipBpTimer = () => {
+    if (bpTimerRef.current) { clearInterval(bpTimerRef.current); bpTimerRef.current = null; }
+    setBpWaiting(false);
+    setBpTimer(0);
+  };
+
+  // Save all BP readings and compute average
   const saveBP = async () => {
-    if (!bpForm.systolic || !bpForm.diastolic) return nextStep();
+    // Include current form if filled
+    const allReadings = [...bpReadings];
+    if (bpCurrent.systolic && bpCurrent.diastolic) {
+      allReadings.push({ ...bpCurrent });
+    }
+    if (allReadings.length === 0) return nextStep();
+
     setLogSaving(true);
     try {
       const primaryProfile = profiles.find(p => p.is_primary);
-      await createBPReading({
-        systolic: Number(bpForm.systolic), diastolic: Number(bpForm.diastolic),
-        pulse: bpForm.pulse ? Number(bpForm.pulse) : null,
-        arm: bpForm.arm, posture: bpForm.posture,
-        measured_at: new Date().toISOString(),
-        ...(primaryProfile ? { profile: primaryProfile.id } : {}),
-      });
-      const stage = classifyBp(Number(bpForm.systolic), Number(bpForm.diastolic));
-      setLogSummary(prev => [...prev, `BP: ${bpForm.systolic}/${bpForm.diastolic} (${STAGE_LABELS[stage][locale as 'en' | 'bg']})`]);
+      // Save each reading individually
+      for (const r of allReadings) {
+        await createBPReading({
+          systolic: Number(r.systolic), diastolic: Number(r.diastolic),
+          pulse: r.pulse ? Number(r.pulse) : null,
+          arm: bpSettings.arm, posture: bpSettings.posture,
+          measured_at: new Date().toISOString(),
+          ...(primaryProfile ? { profile: primaryProfile.id } : {}),
+        });
+      }
+      // Compute average for summary (AHA: discard 1st if 3+ readings)
+      const forAvg = allReadings.length >= 3 ? allReadings.slice(1) : allReadings;
+      const avgSys = Math.round(forAvg.reduce((s, r) => s + Number(r.systolic), 0) / forAvg.length);
+      const avgDia = Math.round(forAvg.reduce((s, r) => s + Number(r.diastolic), 0) / forAvg.length);
+      const stage = classifyBp(avgSys, avgDia);
+      const note = allReadings.length >= 3
+        ? (locale === 'bg' ? ` (${allReadings.length} изм., ср. без 1-во)` : ` (${allReadings.length} readings, avg excl. 1st)`)
+        : allReadings.length > 1
+        ? (locale === 'bg' ? ` (${allReadings.length} изм.)` : ` (${allReadings.length} readings)`)
+        : '';
+      setLogSummary(prev => [...prev, `BP: ${avgSys}/${avgDia} ${STAGE_LABELS[stage][locale as 'en' | 'bg']}${note}`]);
     } catch { /* continue anyway */ }
     setLogSaving(false);
+    if (bpTimerRef.current) { clearInterval(bpTimerRef.current); bpTimerRef.current = null; }
     nextStep();
+  };
+
+  // Edit supplement inline
+  const startEditItem = (item: RitualItem) => {
+    setEditingItemId(item.id);
+    setEditForm({ dose: item.dose || '', timing: item.timing || 'morning' });
+  };
+
+  const saveEditItem = async () => {
+    if (editingItemId === null) return;
+    try {
+      await updateRitualItem(editingItemId, { dose: editForm.dose, timing: editForm.timing });
+      // Update local dashboard state
+      setDashboard(prev => {
+        if (!prev) return prev;
+        return { ...prev, items: prev.items.map(i => i.id === editingItemId ? { ...i, dose: editForm.dose, timing: editForm.timing } : i) };
+      });
+    } catch { /* */ }
+    setEditingItemId(null);
   };
 
   const saveWeight = async () => {
@@ -433,8 +518,8 @@ export default function DailyHubPage() {
   const todayFat = foods.reduce((s, f) => s + Number(f.fat), 0);
   const calPct = Math.min(100, Math.round((todayCals / KCAL_TARGET) * 100));
 
-  const bpStage = (bpForm.systolic && bpForm.diastolic)
-    ? classifyBp(Number(bpForm.systolic), Number(bpForm.diastolic))
+  const bpStage = (bpCurrent.systolic && bpCurrent.diastolic)
+    ? classifyBp(Number(bpCurrent.systolic), Number(bpCurrent.diastolic))
     : null;
 
   const stepIdx = LOG_STEPS.indexOf(logStep);
@@ -740,39 +825,119 @@ export default function DailyHubPage() {
           </div>
         )}
 
-        {/* ── Step 1: Blood Pressure ── */}
+        {/* ── Step 1: Blood Pressure (multi-reading protocol) ── */}
         {logStep === 'bp' && (
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
-              <Input label={locale === 'bg' ? 'Систолично' : 'Systolic'} type="number" inputMode="numeric" placeholder="120" value={bpForm.systolic}
-                onChange={(e) => setBpForm(p => ({ ...p, systolic: e.target.value }))} />
-              <Input label={locale === 'bg' ? 'Диастолично' : 'Diastolic'} type="number" inputMode="numeric" placeholder="80" value={bpForm.diastolic}
-                onChange={(e) => setBpForm(p => ({ ...p, diastolic: e.target.value }))} />
-              <Input label={locale === 'bg' ? 'Пулс' : 'Pulse'} type="number" inputMode="numeric" placeholder="72" value={bpForm.pulse}
-                onChange={(e) => setBpForm(p => ({ ...p, pulse: e.target.value }))} />
-            </div>
-            {bpStage && (
-              <div className={`text-center py-2 rounded-xl font-semibold text-sm ${STAGE_COLORS[bpStage]} ${bpStage === 'normal' ? 'bg-emerald-50' : bpStage === 'elevated' ? 'bg-yellow-50' : 'bg-red-50'}`}>
-                {STAGE_LABELS[bpStage][locale as 'en' | 'bg']}
+            {/* Helper text */}
+            <p className="text-xs text-gray-500">
+              {locale === 'bg'
+                ? 'Измерете до 3 пъти с 1 мин почивка. При 3+ измервания първото се игнорира (AHA протокол).'
+                : 'Take up to 3 readings with 1 min rest between. With 3+ readings the first is discarded (AHA protocol).'}
+            </p>
+
+            {/* Previous readings */}
+            {bpReadings.length > 0 && (
+              <div className="space-y-1.5">
+                {bpReadings.map((r, i) => {
+                  const st = classifyBp(Number(r.systolic), Number(r.diastolic));
+                  const discarded = bpReadings.length >= 2 && i === 0; // will be discarded if 3rd is taken
+                  return (
+                    <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${discarded ? 'bg-gray-100 text-gray-400 line-through' : 'bg-emerald-50 text-emerald-800'}`}>
+                      <span>#{i + 1}: {r.systolic}/{r.diastolic}{r.pulse ? ` · ${r.pulse} bpm` : ''}</span>
+                      <span className={`text-xs font-medium ${discarded ? 'text-gray-400' : STAGE_COLORS[st]}`}>
+                        {STAGE_LABELS[st][locale as 'en' | 'bg']}
+                        {discarded && ` (${locale === 'bg' ? 'пропуска се' : 'discarded'})`}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
-              <Select label={locale === 'bg' ? 'Ръка' : 'Arm'} value={bpForm.arm} onChange={(e) => setBpForm(p => ({ ...p, arm: e.target.value }))}>
-                <option value="left">{locale === 'bg' ? 'Лява' : 'Left'}</option>
-                <option value="right">{locale === 'bg' ? 'Дясна' : 'Right'}</option>
-              </Select>
-              <Select label={locale === 'bg' ? 'Позиция' : 'Posture'} value={bpForm.posture} onChange={(e) => setBpForm(p => ({ ...p, posture: e.target.value }))}>
-                <option value="sitting">{locale === 'bg' ? 'Седнал' : 'Sitting'}</option>
-                <option value="standing">{locale === 'bg' ? 'Прав' : 'Standing'}</option>
-                <option value="lying">{locale === 'bg' ? 'Легнал' : 'Lying'}</option>
-              </Select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button onClick={saveBP} disabled={logSaving} className="flex-1">
-                {logSaving ? '...' : bpForm.systolic ? (locale === 'bg' ? 'Запази и продължи' : 'Save & Next') : (locale === 'bg' ? 'Напред' : 'Next')}
-              </Button>
-              <Button variant="ghost" onClick={skipStep}>{locale === 'bg' ? 'Пропусни' : 'Skip'}</Button>
-            </div>
+
+            {/* Timer between readings */}
+            {bpWaiting && (
+              <div className="flex items-center justify-center gap-3 py-4 bg-indigo-50 rounded-xl">
+                <div className="relative w-14 h-14">
+                  <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
+                    <circle cx="28" cy="28" r="24" fill="none" stroke="#e0e7ff" strokeWidth="4" />
+                    <circle cx="28" cy="28" r="24" fill="none" stroke="#6366f1" strokeWidth="4" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 24}`}
+                      strokeDashoffset={`${2 * Math.PI * 24 * (1 - bpTimer / 60)}`}
+                      style={{ transition: 'stroke-dashoffset 1s linear' }}
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold text-indigo-700">{bpTimer}</span>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-indigo-800">
+                    {locale === 'bg' ? 'Почивайте 1 минута...' : 'Rest for 1 minute...'}
+                  </p>
+                  <p className="text-xs text-indigo-500 mt-1">
+                    {locale === 'bg' ? `Измерване ${bpReadings.length + 1} от 3` : `Reading ${bpReadings.length + 1} of 3`}
+                  </p>
+                  <button onClick={skipBpTimer} className="text-xs text-indigo-600 underline mt-2 hover:text-indigo-800">
+                    {locale === 'bg' ? 'Пропусни изчакването' : 'Skip wait'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Input fields (hidden during timer) */}
+            {!bpWaiting && bpReadings.length < 3 && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <Input label={locale === 'bg' ? 'Систолично' : 'Systolic'} type="number" inputMode="numeric" placeholder="120" value={bpCurrent.systolic}
+                    onChange={(e) => setBpCurrent(p => ({ ...p, systolic: e.target.value }))} />
+                  <Input label={locale === 'bg' ? 'Диастолично' : 'Diastolic'} type="number" inputMode="numeric" placeholder="80" value={bpCurrent.diastolic}
+                    onChange={(e) => setBpCurrent(p => ({ ...p, diastolic: e.target.value }))} />
+                  <Input label={locale === 'bg' ? 'Пулс' : 'Pulse'} type="number" inputMode="numeric" placeholder="72" value={bpCurrent.pulse}
+                    onChange={(e) => setBpCurrent(p => ({ ...p, pulse: e.target.value }))} />
+                </div>
+                {bpStage && (
+                  <div className={`text-center py-2 rounded-xl font-semibold text-sm ${STAGE_COLORS[bpStage]} ${bpStage === 'normal' ? 'bg-emerald-50' : bpStage === 'elevated' ? 'bg-yellow-50' : 'bg-red-50'}`}>
+                    {STAGE_LABELS[bpStage][locale as 'en' | 'bg']}
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Arm & Posture (only on first reading) */}
+            {bpReadings.length === 0 && !bpWaiting && (
+              <div className="grid grid-cols-2 gap-3">
+                <Select label={locale === 'bg' ? 'Ръка' : 'Arm'} value={bpSettings.arm} onChange={(e) => setBpSettings(p => ({ ...p, arm: e.target.value }))}>
+                  <option value="left">{locale === 'bg' ? 'Лява' : 'Left'}</option>
+                  <option value="right">{locale === 'bg' ? 'Дясна' : 'Right'}</option>
+                </Select>
+                <Select label={locale === 'bg' ? 'Позиция' : 'Posture'} value={bpSettings.posture} onChange={(e) => setBpSettings(p => ({ ...p, posture: e.target.value }))}>
+                  <option value="sitting">{locale === 'bg' ? 'Седнал' : 'Sitting'}</option>
+                  <option value="standing">{locale === 'bg' ? 'Прав' : 'Standing'}</option>
+                  <option value="lying">{locale === 'bg' ? 'Легнал' : 'Lying'}</option>
+                </Select>
+              </div>
+            )}
+
+            {/* Action buttons */}
+            {!bpWaiting && (
+              <div className="flex gap-3 pt-2">
+                {bpReadings.length < 3 && bpCurrent.systolic && bpCurrent.diastolic ? (
+                  <Button onClick={recordBpReading} className="flex-1">
+                    {locale === 'bg' ? `Запиши #${bpReadings.length + 1}` : `Record #${bpReadings.length + 1}`}
+                    {bpReadings.length < 2 && <span className="text-xs opacity-70 ml-1">({locale === 'bg' ? 'после 1 мин' : 'then 1 min'})</span>}
+                  </Button>
+                ) : bpReadings.length > 0 ? (
+                  <Button onClick={saveBP} disabled={logSaving} className="flex-1">
+                    {logSaving ? '...' : locale === 'bg' ? `Запази ${bpReadings.length} изм. и продължи` : `Save ${bpReadings.length} reading${bpReadings.length > 1 ? 's' : ''} & Next`}
+                  </Button>
+                ) : (
+                  <Button onClick={saveBP} disabled={logSaving} className="flex-1">
+                    {locale === 'bg' ? 'Напред' : 'Next'}
+                  </Button>
+                )}
+                <Button variant="ghost" onClick={() => { if (bpTimerRef.current) clearInterval(bpTimerRef.current); skipStep(); }}>
+                  {locale === 'bg' ? 'Пропусни' : 'Skip'}
+                </Button>
+              </div>
+            )}
           </div>
         )}
 
@@ -826,34 +991,78 @@ export default function DailyHubPage() {
         {logStep === 'supplements' && dashboard && (
           <div className="space-y-3">
             <p className="text-xs text-gray-500 mb-2">
-              {locale === 'bg' ? 'Отбележете какво сте взели днес:' : 'Check off what you took today:'}
+              {locale === 'bg'
+                ? 'Отбележете какво сте взели днес. Натиснете ✏️ за промяна на доза или време.'
+                : 'Check off what you took today. Tap ✏️ to edit dose or timing.'}
             </p>
             <div className="max-h-[40vh] overflow-y-auto space-y-1.5">
               {dashboard.items
                 .filter(i => ['supplement', 'medication', 'injection'].includes(i.category))
-                .map((item) => (
-                  <div
-                    key={item.id}
-                    onClick={() => handleToggle(item.id)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all active:scale-[0.98] ${
-                      item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200 hover:border-indigo-200'
-                    }`}
-                  >
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                      item.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'
+                .map((item) => {
+                  const isEditing = editingItemId === item.id;
+                  const timingLabel = TIMING_OPTIONS.find(o => o.value === item.timing);
+
+                  return (
+                    <div key={item.id} className={`rounded-xl border transition-all ${
+                      item.completed ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
                     }`}>
-                      {item.completed && (
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
+                      {/* Main row */}
+                      <div className="flex items-center gap-3 p-3">
+                        {/* Checkbox */}
+                        <button
+                          onClick={() => handleToggle(item.id)}
+                          className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all active:scale-90 ${
+                            item.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-indigo-400'
+                          }`}
+                        >
+                          {item.completed && (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm font-medium text-gray-900">{CAT_ICON[item.category]} {item.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-400">
+                            {item.dose && <span>{item.dose}</span>}
+                            {timingLabel && <span>· {locale === 'bg' ? timingLabel.bg : timingLabel.en}</span>}
+                          </div>
+                          {item.instructions && !item.completed && (
+                            <p className="text-[11px] text-gray-400 mt-0.5 italic">{item.instructions}</p>
+                          )}
+                        </div>
+                        {/* Edit button */}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); isEditing ? setEditingItemId(null) : startEditItem(item); }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 active:scale-90 shrink-0"
+                        >
+                          <span className="text-sm">{isEditing ? '✕' : '✏️'}</span>
+                        </button>
+                      </div>
+
+                      {/* Inline edit panel */}
+                      {isEditing && (
+                        <div className="px-3 pb-3 pt-1 border-t border-gray-100 bg-gray-50/50 rounded-b-xl">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input label={locale === 'bg' ? 'Доза' : 'Dose'} value={editForm.dose} placeholder="e.g. 500mg, half pill"
+                              onChange={(e) => setEditForm(p => ({ ...p, dose: e.target.value }))} />
+                            <Select label={locale === 'bg' ? 'Кога' : 'When'} value={editForm.timing}
+                              onChange={(e) => setEditForm(p => ({ ...p, timing: e.target.value }))}>
+                              {TIMING_OPTIONS.map((o) => <option key={o.value} value={o.value}>{locale === 'bg' ? o.bg : o.en}</option>)}
+                            </Select>
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <Button size="sm" onClick={saveEditItem}>{locale === 'bg' ? 'Запази' : 'Save'}</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setEditingItemId(null)}>{t('common.cancel', locale)}</Button>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-gray-900">{CAT_ICON[item.category]} {item.name}</span>
-                      {item.dose && <span className="text-xs text-gray-400 ml-2">{item.dose}</span>}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
 
             {/* Add new supplement */}
@@ -879,7 +1088,7 @@ export default function DailyHubPage() {
                       <option value="medication">{locale === 'bg' ? 'Лекарство' : 'Medication'}</option>
                       <option value="injection">{locale === 'bg' ? 'Инжекция' : 'Injection'}</option>
                     </Select>
-                    <Input label={locale === 'bg' ? 'Доза' : 'Dose'} value={newSupp.dose} placeholder="e.g. 500mg"
+                    <Input label={locale === 'bg' ? 'Доза' : 'Dose'} value={newSupp.dose} placeholder="e.g. 500mg, half pill"
                       onChange={(e) => setNewSupp(p => ({ ...p, dose: e.target.value }))} />
                     <Select label={locale === 'bg' ? 'Кога' : 'When'} value={newSupp.timing}
                       onChange={(e) => setNewSupp(p => ({ ...p, timing: e.target.value }))}>

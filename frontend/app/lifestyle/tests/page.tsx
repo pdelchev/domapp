@@ -123,7 +123,7 @@ export default function TestPanelPage() {
                 <p className={`text-lg font-bold ${panel.is_overdue ? 'text-red-600' : 'text-gray-900'}`}>
                   {formatDate(panel.next_test_date)}
                   {panel.is_overdue && (
-                    <Badge color="red" className="ml-2">{t('panel.overdue', locale)}</Badge>
+                    <span className="ml-2"><Badge color="red">{t('panel.overdue', locale)}</Badge></span>
                   )}
                 </p>
                 {panel.last_test_date && (
