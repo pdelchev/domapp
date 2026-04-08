@@ -62,7 +62,7 @@ export function Input({
   className = '',
   ...props
 }: {
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
 } & React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -91,7 +91,7 @@ export function Select({
   className = '',
   ...props
 }: {
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
 } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
@@ -120,7 +120,7 @@ export function Textarea({
   className = '',
   ...props
 }: {
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
 } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (

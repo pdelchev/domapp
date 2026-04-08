@@ -132,6 +132,7 @@ export default function PropertyForm({
   const [deedParsing, setDeedParsing] = useState(false);
   const [deedSuccess, setDeedSuccess] = useState('');
   const [deedError, setDeedError] = useState('');
+  const [aiFilledFields, setAiFilledFields] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -161,10 +162,7 @@ export default function PropertyForm({
         setDeedError(result.error);
       } else if (result.parsed_fields) {
         const fields = result.parsed_fields;
-        setForm((prev) => {
-          const updated = { ...prev };
-          // Only fill empty fields — don't overwrite existing data
-          const fieldMap: Record<string, keyof PropertyFormData> = {
+        const fieldMap: Record<string, keyof PropertyFormData> = {
             address: 'address',
             city: 'city',
             country: 'country',
@@ -179,19 +177,24 @@ export default function PropertyForm({
             seller_name: 'seller_name',
             property_registry_number: 'property_registry_number',
           };
+        const filledByAi = new Set<string>();
+        setForm((prev) => {
+          const updated = { ...prev };
           for (const [parseKey, formKey] of Object.entries(fieldMap)) {
             if (fields[parseKey] && !updated[formKey]) {
               (updated as Record<string, string>)[formKey] = String(fields[parseKey]);
+              filledByAi.add(formKey);
             }
           }
-          // Append extra notes
           if (fields._extra_notes) {
             updated.notes = updated.notes
               ? `${updated.notes}\n\n${fields._extra_notes}`
               : fields._extra_notes;
+            filledByAi.add('notes');
           }
           return updated;
         });
+        setAiFilledFields(filledByAi);
         setDeedSuccess(t('properties.deed_parsed', locale));
         // Auto-open relevant sections
         setOpenSections((prev) => ({ ...prev, notary: true, land: true, mortgage: !!fields.mortgage_provider }));
@@ -208,6 +211,11 @@ export default function PropertyForm({
     }
   };
 
+  const aiBadge = (field: string, label: string) =>
+    aiFilledFields.has(field)
+      ? <>{label} <span className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded">✦ AI</span></>
+      : label;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(form);
@@ -218,37 +226,59 @@ export default function PropertyForm({
       <Alert type="error" message={error} />
       <Alert type="success" message={success} />
 
-      {/* Notary Deed Upload */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">📜</span>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-gray-900">{t('properties.upload_deed', locale)}</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {locale === 'bg' ? 'Качете PDF и полетата ще се попълнят автоматично' : 'Upload a PDF and fields will be auto-filled'}
-            </p>
+      {/* Notary Deed Upload — primary action */}
+      <div className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+        deedParsing ? 'border-indigo-400 bg-indigo-50' : 'border-indigo-300 bg-gradient-to-b from-indigo-50 to-white hover:border-indigo-400'
+      }`}>
+        <div className="text-4xl mb-2">📜</div>
+        <p className="text-base font-semibold text-gray-900">
+          {t('properties.upload_deed', locale)}
+        </p>
+        <p className="text-sm text-gray-500 mt-1 mb-4">
+          {locale === 'bg'
+            ? 'Качете нотариален акт (PDF) и полетата ще се попълнят автоматично с AI'
+            : 'Upload a notary deed (PDF) and fields will be auto-filled with AI'}
+        </p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf"
+          onChange={handleDeedUpload}
+          className="hidden"
+          id="deed-upload"
+        />
+        <Button
+          type="button"
+          variant="primary"
+          disabled={deedParsing}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {deedParsing
+            ? t('properties.parsing_deed', locale)
+            : locale === 'bg' ? '📄 Избери PDF файл' : '📄 Choose PDF File'}
+        </Button>
+        {deedSuccess && (
+          <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
+            <span className="text-green-600 text-xs">✦</span>
+            <p className="text-xs font-medium text-green-700">{deedSuccess}</p>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf"
-            onChange={handleDeedUpload}
-            className="hidden"
-            id="deed-upload"
-          />
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={deedParsing}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            {deedParsing ? t('properties.parsing_deed', locale) : locale === 'bg' ? 'Избери файл' : 'Choose File'}
-          </Button>
-        </div>
-        {deedSuccess && <p className="text-xs text-green-700 mt-2">{deedSuccess}</p>}
-        {deedError && <p className="text-xs text-amber-700 mt-2">{deedError}</p>}
+        )}
+        {deedError && (
+          <p className="text-xs text-amber-700 mt-3">{deedError}</p>
+        )}
+        {aiFilledFields.size > 0 && (
+          <p className="text-xs text-indigo-500 mt-2">
+            <span className="text-indigo-600">✦</span> = {locale === 'bg' ? 'извлечено от нотариален акт' : 'extracted from notary deed'}
+          </p>
+        )}
       </div>
+      {!deedSuccess && (
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-gray-400 font-medium">{locale === 'bg' ? 'или попълнете ръчно' : 'or fill in manually'}</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+      )}
 
       {/* Basic Information */}
       <FormSection title={t('properties.section.basic', locale)} icon="🏢" open={!!openSections.basic} onToggle={() => toggle('basic')}>
@@ -261,11 +291,11 @@ export default function PropertyForm({
             ))}
           </Select>
         </div>
-        <Textarea label={t('properties.address', locale)} value={form.address} onChange={(e) => set('address', e.target.value)} rows={2} required />
+        <Textarea label={aiBadge('address', t('properties.address', locale))} value={form.address} onChange={(e) => set('address', e.target.value)} rows={2} required />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input label={t('properties.city', locale)} value={form.city} onChange={(e) => set('city', e.target.value)} required />
-          <Input label={t('properties.country', locale)} value={form.country} onChange={(e) => set('country', e.target.value)} />
-          <Select label={t('properties.type', locale)} value={form.property_type} onChange={(e) => set('property_type', e.target.value)}>
+          <Input label={aiBadge('city', t('properties.city', locale))} value={form.city} onChange={(e) => set('city', e.target.value)} required />
+          <Input label={aiBadge('country', t('properties.country', locale))} value={form.country} onChange={(e) => set('country', e.target.value)} />
+          <Select label={aiBadge('property_type', t('properties.type', locale))} value={form.property_type} onChange={(e) => set('property_type', e.target.value)}>
             <option value="apartment">{t('type.apartment', locale)}</option>
             <option value="house">{t('type.house', locale)}</option>
             <option value="studio">{t('type.studio', locale)}</option>
@@ -294,20 +324,20 @@ export default function PropertyForm({
       {/* Notary Deed Info */}
       <FormSection title={t('properties.section.notary', locale)} icon="📜" open={!!openSections.notary} onToggle={() => toggle('notary')}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label={t('properties.notary_act_number', locale)} value={form.notary_act_number} onChange={(e) => set('notary_act_number', e.target.value)} />
-          <Input label={t('properties.notary_act_date', locale)} type="date" value={form.notary_act_date} onChange={(e) => set('notary_act_date', e.target.value)} />
-          <Input label={t('properties.seller_name', locale)} value={form.seller_name} onChange={(e) => set('seller_name', e.target.value)} />
-          <Input label={t('properties.property_registry_number', locale)} value={form.property_registry_number} onChange={(e) => set('property_registry_number', e.target.value)} />
+          <Input label={aiBadge('notary_act_number', t('properties.notary_act_number', locale))} value={form.notary_act_number} onChange={(e) => set('notary_act_number', e.target.value)} />
+          <Input label={aiBadge('notary_act_date', t('properties.notary_act_date', locale))} type="date" value={form.notary_act_date} onChange={(e) => set('notary_act_date', e.target.value)} />
+          <Input label={aiBadge('seller_name', t('properties.seller_name', locale))} value={form.seller_name} onChange={(e) => set('seller_name', e.target.value)} />
+          <Input label={aiBadge('property_registry_number', t('properties.property_registry_number', locale))} value={form.property_registry_number} onChange={(e) => set('property_registry_number', e.target.value)} />
         </div>
       </FormSection>
 
       {/* Land & Acquisition */}
       <FormSection title={t('properties.section.land', locale)} icon="📐" open={!!openSections.land} onToggle={() => toggle('land')}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input label={t('properties.cadastral', locale)} value={form.cadastral_number} onChange={(e) => set('cadastral_number', e.target.value)} />
-          <Input label={t('properties.sqm', locale)} type="number" value={form.square_meters} onChange={(e) => set('square_meters', e.target.value)} />
-          <Input label={t('properties.purchase_price', locale)} type="number" value={form.purchase_price} onChange={(e) => set('purchase_price', e.target.value)} />
-          <Input label={t('properties.purchase_date', locale)} type="date" value={form.purchase_date} onChange={(e) => set('purchase_date', e.target.value)} />
+          <Input label={aiBadge('cadastral_number', t('properties.cadastral', locale))} value={form.cadastral_number} onChange={(e) => set('cadastral_number', e.target.value)} />
+          <Input label={aiBadge('square_meters', t('properties.sqm', locale))} type="number" value={form.square_meters} onChange={(e) => set('square_meters', e.target.value)} />
+          <Input label={aiBadge('purchase_price', t('properties.purchase_price', locale))} type="number" value={form.purchase_price} onChange={(e) => set('purchase_price', e.target.value)} />
+          <Input label={aiBadge('purchase_date', t('properties.purchase_date', locale))} type="date" value={form.purchase_date} onChange={(e) => set('purchase_date', e.target.value)} />
           <Input label={t('properties.current_value', locale)} type="number" value={form.current_value} onChange={(e) => set('current_value', e.target.value)} />
         </div>
       </FormSection>
@@ -315,7 +345,7 @@ export default function PropertyForm({
       {/* Mortgage */}
       <FormSection title={t('properties.section.mortgage', locale)} icon="🏦" open={!!openSections.mortgage} onToggle={() => toggle('mortgage')}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Input label={t('properties.mortgage_provider', locale)} value={form.mortgage_provider} onChange={(e) => set('mortgage_provider', e.target.value)} />
+          <Input label={aiBadge('mortgage_provider', t('properties.mortgage_provider', locale))} value={form.mortgage_provider} onChange={(e) => set('mortgage_provider', e.target.value)} />
           <Input label={t('properties.mortgage_account', locale)} value={form.mortgage_account_number} onChange={(e) => set('mortgage_account_number', e.target.value)} />
           <Input label={t('properties.mortgage_payment', locale)} type="number" value={form.mortgage_monthly_payment} onChange={(e) => set('mortgage_monthly_payment', e.target.value)} />
         </div>
