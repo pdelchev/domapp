@@ -297,6 +297,30 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/vehicles/obligations/<id>/files/` | GET, POST | List/upload files for obligation |
 | `/api/vehicles/obligations/files/<id>/` | DELETE | Delete uploaded file |
 
+## Health Data-Driven Guardrail (CRITICAL)
+
+All health-related recommendations MUST be grounded in the user's actual data. Never generate generic advice — always pull from real measurements.
+
+### Data Sources (Priority Order)
+1. **Blood test results** — biomarker flags, trends, system scores from `/api/health/dashboard/` and `/api/health/reports/`
+2. **Blood pressure** — 30-day averages, AHA staging from `/api/health/bp/dashboard/`
+3. **WHOOP recovery** — HRV, RHR, recovery score, sleep quality, strain from `/api/health/whoop/dashboard/`
+4. **Weight & body composition** — BMI, body fat %, trend from weight entries
+5. **Daily ritual adherence** — supplement compliance, skipped items
+
+### What This Means in Practice
+- **Meal plan changes** — Must reference specific biomarker flags (e.g., "high uric acid → reduce purine", "elevated glucose → lower GI foods", "low Vitamin D → add fatty fish"). Never change meals without a data reason.
+- **Supplement dose changes** — Must reference blood results or BP data (e.g., "Vitamin D still low after 3 months → increase from 2000IU to 4000IU", "BP well-controlled → review CoQ10 dose"). Never adjust doses arbitrarily.
+- **Gym routine changes** — Must reference WHOOP strain/recovery data (e.g., "avg recovery <40% → reduce volume", "HRV trending up → can increase intensity"). Also reference blood markers (e.g., "elevated liver enzymes + high strain → more rest days").
+- **Daily ritual/protocol changes** — Must reference adherence data + health outcomes (e.g., "sleep score improved since adding Glycine → keep", "BP still elevated → review medication timing").
+- **Test panel additions** — Already data-driven via `health/test_panel.py` — dynamic tests are triggered by blood/BP/WHOOP/weight data.
+
+### Never Do
+- Add/remove supplements without referencing blood test or BP data
+- Change meal plan without referencing biomarker flags
+- Modify gym intensity without checking WHOOP recovery trends
+- Make health recommendations based on general knowledge alone — always check the user's actual numbers first
+
 ## Conventions
 - **All data is user-scoped**: Every model has a `user` FK to the manager. Querysets filter by `request.user`.
 - **Frontend pages**: `'use client'` directive, React hooks, `useLanguage()` for locale, `t()` for translations.
