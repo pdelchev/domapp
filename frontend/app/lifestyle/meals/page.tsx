@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createFoodEntry } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Badge } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Badge, Button } from '../../components/ui';
 
 // 15-day rotating meal plan — targets: lower glucose, protect liver, reduce uric acid
 // Mediterranean-style, low glycemic, anti-inflammatory
@@ -133,16 +134,38 @@ const PRINCIPLES = {
   ],
 };
 
+const MEAL_TYPE_MAP: Record<string, string> = { breakfast: 'breakfast', lunch: 'lunch', dinner: 'dinner', snacks: 'snack' };
+
 export default function MealPlanPage() {
   const router = useRouter();
   const { locale } = useLanguage();
   const [selectedDay, setSelectedDay] = useState(0);
   const [showIngredients, setShowIngredients] = useState(false);
+  const [loggedMeals, setLoggedMeals] = useState<Set<string>>(new Set());
+  const [logging, setLogging] = useState<string | null>(null);
 
   const meals = locale === 'bg' ? MEALS_BG : MEALS;
   const day = meals[selectedDay];
   const ingredients = locale === 'bg' ? INGREDIENTS_BG : INGREDIENTS;
   const dayIngr = ingredients[selectedDay];
+
+  const handleLogMeal = async (mealKey: string, mealText: string) => {
+    const logKey = `${selectedDay}-${mealKey}`;
+    if (loggedMeals.has(logKey)) return;
+    setLogging(mealKey);
+    try {
+      await createFoodEntry({
+        name: mealText.length > 100 ? mealText.slice(0, 97) + '...' : mealText,
+        meal_type: MEAL_TYPE_MAP[mealKey] || 'lunch',
+        calories: 0,
+        protein: 0, carbs: 0, fat: 0, fiber: 0,
+        serving_size: `Day ${selectedDay + 1}`,
+        eaten_at: new Date().toISOString(),
+      });
+      setLoggedMeals(prev => new Set(prev).add(logKey));
+    } catch { /* */ }
+    setLogging(null);
+  };
 
   return (
     <PageShell>
@@ -198,19 +221,41 @@ export default function MealPlanPage() {
             { key: 'lunch', icon: '☀️', text: day.l },
             { key: 'dinner', icon: '🌙', text: day.d },
             { key: 'snacks', icon: '🥜', text: day.s },
-          ].map((meal) => (
-            <Card key={meal.key}>
-              <div className="flex items-start gap-2.5">
-                <span className="text-xl">{meal.icon}</span>
-                <div>
-                  <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                    {t(`lifestyle.${meal.key}`, locale)}
-                  </h4>
-                  <p className="text-sm text-gray-800 leading-relaxed">{meal.text}</p>
+          ].map((meal) => {
+            const logKey = `${selectedDay}-${meal.key}`;
+            const isLogged = loggedMeals.has(logKey);
+            const isLogging = logging === meal.key;
+            return (
+              <Card key={meal.key}>
+                <div className="flex items-start gap-2.5">
+                  <span className="text-xl">{meal.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                        {t(`lifestyle.${meal.key}`, locale)}
+                      </h4>
+                      {isLogged ? (
+                        <span className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                          ✓ {locale === 'bg' ? 'Записано' : 'Logged'}
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleLogMeal(meal.key, meal.text)}
+                          disabled={isLogging}
+                          className="!h-7 !px-2 !text-xs"
+                        >
+                          {isLogging ? '...' : locale === 'bg' ? '📋 Запиши' : '📋 Log'}
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-800 leading-relaxed">{meal.text}</p>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
 
         {/* Shopping List Toggle */}

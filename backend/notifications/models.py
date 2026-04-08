@@ -9,6 +9,7 @@ class Notification(models.Model):
         ('lease_expiry', 'Lease Expiry'),
         ('document_expiry', 'Document Expiry'),
         ('payment_received', 'Payment Received'),
+        ('health', 'Health Alert'),
         ('info', 'Info'),
     ]
 
