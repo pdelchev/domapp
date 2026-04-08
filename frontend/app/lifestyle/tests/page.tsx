@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTestPanel } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Badge, Spinner, EmptyState } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Badge, Spinner, EmptyState, Button } from '../../components/ui';
 
 interface PanelTest {
   name: string;
@@ -34,25 +34,9 @@ interface PanelData {
   };
 }
 
-const TRIGGER_ICONS: Record<string, string> = {
-  blood: '🩸',
-  bp: '💓',
-  whoop: '⌚',
-  weight: '⚖️',
-};
-
-const TRIGGER_COLORS: Record<string, string> = {
-  blood: 'red',
-  bp: 'purple',
-  whoop: 'green',
-  weight: 'yellow',
-};
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: 'red',
-  medium: 'yellow',
-  low: 'blue',
-};
+const TRIGGER_ICONS: Record<string, string> = { blood: '🩸', bp: '💓', whoop: '⌚', weight: '⚖️' };
+const TRIGGER_COLORS: Record<string, string> = { blood: 'red', bp: 'purple', whoop: 'green', weight: 'yellow' };
+const PRIORITY_COLORS: Record<string, string> = { high: 'red', medium: 'yellow', low: 'blue' };
 
 export default function TestPanelPage() {
   const router = useRouter();
@@ -60,7 +44,7 @@ export default function TestPanelPage() {
   const [panel, setPanel] = useState<PanelData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const printRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     getTestPanel()
@@ -69,10 +53,6 @@ export default function TestPanelPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + 'T00:00:00');
     return d.toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-GB', {
@@ -80,21 +60,58 @@ export default function TestPanelPage() {
     });
   };
 
+  // Build lab-readable text
+  const buildLabText = () => {
+    if (!panel) return '';
+    const lines: string[] = [];
+    lines.push(locale === 'bg' ? '=== КРЪВНИ ИЗСЛЕДВАНИЯ ===' : '=== BLOOD TEST PANEL ===');
+    lines.push('');
+    lines.push(locale === 'bg' ? '--- Основен панел ---' : '--- Base Panel ---');
+    panel.base_panel.forEach((test, i) => {
+      lines.push(`${i + 1}. ${locale === 'bg' ? test.name_bg : test.name}`);
+    });
+    if (panel.additional_tests.length > 0) {
+      lines.push('');
+      lines.push(locale === 'bg' ? '--- Допълнителни ---' : '--- Additional ---');
+      panel.additional_tests.forEach((test, i) => {
+        lines.push(`${panel.base_panel.length + i + 1}. ${locale === 'bg' ? test.name_bg : test.name}`);
+      });
+    }
+    lines.push('');
+    lines.push(`${locale === 'bg' ? 'Общо' : 'Total'}: ${panel.total_tests} ${locale === 'bg' ? 'изследвания' : 'tests'}`);
+    return lines.join('\n');
+  };
+
+  const handleCopy = async () => {
+    const text = buildLabText();
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
   if (loading) return (
-    <PageShell>
-      <NavBar />
-      <PageContent size="md"><Spinner message={t('common.loading', locale)} /></PageContent>
-    </PageShell>
+    <PageShell><NavBar /><PageContent size="md"><Spinner message={t('common.loading', locale)} /></PageContent></PageShell>
   );
 
   if (error || !panel) return (
-    <PageShell>
-      <NavBar />
-      <PageContent size="md">
-        <EmptyState icon="🧪" message={error || t('panel.no_previous', locale)} />
-      </PageContent>
-    </PageShell>
+    <PageShell><NavBar /><PageContent size="md">
+      <EmptyState icon="🧪" message={error || t('panel.no_previous', locale)} />
+    </PageContent></PageShell>
   );
+
+  const labText = buildLabText();
 
   return (
     <PageShell>
@@ -104,17 +121,9 @@ export default function TestPanelPage() {
           title={t('panel.title', locale)}
           backLabel={t('common.back', locale)}
           onBack={() => router.push('/lifestyle')}
-          action={
-            <button
-              onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 print:hidden"
-            >
-              🖨️ {t('panel.print', locale)}
-            </button>
-          }
         />
 
-        <div ref={printRef} className="space-y-4">
+        <div className="space-y-4">
           {/* Status Card */}
           <Card>
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -150,23 +159,42 @@ export default function TestPanelPage() {
               </div>
             </div>
 
-            {/* Trigger summary badges */}
             {panel.summary.additional_count > 0 && (
               <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
                 {Object.entries(panel.summary.triggers)
                   .filter(([, count]) => count > 0)
                   .map(([trigger, count]) => (
                     <span key={trigger} className="inline-flex items-center gap-1 px-2 py-1 bg-gray-50 rounded-lg text-xs text-gray-600">
-                      {TRIGGER_ICONS[trigger] || '📊'} {count} {locale === 'bg'
-                        ? t(`panel.trigger_${trigger}`, locale)
-                        : t(`panel.trigger_${trigger}`, locale)}
+                      {TRIGGER_ICONS[trigger] || '📊'} {count} {t(`panel.trigger_${trigger}`, locale)}
                     </span>
                   ))}
               </div>
             )}
           </Card>
 
-          {/* Base Panel */}
+          {/* Lab Text — for reading to lab personnel */}
+          <Card className="!bg-blue-50 !border-blue-200">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-blue-800">
+                📋 {locale === 'bg' ? 'За лабораторията' : 'For the Lab'}
+              </h3>
+              <Button size="sm" variant="secondary" onClick={handleCopy}>
+                {copied
+                  ? (locale === 'bg' ? '✓ Копирано' : '✓ Copied')
+                  : (locale === 'bg' ? '📄 Копирай' : '📄 Copy')}
+              </Button>
+            </div>
+            <p className="text-xs text-blue-600 mb-2">
+              {locale === 'bg'
+                ? 'Прочетете този списък на лаборанта или копирайте и изпратете:'
+                : 'Read this list to the lab technician or copy and send:'}
+            </p>
+            <pre className="text-sm text-blue-900 bg-white border border-blue-200 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed select-all">
+              {labText}
+            </pre>
+          </Card>
+
+          {/* Base Panel — simple list */}
           <div>
             <h2 className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -175,28 +203,15 @@ export default function TestPanelPage() {
             <Card padding={false}>
               <div className="divide-y divide-gray-100">
                 {panel.base_panel.map((test, i) => (
-                  <div key={i} className="px-4 py-3 flex items-start gap-3">
-                    <span className="text-lg mt-0.5">🧪</span>
+                  <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+                    <span className="text-sm text-gray-400 font-mono w-5">{i + 1}.</span>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-gray-900">
-                          {locale === 'bg' ? test.name_bg : test.name}
-                        </p>
-                        <Badge color="indigo">{t('panel.constant', locale)}</Badge>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {locale === 'bg' ? test.reason_bg : test.reason}
+                      <p className="text-sm font-medium text-gray-900">
+                        {locale === 'bg' ? test.name_bg : test.name}
                       </p>
-                      {test.biomarkers.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {test.biomarkers.map((bm) => (
-                            <span key={bm} className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-indigo-700 bg-indigo-50 rounded">
-                              {bm}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <p className="text-xs text-gray-400">{locale === 'bg' ? test.reason_bg : test.reason}</p>
                     </div>
+                    <Badge color="indigo">{t('panel.constant', locale)}</Badge>
                   </div>
                 ))}
               </div>
@@ -214,15 +229,15 @@ export default function TestPanelPage() {
               <Card padding={false}>
                 <div className="divide-y divide-gray-100">
                   {panel.additional_tests.map((test, i) => (
-                    <div key={i} className="px-4 py-3 flex items-start gap-3">
-                      <span className="text-lg mt-0.5">{TRIGGER_ICONS[test.trigger || ''] || '➕'}</span>
+                    <div key={i} className="px-4 py-2.5 flex items-center gap-3">
+                      <span className="text-sm text-gray-400 font-mono w-5">{panel.base_panel.length + i + 1}.</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-sm font-medium text-gray-900">
                             {locale === 'bg' ? test.name_bg : test.name}
                           </p>
                           {test.priority && (
-                            <Badge color={PRIORITY_COLORS[test.priority] as 'red' | 'yellow' | 'blue' || 'gray'}>
+                            <Badge color={PRIORITY_COLORS[test.priority] as 'red' | 'yellow' | 'blue'}>
                               {test.priority === 'high'
                                 ? (locale === 'bg' ? 'Задължителен' : 'Must do')
                                 : test.priority === 'medium'
@@ -230,24 +245,10 @@ export default function TestPanelPage() {
                                 : (locale === 'bg' ? 'По желание' : 'Optional')}
                             </Badge>
                           )}
-                          {test.trigger && (
-                            <Badge color={TRIGGER_COLORS[test.trigger] as 'red' | 'purple' | 'green' | 'yellow' || 'gray'}>
-                              {TRIGGER_ICONS[test.trigger]} {t(`panel.trigger_${test.trigger}`, locale)}
-                            </Badge>
-                          )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {locale === 'bg' ? test.reason_bg : test.reason}
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {TRIGGER_ICONS[test.trigger || ''] || ''} {locale === 'bg' ? test.reason_bg : test.reason}
                         </p>
-                        {test.biomarkers.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {test.biomarkers.map((bm) => (
-                              <span key={bm} className="px-1.5 py-0.5 text-[10px] font-mono font-medium text-amber-700 bg-amber-50 rounded">
-                                {bm}
-                              </span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -256,7 +257,7 @@ export default function TestPanelPage() {
             </div>
           )}
 
-          {/* No additional tests message */}
+          {/* No additional tests */}
           {panel.additional_tests.length === 0 && panel.last_test_date && (
             <Card>
               <div className="text-center py-4">
@@ -272,12 +273,6 @@ export default function TestPanelPage() {
               </div>
             </Card>
           )}
-
-          {/* Print footer */}
-          <div className="hidden print:block text-center text-xs text-gray-400 mt-8 pt-4 border-t">
-            <p>DomApp Health — {locale === 'bg' ? 'Генерирано на' : 'Generated on'} {new Date().toLocaleDateString()}</p>
-            <p>{locale === 'bg' ? 'Покажете този панел на вашия лекар' : 'Show this panel to your doctor'}</p>
-          </div>
         </div>
       </PageContent>
     </PageShell>

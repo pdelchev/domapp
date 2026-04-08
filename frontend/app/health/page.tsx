@@ -517,6 +517,9 @@ export default function HealthPage() {
             <Button size="sm" variant="secondary" onClick={() => setShowCreateProfile(true)}>
               + {t('health.add_profile', locale)}
             </Button>
+            <Button variant="secondary" onClick={() => router.push('/lifestyle/tests')}>
+              🧪 {locale === 'bg' ? 'Панел изследвания' : 'Test Panel'}
+            </Button>
             <Button onClick={() => router.push('/health/upload')}>
               + {t('health.upload_report', locale)}
             </Button>
