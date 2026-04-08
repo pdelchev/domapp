@@ -21,6 +21,8 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.property_mgmt': { en: 'Property', bg: 'Имоти' },
   'nav.life': { en: 'Life', bg: 'Живот' },
   'nav.health_hub': { en: 'Health Hub', bg: 'Health Hub' },
+  'nav.daily_hub': { en: 'Daily Hub', bg: 'Дневен хъб' },
+  'nav.blood_results': { en: 'Blood Results', bg: 'Кръвни резултати' },
   'nav.health_recovery': { en: 'Health & Recovery', bg: 'Здраве и Възстановяване' },
   'nav.daily_tracking': { en: 'Daily Tracking', bg: 'Дневни показатели' },
   'nav.apps': { en: 'Apps', bg: 'Всичко' },

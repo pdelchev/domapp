@@ -284,6 +284,148 @@ function BiomarkerRow({ result, sex, locale }: { result: BloodResult; sex: strin
   );
 }
 
+// ── Follow-Up Tests (printable for lab technicians) ───────────────
+
+interface TestRec {
+  name: string; name_bg: string; code: string;
+  reason: string; reason_bg: string;
+  priority: 'high' | 'medium' | 'low';
+  category: string;
+  triggerFlags: string[]; // biomarker abbreviations that trigger this
+}
+
+const FOLLOW_UP_CATALOG: TestRec[] = [
+  { name: 'HbA1c (Glycated Hemoglobin)', name_bg: 'HbA1c (Гликиран хемоглобин)', code: 'HBA1C', reason: 'Elevated fasting glucose warrants HbA1c to assess 3-month average blood sugar.', reason_bg: 'Повишената глюкоза на гладно изисква HbA1c за оценка на средната кръвна захар за 3 месеца.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
+  { name: 'Fasting Glucose (repeat)', name_bg: 'Глюкоза на гладно (повторен)', code: 'GLU', reason: 'Confirm whether lifestyle changes lowered glucose.', reason_bg: 'Потвърдете дали промените в начина на живот са намалили глюкозата.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
+  { name: 'Fasting Insulin', name_bg: 'Инсулин на гладно', code: 'INS', reason: 'Check insulin resistance (HOMA-IR) given elevated glucose.', reason_bg: 'Проверка за инсулинова резистентност (HOMA-IR) при повишена глюкоза.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
+  { name: 'ALT (repeat)', name_bg: 'АЛТ (повторен)', code: 'ALT', reason: 'Verify liver enzyme recovery after lifestyle changes.', reason_bg: 'Проверете възстановяването на чернодробните ензими след промени в начина на живот.', priority: 'high', category: 'liver', triggerFlags: ['ALT'] },
+  { name: 'Full Liver Panel (ALT, AST, GGT, ALP, Bilirubin)', name_bg: 'Пълен чернодробен панел (АЛТ, АСТ, ГГТ, АФ, Билирубин)', code: 'LIVER', reason: 'Multiple elevated liver enzymes need full panel.', reason_bg: 'Множество повишени чернодробни ензими изискват пълен панел.', priority: 'high', category: 'liver', triggerFlags: ['ALT', 'AST', 'GGT'] },
+  { name: 'Uric Acid (repeat)', name_bg: 'Пикочна киселина (повторен)', code: 'URIC', reason: 'Track response to dietary changes.', reason_bg: 'Проследете отговора на диетичните промени.', priority: 'medium', category: 'kidney', triggerFlags: ['URIC'] },
+  { name: 'Lipid Panel (Total, LDL, HDL, Triglycerides)', name_bg: 'Липиден панел (Общ, LDL, HDL, Триглицериди)', code: 'LIPID', reason: 'Metabolic syndrome pattern usually comes with dyslipidemia.', reason_bg: 'Метаболитният синдром обикновено идва с дислипидемия.', priority: 'medium', category: 'metabolic', triggerFlags: ['GLU'] },
+  { name: 'CRP (C-Reactive Protein)', name_bg: 'CRP (С-реактивен протеин)', code: 'CRP', reason: 'Assess systemic inflammation with metabolic risk.', reason_bg: 'Оценка на системно възпаление при метаболитен риск.', priority: 'medium', category: 'metabolic', triggerFlags: ['GLU', 'ALT'] },
+  { name: 'Vitamin D', name_bg: 'Витамин D', code: 'VITD', reason: 'Affects insulin sensitivity, liver health, immunity.', reason_bg: 'Влияе на инсулиновата чувствителност, черния дроб и имунитета.', priority: 'low', category: 'vitamins', triggerFlags: ['GLU', 'ALT'] },
+  { name: 'Iron Panel (Fe, Ferritin, TIBC)', name_bg: 'Железен панел (Fe, Феритин, TIBC)', code: 'IRON', reason: 'Low MCV suggests possible iron deficiency.', reason_bg: 'Нисък MCV предполага възможен дефицит на желязо.', priority: 'low', category: 'blood', triggerFlags: ['MCV'] },
+  { name: 'TSH (Thyroid)', name_bg: 'ТСХ (Щитовидна жлеза)', code: 'TSH', reason: 'Thyroid dysfunction affects metabolism and liver enzymes.', reason_bg: 'Тиреоидната дисфункция засяга метаболизма и чернодробните ензими.', priority: 'low', category: 'hormones', triggerFlags: ['GLU', 'ALT'] },
+];
+
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+const PRIORITY_BADGE: Record<string, 'red' | 'yellow' | 'blue'> = { high: 'red', medium: 'yellow', low: 'blue' };
+const CAT_ICON_TEST: Record<string, string> = { metabolic: '⚡', liver: '🫁', kidney: '🫘', vitamins: '💊', blood: '🩸', hormones: '🧬' };
+
+function FollowUpTests({ results, locale }: { results: BloodResult[]; locale: 'en' | 'bg' }) {
+  const [open, setOpen] = useState(false);
+
+  // Determine which biomarkers are abnormal
+  const abnormalAbbrs = new Set(
+    results
+      .filter(r => !['optimal', 'normal'].includes(r.flag))
+      .map(r => r.biomarker_detail.abbreviation)
+  );
+
+  // Filter catalog to only show relevant tests
+  const relevantTests = FOLLOW_UP_CATALOG
+    .filter(test => test.triggerFlags.some(f => abnormalAbbrs.has(f)))
+    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+
+  if (relevantTests.length === 0) return null;
+
+  const handlePrint = () => {
+    const printEl = document.getElementById('follow-up-tests-print');
+    if (!printEl) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${locale === 'bg' ? 'Контролни изследвания' : 'Follow-up Tests'}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #111; }
+  h1 { font-size: 20px; border-bottom: 2px solid #111; padding-bottom: 8px; }
+  h2 { font-size: 15px; margin-top: 24px; color: #444; }
+  .test { margin: 12px 0; padding: 8px 12px; border-left: 3px solid #999; }
+  .test.high { border-color: #dc2626; }
+  .test.medium { border-color: #f59e0b; }
+  .test.low { border-color: #3b82f6; }
+  .test-name { font-weight: 700; font-size: 14px; }
+  .test-code { color: #888; font-family: monospace; font-size: 12px; }
+  .test-reason { font-size: 13px; color: #444; margin-top: 4px; }
+  .priority { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
+  .priority.high { background: #fee2e2; color: #dc2626; }
+  .priority.medium { background: #fef3c7; color: #d97706; }
+  .priority.low { background: #dbeafe; color: #2563eb; }
+  .date { color: #666; font-size: 12px; }
+  @media print { body { margin: 20px; } }
+</style></head><body>`);
+    win.document.write(`<h1>${locale === 'bg' ? 'Препоръчани контролни изследвания' : 'Recommended Follow-up Tests'}</h1>`);
+    win.document.write(`<p class="date">${locale === 'bg' ? 'Дата' : 'Date'}: ${new Date().toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US')}</p>`);
+
+    const groups = { high: relevantTests.filter(t => t.priority === 'high'), medium: relevantTests.filter(t => t.priority === 'medium'), low: relevantTests.filter(t => t.priority === 'low') };
+    const groupLabels = {
+      high: locale === 'bg' ? 'Висок приоритет' : 'High Priority',
+      medium: locale === 'bg' ? 'Среден приоритет' : 'Medium Priority',
+      low: locale === 'bg' ? 'Нисък приоритет' : 'Low Priority',
+    };
+
+    for (const [priority, tests] of Object.entries(groups)) {
+      if (tests.length === 0) continue;
+      win.document.write(`<h2>${groupLabels[priority as keyof typeof groupLabels]} (${tests.length})</h2>`);
+      for (const test of tests) {
+        win.document.write(`<div class="test ${priority}">
+          <div><span class="test-name">${locale === 'bg' ? test.name_bg : test.name}</span> <span class="test-code">${test.code}</span></div>
+          <div class="test-reason">${locale === 'bg' ? test.reason_bg : test.reason}</div>
+        </div>`);
+      }
+    }
+
+    win.document.write('</body></html>');
+    win.document.close();
+    win.print();
+  };
+
+  return (
+    <div className="mt-8 mb-6" id="follow-up-tests-print">
+      <div className="flex items-center justify-between mb-3">
+        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-lg font-semibold text-gray-900 hover:text-indigo-600 transition-colors">
+          <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+          🧪 {locale === 'bg' ? 'Контролни изследвания' : 'Follow-up Tests'}
+          <Badge color="indigo">{relevantTests.length}</Badge>
+        </button>
+        {open && (
+          <Button size="sm" variant="secondary" onClick={handlePrint}>
+            🖨️ {locale === 'bg' ? 'Принтирай за лаборатория' : 'Print for Lab'}
+          </Button>
+        )}
+      </div>
+
+      {open && (
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 mb-3">
+            {locale === 'bg'
+              ? 'Базирано на текущите ви резултати. Принтирайте и покажете на лаборанта.'
+              : 'Based on your current results. Print and show to the lab technician.'}
+          </p>
+          {relevantTests.map((test, i) => (
+            <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${
+              test.priority === 'high' ? 'border-red-200 bg-red-50/50' :
+              test.priority === 'medium' ? 'border-amber-200 bg-amber-50/50' :
+              'border-blue-200 bg-blue-50/50'
+            }`}>
+              <span className="text-lg mt-0.5">{CAT_ICON_TEST[test.category] || '🧪'}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-900">{locale === 'bg' ? test.name_bg : test.name}</span>
+                  <span className="text-xs font-mono text-gray-400">{test.code}</span>
+                  <Badge color={PRIORITY_BADGE[test.priority]}>{test.priority}</Badge>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">{locale === 'bg' ? test.reason_bg : test.reason}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function HealthPage() {
@@ -550,6 +692,9 @@ export default function HealthPage() {
                 </div>
               </div>
             )}
+
+            {/* ═══ Recommended Follow-Up Tests (printable) ═══ */}
+            <FollowUpTests results={report.results} locale={locale as 'en' | 'bg'} />
 
             {/* Report links */}
             <div className="flex gap-3 mt-6">
