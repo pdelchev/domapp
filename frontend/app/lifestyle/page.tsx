@@ -8,7 +8,7 @@ import {
   createBPReading,
   createWeightReading, createBodyMeasurement,
   getFoodEntries, createFoodEntry, deleteFoodEntry,
-  getHealthProfiles,
+  getHealthProfiles, getWhoopDashboard, getTestPanel,
 } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
@@ -67,6 +67,25 @@ const TIME_SECTIONS = [
 
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const KCAL_TARGET = 2000;
+
+// 15-day meal rotation — compact for daily suggestion card
+const MEAL_ROTATION = [
+  { b: 'Oatmeal + walnuts + blueberries', l: 'Chicken spinach salad', d: 'Baked salmon + broccoli + quinoa', b_bg: 'Овесена каша + орехи + боровинки', l_bg: 'Салата с пилешко и спанак', d_bg: 'Печена сьомга + броколи + киноа' },
+  { b: 'Greek yogurt + chia + strawberries', l: 'Lentil soup + bread', d: 'Turkey meatballs + zucchini', b_bg: 'Кисело мляко + чиа + ягоди', l_bg: 'Супа от леща + хляб', d_bg: 'Кюфтета от пуйка + тиквички' },
+  { b: 'Scrambled eggs + spinach', l: 'Sea bass + green beans', d: 'Chicken stir-fry', b_bg: 'Бъркани яйца + спанак', l_bg: 'Лаврак + зелен фасул', d_bg: 'Пилешко със зеленчуци' },
+  { b: 'Buckwheat + flaxseed + raspberries', l: 'Chickpea curry', d: 'Baked cod + sweet potato', b_bg: 'Елда + ленено семе + малини', l_bg: 'Нахутено къри', d_bg: 'Печена треска + сладък картоф' },
+  { b: 'Avocado toast + poached egg', l: 'Quinoa bowl + chicken', d: 'Stuffed peppers + rice', b_bg: 'Авокадо тост + яйце', l_bg: 'Купа с киноа + пилешко', d_bg: 'Пълнени чушки + ориз' },
+  { b: 'Green smoothie', l: 'White bean + kale soup', d: 'Chicken + Brussels sprouts', b_bg: 'Зелен смути', l_bg: 'Супа от бял боб + кейл', d_bg: 'Пилешко + брюкселско зеле' },
+  { b: 'Whole grain pancakes + berries', l: 'Tuna salad', d: 'Lamb chops + bulgur', b_bg: 'Пълнозърнести палачинки + плодове', l_bg: 'Салата с риба тон', d_bg: 'Агнешки котлети + булгур' },
+  { b: 'Overnight oats + apple', l: 'Grilled mackerel + beets', d: 'Chicken stew + sweet potato', b_bg: 'Овесена каша + ябълка', l_bg: 'Скумрия на скара + цвекло', d_bg: 'Пилешка яхния + сладък картоф' },
+  { b: 'Cottage cheese + walnuts', l: 'Rice bowl + tofu', d: 'Baked trout + broccoli', b_bg: 'Извара + орехи', l_bg: 'Купа с ориз + тофу', d_bg: 'Печена пъстърва + броколи' },
+  { b: 'Rye bread + smoked salmon', l: 'Minestrone soup', d: 'Chicken + quinoa tabbouleh', b_bg: 'Ръжен хляб + пушена сьомга', l_bg: 'Минестроне', d_bg: 'Пилешко + табуле от киноа' },
+  { b: 'Chia pudding + mango', l: 'Stuffed zucchini', d: 'Sea bream + spinach', b_bg: 'Чиа пудинг + манго', l_bg: 'Пълнени тиквички', d_bg: 'Печена ципура + спанак' },
+  { b: 'Mushroom omelette', l: 'Caesar salad', d: 'White bean stew + kale', b_bg: 'Омлет с гъби', l_bg: 'Цезар салата', d_bg: 'Задушен бял боб + кейл' },
+  { b: 'Muesli + almond milk + banana', l: 'Sardine salad', d: 'Turkey + butternut squash', b_bg: 'Мюсли + бадемово мляко + банан', l_bg: 'Салата от сардини', d_bg: 'Пуешко + тиква' },
+  { b: 'Buckwheat crepes + ricotta', l: 'Lentil + roasted veg salad', d: 'Chicken + cauliflower + tahini', b_bg: 'Елдови палачинки + рикота', l_bg: 'Салата от леща + печени зеленчуци', d_bg: 'Пилешко + карфиол + тахан' },
+  { b: 'Smoothie bowl + granola', l: 'Grilled salmon + avocado', d: 'Vegetable moussaka', b_bg: 'Смути купа + гранола', l_bg: 'Сьомга на скара + авокадо', d_bg: 'Зеленчукова мусака' },
+];
 
 type BpStage = 'normal' | 'elevated' | 'stage1' | 'stage2' | 'crisis';
 function classifyBp(sys: number, dia: number): BpStage {
@@ -179,8 +198,12 @@ export default function DailyHubPage() {
   const [bodyMeas, setBodyMeas] = useState<Record<string, string>>({});
   const [showBodyMeas, setShowBodyMeas] = useState(false);
 
-  // Additional vitals form
-  const [vitalsForm, setVitalsForm] = useState({ glucose: '', uric_acid: '', heart_rate: '', temperature: '', oxygen: '' });
+  // Additional vitals form (includes water + mood)
+  const [vitalsForm, setVitalsForm] = useState({ glucose: '', uric_acid: '', heart_rate: '', temperature: '', oxygen: '', water_glasses: '', mood: '', energy: '' });
+
+  // Info cards
+  const [whoopData, setWhoopData] = useState<{ latest_recovery?: { recovery_score: number; hrv_rmssd_milli: number; resting_heart_rate: number }; latest_sleep?: { performance_pct: number; total_hours: number } } | null>(null);
+  const [testPanel, setTestPanel] = useState<{ days_until_next: number; is_overdue: boolean; next_test_date: string } | null>(null);
 
   // Add new supplement form
   const [showAddSupplement, setShowAddSupplement] = useState(false);
@@ -215,6 +238,9 @@ export default function DailyHubPage() {
       if (adh.status === 'fulfilled') setAdherence(adh.value);
       if (profs.status === 'fulfilled') setProfiles(profs.value);
       if (foodData.status === 'fulfilled') setFoods(foodData.value);
+      // Non-blocking: load info cards
+      getWhoopDashboard().then(setWhoopData).catch(() => {});
+      getTestPanel().then(setTestPanel).catch(() => {});
     } catch {
       setError('Failed to load data');
     }
@@ -308,7 +334,7 @@ export default function DailyHubPage() {
     setWeightForm({ weight_kg: '', body_fat_pct: '' });
     setBodyMeas({});
     setShowBodyMeas(false);
-    setVitalsForm({ glucose: '', uric_acid: '', heart_rate: '', temperature: '', oxygen: '' });
+    setVitalsForm({ glucose: '', uric_acid: '', heart_rate: '', temperature: '', oxygen: '', water_glasses: '', mood: '', energy: '' });
     setEditingItemId(null);
     setShowAddSupplement(false);
   };
@@ -486,6 +512,18 @@ export default function DailyHubPage() {
         await createMeasurement({ measurement_type: 'oxygen', value: Number(vitalsForm.oxygen), unit: '%', measured_at: new Date().toISOString() });
         entries.push(`SpO2: ${vitalsForm.oxygen}%`);
       }
+      if (vitalsForm.water_glasses) {
+        await createMeasurement({ measurement_type: 'water_intake', value: Number(vitalsForm.water_glasses) * 250, unit: 'ml', measured_at: new Date().toISOString() });
+        entries.push(`💧 ${vitalsForm.water_glasses} ${locale === 'bg' ? 'чаши вода' : 'glasses water'}`);
+      }
+      if (vitalsForm.mood) {
+        await createMeasurement({ measurement_type: 'mood', value: Number(vitalsForm.mood), unit: '/5', measured_at: new Date().toISOString() });
+        entries.push(`${['', '😞', '😐', '🙂', '😊', '🤩'][Number(vitalsForm.mood)] || ''} ${locale === 'bg' ? 'Настроение' : 'Mood'}: ${vitalsForm.mood}/5`);
+      }
+      if (vitalsForm.energy) {
+        await createMeasurement({ measurement_type: 'energy', value: Number(vitalsForm.energy), unit: '/5', measured_at: new Date().toISOString() });
+        entries.push(`⚡ ${locale === 'bg' ? 'Енергия' : 'Energy'}: ${vitalsForm.energy}/5`);
+      }
     } catch { /* */ }
     if (entries.length > 0) setLogSummary(prev => [...prev, ...entries]);
     setLogSaving(false);
@@ -608,6 +646,97 @@ export default function DailyHubPage() {
               )}
             </div>
           </Card>
+        )}
+
+        {/* ═══════════ INFO CARDS ═══════════ */}
+        {isToday && (
+          <div className="grid grid-cols-2 gap-2.5 mb-4">
+            {/* WHOOP Recovery */}
+            {whoopData?.latest_recovery && (
+              <button onClick={() => router.push('/health/recovery')} className="text-left p-3 bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl hover:shadow-sm transition-shadow">
+                <p className="text-[10px] font-semibold text-green-600 uppercase tracking-wider">⌚ Recovery</p>
+                <p className={`text-2xl font-bold mt-0.5 ${(whoopData.latest_recovery.recovery_score ?? 0) >= 67 ? 'text-green-600' : (whoopData.latest_recovery.recovery_score ?? 0) >= 34 ? 'text-yellow-600' : 'text-red-600'}`}>
+                  {whoopData.latest_recovery.recovery_score}%
+                </p>
+                <div className="flex gap-2 mt-1 text-[10px] text-gray-500">
+                  <span>HRV {whoopData.latest_recovery.hrv_rmssd_milli?.toFixed(0)}ms</span>
+                  <span>RHR {whoopData.latest_recovery.resting_heart_rate?.toFixed(0)}</span>
+                </div>
+              </button>
+            )}
+
+            {/* WHOOP Sleep */}
+            {whoopData?.latest_sleep && (
+              <button onClick={() => router.push('/health/recovery/sleep')} className="text-left p-3 bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl hover:shadow-sm transition-shadow">
+                <p className="text-[10px] font-semibold text-indigo-600 uppercase tracking-wider">😴 {locale === 'bg' ? 'Сън' : 'Sleep'}</p>
+                <p className="text-2xl font-bold text-indigo-700 mt-0.5">
+                  {whoopData.latest_sleep.total_hours?.toFixed(1)}h
+                </p>
+                <p className="text-[10px] text-gray-500 mt-1">
+                  {locale === 'bg' ? 'Ефективност' : 'Performance'}: {whoopData.latest_sleep.performance_pct?.toFixed(0)}%
+                </p>
+              </button>
+            )}
+
+            {/* Today's Meal */}
+            {(() => {
+              const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+              const mealIdx = (dayOfYear - 1) % 15;
+              const meal = MEAL_ROTATION[mealIdx];
+              return (
+                <button onClick={() => router.push('/lifestyle/meals')} className="text-left p-3 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl hover:shadow-sm transition-shadow col-span-1">
+                  <p className="text-[10px] font-semibold text-amber-600 uppercase tracking-wider">🍽️ {locale === 'bg' ? `Ден ${mealIdx + 1}` : `Day ${mealIdx + 1}`}</p>
+                  <div className="mt-1 space-y-0.5 text-[11px] text-gray-600 leading-tight">
+                    <p className="truncate">🌅 {locale === 'bg' ? meal.b_bg : meal.b}</p>
+                    <p className="truncate">☀️ {locale === 'bg' ? meal.l_bg : meal.l}</p>
+                    <p className="truncate">🌙 {locale === 'bg' ? meal.d_bg : meal.d}</p>
+                  </div>
+                </button>
+              );
+            })()}
+
+            {/* Next Blood Test / Fasting */}
+            <div className="p-3 bg-gradient-to-br from-gray-50 to-slate-50 border border-gray-200 rounded-xl space-y-2">
+              {/* Next test */}
+              {testPanel && (
+                <button onClick={() => router.push('/lifestyle/tests')} className="text-left w-full">
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">🧪 {locale === 'bg' ? 'Кръвен тест' : 'Blood Test'}</p>
+                  <p className={`text-sm font-bold mt-0.5 ${testPanel.is_overdue ? 'text-red-600' : testPanel.days_until_next <= 7 ? 'text-amber-600' : 'text-gray-700'}`}>
+                    {testPanel.is_overdue
+                      ? (locale === 'bg' ? 'Просрочен!' : 'Overdue!')
+                      : `${testPanel.days_until_next} ${locale === 'bg' ? 'дни' : 'days'}`}
+                  </p>
+                </button>
+              )}
+              {/* Fasting status */}
+              {(() => {
+                const now = new Date();
+                const h = now.getHours();
+                const m = now.getMinutes();
+                const isFasting = h >= 20 || h < 10;
+                if (isFasting) {
+                  const minsUntilEat = h >= 20 ? (24 - h + 10) * 60 - m : (10 - h) * 60 - m;
+                  const hrs = Math.floor(minsUntilEat / 60);
+                  const mins = minsUntilEat % 60;
+                  return (
+                    <div className="text-left">
+                      <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
+                      <p className="text-sm font-bold text-purple-700 mt-0.5">{hrs}h {mins}m</p>
+                    </div>
+                  );
+                }
+                const minsUntilFast = (20 - h) * 60 - m;
+                const hrs = Math.floor(minsUntilFast / 60);
+                const mins = minsUntilFast % 60;
+                return (
+                  <div className="text-left">
+                    <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wider">🍽️ {locale === 'bg' ? 'Хранителен прозорец' : 'Eating Window'}</p>
+                    <p className="text-sm font-bold text-green-700 mt-0.5">{hrs}h {mins}m {locale === 'bg' ? 'остават' : 'left'}</p>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
         )}
 
         {/* Tabs: Ritual | Food */}
@@ -1127,6 +1256,56 @@ export default function DailyHubPage() {
                 onChange={(e) => setVitalsForm(p => ({ ...p, temperature: e.target.value }))} />
               <Input label={`🫁 SpO2 (%)`} type="number" inputMode="numeric" value={vitalsForm.oxygen}
                 onChange={(e) => setVitalsForm(p => ({ ...p, oxygen: e.target.value }))} />
+            </div>
+
+            {/* Water + Mood/Energy */}
+            <div className="border-t border-gray-100 pt-3">
+              <div className="mb-3">
+                <p className="text-xs font-medium text-gray-500 mb-2">💧 {locale === 'bg' ? 'Вода (чаши × 250мл)' : 'Water (glasses × 250ml)'}</p>
+                <div className="flex items-center gap-2">
+                  {[...Array(12)].map((_, i) => (
+                    <button key={i} type="button" onClick={() => setVitalsForm(p => ({ ...p, water_glasses: String(i + 1) }))}
+                      className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${
+                        Number(vitalsForm.water_glasses) >= i + 1
+                          ? 'bg-blue-500 text-white scale-105'
+                          : 'bg-blue-50 text-blue-400 hover:bg-blue-100'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+                {vitalsForm.water_glasses && (
+                  <p className="text-xs text-blue-500 mt-1">{Number(vitalsForm.water_glasses) * 250}ml / {(Number(vitalsForm.water_glasses) * 0.25).toFixed(1)}L</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">{locale === 'bg' ? '😊 Настроение' : '😊 Mood'}</p>
+                  <div className="flex gap-1.5">
+                    {[{ v: '1', e: '😞' }, { v: '2', e: '😐' }, { v: '3', e: '🙂' }, { v: '4', e: '😊' }, { v: '5', e: '🤩' }].map(({ v, e }) => (
+                      <button key={v} type="button" onClick={() => setVitalsForm(p => ({ ...p, mood: v }))}
+                        className={`w-10 h-10 rounded-xl text-lg transition-all ${vitalsForm.mood === v ? 'bg-indigo-100 scale-110 ring-2 ring-indigo-400' : 'bg-gray-50 hover:bg-gray-100'}`}
+                      >{e}</button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-gray-500 mb-2">⚡ {locale === 'bg' ? 'Енергия' : 'Energy'}</p>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((v) => (
+                      <button key={v} type="button" onClick={() => setVitalsForm(p => ({ ...p, energy: String(v) }))}
+                        className={`w-10 h-10 rounded-xl text-sm font-bold transition-all ${
+                          Number(vitalsForm.energy) >= v
+                            ? 'bg-amber-400 text-white scale-105'
+                            : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                        }`}
+                      >⚡</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <Button onClick={saveAdditional} disabled={logSaving} className="flex-1">
