@@ -9,13 +9,14 @@ import {
   createWeightReading, createBodyMeasurement,
   getFoodEntries, createFoodEntry, deleteFoodEntry,
   getHealthProfiles, getWhoopDashboard, getTestPanel,
+  getBPReadings, getWeightReadings, getMeasurements, getWhoopRecoveryHistory,
 } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
 import {
   PageShell, PageContent, Card, Button, Badge, Input, Select,
-  Alert, Spinner, BottomSheet,
+  Alert, Spinner, BottomSheet, EmptyState,
 } from '../components/ui';
 
 // ══════════════════════════════════════════════════════════════════
@@ -227,7 +228,7 @@ export default function DailyHubPage() {
   const { locale } = useLanguage();
 
   // ---- State ----
-  const [tab, setTab] = useState<'ritual' | 'food'>('ritual');
+  const [tab, setTab] = useState<'ritual' | 'food' | 'trends'>('ritual');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -247,6 +248,21 @@ export default function DailyHubPage() {
   const [foodForm, setFoodForm] = useState({ name: '', meal_type: 'lunch', calories: '', protein: '', carbs: '', fat: '', fiber: '', serving_size: '' });
   const [favorites, setFavorites] = useState<typeof foodForm[]>([]);
   const [savingFood, setSavingFood] = useState(false);
+
+  // Trends
+  interface TrendPoint { date: string; value: number }
+  interface TrendsData {
+    bp: { date: string; systolic: number; diastolic: number; pulse: number }[];
+    weight: TrendPoint[];
+    glucose: TrendPoint[];
+    uric_acid: TrendPoint[];
+    water: TrendPoint[];
+    mood: TrendPoint[];
+    energy: TrendPoint[];
+    recovery: TrendPoint[];
+  }
+  const [trends, setTrends] = useState<TrendsData | null>(null);
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
   // Log Modal
   const [logOpen, setLogOpen] = useState(false);
@@ -333,6 +349,42 @@ export default function DailyHubPage() {
   }, [selectedDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Load trends data on tab switch
+  useEffect(() => {
+    if (tab !== 'trends' || trends) return;
+    setTrendsLoading(true);
+    (async () => {
+      try {
+        const [bpRes, weightRes, glucoseRes, uricRes, waterRes, moodRes, energyRes, recoveryRes] = await Promise.allSettled([
+          getBPReadings('days=30'),
+          getWeightReadings({ days: 30 }),
+          getMeasurements('glucose'),
+          getMeasurements('uric_acid'),
+          getMeasurements('water_intake'),
+          getMeasurements('mood'),
+          getMeasurements('energy'),
+          getWhoopRecoveryHistory('days=14'),
+        ]);
+        const arr = (r: PromiseSettledResult<unknown>) => {
+          if (r.status !== 'fulfilled') return [];
+          const v = r.value;
+          return Array.isArray(v) ? v : (v && typeof v === 'object' && 'results' in (v as Record<string, unknown>)) ? ((v as Record<string, unknown>).results as unknown[]) : [];
+        };
+        setTrends({
+          bp: arr(bpRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), systolic: Number(r.systolic || 0), diastolic: Number(r.diastolic || 0), pulse: Number(r.pulse || 0) })),
+          weight: arr(weightRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.weight_kg || 0) })),
+          glucose: arr(glucoseRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.value || 0) })),
+          uric_acid: arr(uricRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.value || 0) })),
+          water: arr(waterRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.value || 0) })),
+          mood: arr(moodRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.value || 0) })),
+          energy: arr(energyRes).map((r: Record<string, unknown>) => ({ date: String(r.measured_at || r.date || ''), value: Number(r.value || 0) })),
+          recovery: arr(recoveryRes).map((r: Record<string, unknown>) => ({ date: String(r.created_at || r.date || ''), value: Number((r as Record<string, unknown>).recovery_score || 0) })),
+        });
+      } catch { /* */ }
+      setTrendsLoading(false);
+    })();
+  }, [tab, trends]);
 
   useEffect(() => {
     const saved = localStorage.getItem('food_favorites');
@@ -1097,7 +1149,15 @@ export default function DailyHubPage() {
               tab === 'food' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
-            🍽️ {locale === 'bg' ? 'Храна и напитки' : 'Food & Drink'}
+            🍽️ {locale === 'bg' ? 'Храна' : 'Food'}
+          </button>
+          <button
+            onClick={() => setTab('trends')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === 'trends' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            📈 {locale === 'bg' ? 'Тенденции' : 'Trends'}
           </button>
         </div>
 
@@ -1279,6 +1339,178 @@ export default function DailyHubPage() {
               })
             )}
           </>
+        )}
+
+        {/* ═══════════ TRENDS TAB ═══════════ */}
+        {tab === 'trends' && (
+          trendsLoading ? <Spinner message={t('common.loading', locale)} /> : trends ? (
+            <div className="space-y-4">
+              {/* Sparkline helper */}
+              {(() => {
+                const Spark = ({ data, color = '#6366f1', height = 40, showLast = true, unit = '' }: { data: { value: number }[]; color?: string; height?: number; showLast?: boolean; unit?: string }) => {
+                  if (data.length === 0) return <p className="text-xs text-gray-400 italic">{locale === 'bg' ? 'Няма данни' : 'No data'}</p>;
+                  const vals = data.map(d => d.value);
+                  const min = Math.min(...vals);
+                  const max = Math.max(...vals);
+                  const range = max - min || 1;
+                  const w = 200;
+                  const points = vals.map((v, i) => `${(i / (vals.length - 1 || 1)) * w},${height - ((v - min) / range) * (height - 4) - 2}`).join(' ');
+                  const last = vals[vals.length - 1];
+                  const prev = vals.length > 1 ? vals[vals.length - 2] : last;
+                  const delta = last - prev;
+                  return (
+                    <div className="flex items-end gap-3">
+                      <svg viewBox={`0 0 ${w} ${height}`} className="flex-1 h-10" preserveAspectRatio="none">
+                        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      {showLast && (
+                        <div className="text-right shrink-0">
+                          <p className="text-sm font-bold" style={{ color }}>{last.toFixed(unit === 'ml' ? 0 : 1)}{unit && <span className="text-xs font-normal text-gray-400 ml-0.5">{unit}</span>}</p>
+                          {delta !== 0 && <p className={`text-[10px] font-medium ${delta < 0 ? 'text-green-600' : 'text-red-500'}`}>{delta > 0 ? '↑' : '↓'} {Math.abs(delta).toFixed(1)}</p>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                };
+
+                const BPSpark = () => {
+                  const data = trends.bp.slice(-30);
+                  if (data.length === 0) return <p className="text-xs text-gray-400 italic">{locale === 'bg' ? 'Няма данни' : 'No data'}</p>;
+                  const w = 200; const h = 50;
+                  const sysVals = data.map(d => d.systolic);
+                  const diaVals = data.map(d => d.diastolic);
+                  const allVals = [...sysVals, ...diaVals];
+                  const min = Math.min(...allVals) - 5;
+                  const max = Math.max(...allVals) + 5;
+                  const range = max - min || 1;
+                  const toPoints = (vals: number[]) => vals.map((v, i) => `${(i / (vals.length - 1 || 1)) * w},${h - ((v - min) / range) * (h - 4) - 2}`).join(' ');
+                  const lastSys = sysVals[sysVals.length - 1];
+                  const lastDia = diaVals[diaVals.length - 1];
+                  const stage = classifyBp(lastSys, lastDia);
+                  return (
+                    <div className="flex items-end gap-3">
+                      <svg viewBox={`0 0 ${w} ${h}`} className="flex-1 h-12" preserveAspectRatio="none">
+                        <polyline points={toPoints(sysVals)} fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <polyline points={toPoints(diaVals)} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-900">{lastSys}/{lastDia}</p>
+                        <p className={`text-[10px] font-medium ${STAGE_COLORS[stage]}`}>{STAGE_LABELS[stage][locale as 'en' | 'bg']}</p>
+                        <p className="text-[10px] text-gray-400">{data.length} {locale === 'bg' ? 'изм.' : 'readings'}</p>
+                      </div>
+                    </div>
+                  );
+                };
+
+                const MoodSpark = ({ data }: { data: { date: string; value: number }[] }) => {
+                  if (data.length === 0) return <p className="text-xs text-gray-400 italic">{locale === 'bg' ? 'Няма данни' : 'No data'}</p>;
+                  const emojis = ['', '😞', '😐', '🙂', '😊', '🤩'];
+                  const last14 = data.slice(-14);
+                  return (
+                    <div className="flex items-center gap-1">
+                      {last14.map((d, i) => (
+                        <span key={i} className="text-base" title={d.date}>{emojis[Math.round(d.value)] || '·'}</span>
+                      ))}
+                      {data.length > 14 && <span className="text-xs text-gray-400">+{data.length - 14}</span>}
+                    </div>
+                  );
+                };
+
+                const WaterBars = ({ data }: { data: { date: string; value: number }[] }) => {
+                  if (data.length === 0) return <p className="text-xs text-gray-400 italic">{locale === 'bg' ? 'Няма данни' : 'No data'}</p>;
+                  const target = 2500; // ml
+                  const last14 = data.slice(-14);
+                  return (
+                    <div className="flex items-end gap-0.5 h-8">
+                      {last14.map((d, i) => {
+                        const pct = Math.min(100, (d.value / target) * 100);
+                        return (
+                          <div key={i} className="flex-1" title={`${d.date}: ${d.value}ml`}>
+                            <div
+                              className={`w-full rounded-sm ${pct >= 100 ? 'bg-blue-500' : pct >= 60 ? 'bg-blue-300' : 'bg-blue-200'}`}
+                              style={{ height: `${Math.max(pct * 0.3, 2)}px` }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                };
+
+                return (
+                  <>
+                    {/* BP */}
+                    <button onClick={() => router.push('/health/bp')} className="w-full text-left">
+                      <Card>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">💓 {locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
+                          <span className="text-[10px] text-gray-400">{locale === 'bg' ? '30 дни' : '30 days'}</span>
+                        </div>
+                        <BPSpark />
+                      </Card>
+                    </button>
+
+                    {/* Weight */}
+                    <button onClick={() => router.push('/health/weight')} className="w-full text-left">
+                      <Card>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">⚖️ {locale === 'bg' ? 'Тегло' : 'Weight'}</h3>
+                          <span className="text-[10px] text-gray-400">{locale === 'bg' ? '30 дни' : '30 days'}</span>
+                        </div>
+                        <Spark data={trends.weight} color="#10b981" unit="kg" />
+                      </Card>
+                    </button>
+
+                    {/* Glucose + Uric Acid — side by side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Card>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">🩸 {locale === 'bg' ? 'Глюкоза' : 'Glucose'}</h3>
+                        <Spark data={trends.glucose} color="#f59e0b" unit="mmol/L" />
+                      </Card>
+                      <Card>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">🫘 {locale === 'bg' ? 'Пик. к-на' : 'Uric Acid'}</h3>
+                        <Spark data={trends.uric_acid} color="#8b5cf6" unit="μmol/L" />
+                      </Card>
+                    </div>
+
+                    {/* Water */}
+                    <Card>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">💧 {locale === 'bg' ? 'Вода' : 'Water'}</h3>
+                        <span className="text-[10px] text-gray-400">{locale === 'bg' ? '14 дни' : '14 days'} · {locale === 'bg' ? 'цел 2.5L' : 'target 2.5L'}</span>
+                      </div>
+                      <WaterBars data={trends.water} />
+                    </Card>
+
+                    {/* WHOOP Recovery */}
+                    <button onClick={() => router.push('/health/recovery')} className="w-full text-left">
+                      <Card>
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">⌚ {locale === 'bg' ? 'WHOOP Възстановяване' : 'WHOOP Recovery'}</h3>
+                          <span className="text-[10px] text-gray-400">{locale === 'bg' ? '14 дни' : '14 days'}</span>
+                        </div>
+                        <Spark data={trends.recovery} color="#10b981" unit="%" />
+                      </Card>
+                    </button>
+
+                    {/* Mood + Energy — side by side */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <Card>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">😊 {locale === 'bg' ? 'Настроение' : 'Mood'}</h3>
+                        <MoodSpark data={trends.mood} />
+                      </Card>
+                      <Card>
+                        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">⚡ {locale === 'bg' ? 'Енергия' : 'Energy'}</h3>
+                        <Spark data={trends.energy} color="#f59e0b" unit="/5" />
+                      </Card>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          ) : (
+            <EmptyState icon="📈" message={locale === 'bg' ? 'Няма данни за тенденции' : 'No trend data yet'} />
+          )
         )}
 
         {/* Spacer for FAB */}
