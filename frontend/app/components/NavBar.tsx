@@ -68,6 +68,7 @@ const BOTTOM_TABS = MODULES.slice(0, 4);
 // Items that appear in the "More" sheet
 const MORE_ITEMS: ModuleItem[] = [
   MODULES[4], // Music
+  { href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500' },
   { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500' },
   { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500' },
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
