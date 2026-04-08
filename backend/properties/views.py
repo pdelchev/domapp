@@ -41,13 +41,18 @@ class ParseNotaryDeedView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser]
 
+    ALLOWED_EXTENSIONS = ('.pdf', '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif', '.heic')
+
     def post(self, request):
         file = request.FILES.get('file')
         if not file:
             return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not file.name.lower().endswith('.pdf'):
-            return Response({'error': 'Only PDF files are supported'}, status=status.HTTP_400_BAD_REQUEST)
+        if not file.name.lower().endswith(self.ALLOWED_EXTENSIONS):
+            return Response(
+                {'error': 'Supported formats: PDF, JPG, PNG, WEBP, BMP, TIFF, HEIC'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         result = parse_notary_deed(file)
         return Response(result)

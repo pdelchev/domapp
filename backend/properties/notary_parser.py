@@ -44,8 +44,16 @@ PROPERTY_TYPE_MAP = {
 }
 
 
-def extract_text_from_pdf(file_obj) -> str:
-    """Extract text from a PDF file. Uses pdfplumber first, falls back to OCR for scanned docs."""
+def extract_text_from_file(file_obj, filename: str = '') -> str:
+    """Extract text from a PDF or image file.
+    For PDFs: uses pdfplumber first, falls back to OCR.
+    For images: uses tesseract OCR directly."""
+    ext = filename.lower().rsplit('.', 1)[-1] if filename else ''
+
+    if ext in ('jpg', 'jpeg', 'png', 'webp', 'bmp', 'tiff', 'tif', 'heic'):
+        return _ocr_image(file_obj)
+
+    # PDF path
     import pdfplumber
 
     text_parts = []
@@ -64,6 +72,21 @@ def extract_text_from_pdf(file_obj) -> str:
     # Fallback: OCR for scanned/image-based PDFs
     logger.info('No extractable text found, falling back to OCR')
     return _ocr_pdf(file_obj)
+
+
+def _ocr_image(file_obj) -> str:
+    """OCR a single image file using tesseract with Bulgarian language support."""
+    from PIL import Image
+    import pytesseract
+
+    file_obj.seek(0)
+    image = Image.open(file_obj)
+    # Convert to RGB if needed (e.g. RGBA PNGs, HEIC)
+    if image.mode not in ('RGB', 'L'):
+        image = image.convert('RGB')
+    text = pytesseract.image_to_string(image, lang='bul+eng')
+    logger.info(f'OCR image: {len(text)} chars')
+    return text
 
 
 def _ocr_pdf(file_obj) -> str:
@@ -445,16 +468,17 @@ def _extract_registry_number(text: str) -> Optional[str]:
 
 
 def parse_notary_deed(file_obj) -> dict:
-    """Parse a Bulgarian notary deed PDF and extract property fields.
+    """Parse a Bulgarian notary deed (PDF or image) and extract property fields.
 
     Returns a dict with fields matching the Property model, plus metadata.
     Only includes fields where data was successfully extracted.
     """
+    filename = getattr(file_obj, 'name', '') or ''
     try:
-        text = extract_text_from_pdf(file_obj)
+        text = extract_text_from_file(file_obj, filename)
     except Exception as e:
-        logger.error(f'Failed to extract text from notary deed PDF: {e}')
-        return {'error': f'Failed to read PDF: {str(e)}', 'parsed_fields': {}}
+        logger.error(f'Failed to extract text from notary deed: {e}')
+        return {'error': f'Failed to read file: {str(e)}', 'parsed_fields': {}}
 
     if not text or len(text) < 100:
         return {'error': 'PDF appears empty or unreadable', 'parsed_fields': {}}

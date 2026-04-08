@@ -236,13 +236,13 @@ export default function PropertyForm({
         </p>
         <p className="text-sm text-gray-500 mt-1 mb-4">
           {locale === 'bg'
-            ? 'Качете нотариален акт (PDF) и полетата ще се попълнят автоматично с AI'
-            : 'Upload a notary deed (PDF) and fields will be auto-filled with AI'}
+            ? 'Качете нотариален акт (PDF или снимка) и полетата ще се попълнят автоматично с AI'
+            : 'Upload a notary deed (PDF or photo) and fields will be auto-filled with AI'}
         </p>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.bmp,.tiff,.tif,.heic,image/*"
           onChange={handleDeedUpload}
           className="hidden"
           id="deed-upload"
@@ -255,7 +255,7 @@ export default function PropertyForm({
         >
           {deedParsing
             ? t('properties.parsing_deed', locale)
-            : locale === 'bg' ? '📄 Избери PDF файл' : '📄 Choose PDF File'}
+            : locale === 'bg' ? '📄 Избери PDF или снимка' : '📄 Choose PDF or Photo'}
         </Button>
         {deedSuccess && (
           <div className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-lg">
