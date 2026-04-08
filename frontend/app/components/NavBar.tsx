@@ -66,10 +66,6 @@ const MODULES: ModuleItem[] = [
     href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500',
     svgPath: 'M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.34A1.125 1.125 0 0017.368 1.3l-2.81.8A1.125 1.125 0 0013.5 3.227V9M9 9l-4.5 1.286V15.5A2.25 2.25 0 016.132 17.663l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 007.764 11.7V9z',
   },
-  {
-    href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500',
-    svgPath: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
-  },
 ];
 
 // Bottom tab bar items (mobile) — first 4 + More
@@ -79,7 +75,7 @@ const BOTTOM_TABS = MODULES.slice(0, 4);
 // Items that appear in the "More" sheet
 const MORE_ITEMS: ModuleItem[] = [
   MODULES[4], // Music
-  MODULES[5], // Notes
+  { href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500', svgPath: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10' },
   { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500', svgPath: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
   { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500', svgPath: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500', svgPath: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z' },
@@ -216,7 +212,19 @@ export default function NavBar() {
             </div>
 
             {/* Right side */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              {/* Notes — icon only, desktop */}
+              <a
+                href="/notes"
+                className={`p-1.5 rounded-lg transition-colors hidden md:block ${
+                  isActive('/notes') ? 'text-indigo-600 bg-indigo-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+                title={t('nav.notes', locale)}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                </svg>
+              </a>
               {/* Notification bell — desktop */}
               <a
                 href="/notifications"

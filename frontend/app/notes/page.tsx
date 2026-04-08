@@ -986,11 +986,11 @@ export default function NotesPage() {
                     value={editTitle}
                     onChange={e => setEditTitle(e.target.value)}
                     placeholder={t('notes.untitled', locale)}
-                    className="w-full text-xl md:text-2xl font-bold text-gray-900 placeholder:text-gray-300 bg-transparent border-none outline-none mb-3"
+                    className="w-full text-xl md:text-2xl font-bold text-gray-900 placeholder:text-gray-300 bg-transparent border-none outline-none mb-4 py-1"
                   />
 
                   {/* Blocks */}
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {editContent.map((block, idx) => (
                       <BlockRenderer
                         key={block.id}
@@ -1246,12 +1246,12 @@ function BlockRenderer({
           {showBlockMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={onHideBlockMenu} />
-              <div className="absolute left-6 top-0 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[150px] z-20">
+              <div className="absolute left-6 top-0 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 min-w-[170px] z-20">
                 {BLOCK_TYPES.map(bt => (
                   <button key={bt.type} onClick={() => { onInsertAfter(bt.type); onHideBlockMenu(); }}
-                    className="w-full text-left px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2.5 transition-colors"
                   >
-                    <span className="w-5 text-center text-xs text-gray-400 font-mono">{bt.icon}</span>
+                    <span className="w-6 h-6 flex items-center justify-center text-xs text-gray-400 font-mono bg-gray-100 rounded">{bt.icon}</span>
                     {t(bt.key, locale)}
                   </button>
                 ))}
@@ -1287,14 +1287,15 @@ function BlockRenderer({
               e.target.style.height = e.target.scrollHeight + 'px';
             }}
             placeholder="Type something..."
-            className="w-full text-sm md:text-[15px] text-gray-800 bg-transparent border-none outline-none resize-none min-h-[28px] leading-relaxed"
+            className="w-full text-[15px] md:text-base text-gray-800 bg-transparent border-none outline-none resize-none min-h-[32px] leading-relaxed py-0.5"
             rows={1}
+            autoComplete="off"
             ref={el => {
               // Auto-size on mount
               if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
             }}
             onKeyDown={e => {
-              if (e.key === 'Enter' && e.metaKey) {
+              if (e.key === 'Enter' && !e.shiftKey && !e.metaKey) {
                 e.preventDefault();
                 onInsertAfter('text');
               }
@@ -1312,7 +1313,7 @@ function BlockRenderer({
             value={block.content || ''}
             onChange={e => onUpdate({ content: e.target.value })}
             placeholder="Heading"
-            className="w-full text-lg md:text-xl font-semibold text-gray-900 bg-transparent border-none outline-none"
+            className="w-full text-lg md:text-xl font-semibold text-gray-900 bg-transparent border-none outline-none py-0.5"
             onKeyDown={e => {
               if (e.key === 'Enter') { e.preventDefault(); onInsertAfter('text'); }
             }}
@@ -1322,19 +1323,19 @@ function BlockRenderer({
         {block.type === 'checklist' && (
           <div className="space-y-1">
             {(block.items as ChecklistItem[] || []).map(item => (
-              <div key={item.id} className="flex items-center gap-2 group/item min-h-[32px]">
+              <div key={item.id} className="flex items-center gap-2.5 group/item min-h-[36px]">
                 <input
                   type="checkbox"
                   checked={item.checked}
                   onChange={() => onToggleCheck(item.id)}
-                  className="w-[18px] h-[18px] text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+                  className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer shrink-0"
                 />
                 <input
                   type="text"
                   value={item.text}
                   onChange={e => onUpdateItemText(item.id, e.target.value)}
                   placeholder="To do..."
-                  className={`flex-1 text-sm md:text-[15px] bg-transparent border-none outline-none ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
+                  className={`flex-1 text-[15px] md:text-base bg-transparent border-none outline-none py-0.5 ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); onAddItem(); }
                     if (e.key === 'Backspace' && !item.text) { e.preventDefault(); onRemoveItem(item.id); }
@@ -1354,14 +1355,14 @@ function BlockRenderer({
         {block.type === 'bullet' && (
           <div className="space-y-1">
             {(block.items as BulletItem[] || []).map(item => (
-              <div key={item.id} className="flex items-center gap-2 group/item min-h-[32px]">
+              <div key={item.id} className="flex items-center gap-2.5 group/item min-h-[36px]">
                 <span className="w-1.5 h-1.5 rounded-full bg-gray-400 shrink-0" />
                 <input
                   type="text"
                   value={item.text}
                   onChange={e => onUpdateItemText(item.id, e.target.value)}
                   placeholder="List item..."
-                  className="flex-1 text-sm md:text-[15px] text-gray-800 bg-transparent border-none outline-none"
+                  className="flex-1 text-[15px] md:text-base text-gray-800 bg-transparent border-none outline-none py-0.5"
                   onKeyDown={e => {
                     if (e.key === 'Enter') { e.preventDefault(); onAddItem(); }
                     if (e.key === 'Backspace' && !item.text) { e.preventDefault(); onRemoveItem(item.id); }
