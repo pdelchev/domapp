@@ -162,6 +162,19 @@ CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localho
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
+# Celery Beat schedule
+from celery.schedules import crontab  # noqa: E402
+CELERY_BEAT_SCHEDULE = {
+    'weekly-summary-notification': {
+        'task': 'notifications.weekly_summary',
+        'schedule': crontab(hour=8, minute=0, day_of_week='sunday'),
+    },
+    'daily-whoop-sync': {
+        'task': 'health.whoop.daily_sync',
+        'schedule': crontab(minute=0, hour='*/4'),
+    },
+}
+
 # --- File Storage ---
 # Use Cloudflare R2 when credentials are provided, otherwise local storage
 AWS_ACCESS_KEY_ID = (os.environ.get('R2_ACCESS_KEY_ID') or '').strip().lstrip('=')

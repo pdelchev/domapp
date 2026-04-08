@@ -1,11 +1,8 @@
-from django.shortcuts import render
-
-# Create your views here.
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.utils import timezone
-from django.db.models import Sum, Q
+from django.db.models import Sum, Avg, Count, Q
 from datetime import timedelta
 from properties.models import Property, Unit
 from leases.models import Lease
@@ -114,6 +111,7 @@ class DashboardSummaryView(APIView):
 
         return Response({
             'total_properties': total_properties,
+            'today': today.isoformat(),
             'total_portfolio_value': float(total_portfolio_value),
             'active_leases': active_lease_count,
             'occupancy_rate': round(occupancy_rate, 1),
@@ -130,3 +128,134 @@ class DashboardSummaryView(APIView):
             'month_total_due': float(month_total_due),
             'month_total_collected': float(month_total_collected),
         })
+
+
+class MorningBriefingView(APIView):
+    """Morning briefing — everything that needs attention today."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.get_data_owner()
+        today = timezone.now().date()
+        data = {}
+
+        # ── Property actions ──
+        overdue_payments = list(
+            RentPayment.objects.filter(
+                lease__property__user=user, status__in=['pending', 'overdue'], due_date__lt=today
+            ).select_related('lease__property', 'lease__tenant').values(
+                'id', 'due_date', 'amount_due',
+                'lease__property__name', 'lease__tenant__full_name'
+            )[:10]
+        )
+        today_payments = list(
+            RentPayment.objects.filter(
+                lease__property__user=user, status='pending', due_date=today
+            ).select_related('lease__property', 'lease__tenant').values(
+                'id', 'due_date', 'amount_due',
+                'lease__property__name', 'lease__tenant__full_name'
+            )[:10]
+        )
+        upcoming_payments = list(
+            RentPayment.objects.filter(
+                lease__property__user=user, status='pending',
+                due_date__gt=today, due_date__lte=today + timedelta(days=7)
+            ).select_related('lease__property', 'lease__tenant').values(
+                'id', 'due_date', 'amount_due',
+                'lease__property__name', 'lease__tenant__full_name'
+            )[:10]
+        )
+        data['payments'] = {
+            'overdue': overdue_payments,
+            'today': today_payments,
+            'upcoming': upcoming_payments,
+        }
+
+        # Expiring documents (next 14 days)
+        data['expiring_documents'] = list(
+            Document.objects.filter(
+                property__user=user,
+                expiry_date__gte=today, expiry_date__lte=today + timedelta(days=14)
+            ).select_related('property').values(
+                'id', 'document_type', 'label', 'expiry_date', 'property__name'
+            )[:10]
+        )
+
+        # ── Health ──
+        health = {}
+        try:
+            from health.ritual_services import get_ritual_dashboard
+            ritual = get_ritual_dashboard(user, date=today)
+            health['ritual'] = {
+                'total': ritual['total'],
+                'completed': ritual['completed'],
+                'pct': ritual['pct'],
+            }
+        except Exception:
+            pass
+
+        try:
+            from health.bp_models import BPReading
+            last_bp = BPReading.objects.filter(user=user).order_by('-measured_at').first()
+            if last_bp:
+                health['last_bp'] = {
+                    'systolic': last_bp.systolic,
+                    'diastolic': last_bp.diastolic,
+                    'date': last_bp.measured_at.date().isoformat(),
+                    'days_ago': (today - last_bp.measured_at.date()).days,
+                }
+        except Exception:
+            pass
+
+        try:
+            from health.weight_models import WeightReading
+            last_weight = WeightReading.objects.filter(user=user).order_by('-measured_at').first()
+            if last_weight:
+                health['last_weight'] = {
+                    'weight_kg': float(last_weight.weight_kg),
+                    'date': last_weight.measured_at.date().isoformat(),
+                    'days_ago': (today - last_weight.measured_at.date()).days,
+                }
+        except Exception:
+            pass
+
+        try:
+            from health.whoop_models import WhoopRecovery
+            last_recovery = WhoopRecovery.objects.filter(user=user, score_state='SCORED').order_by('-cycle__start').first()
+            if last_recovery:
+                health['recovery'] = {
+                    'score': last_recovery.recovery_score,
+                    'hrv': float(last_recovery.hrv_rmssd_milli) if last_recovery.hrv_rmssd_milli else None,
+                    'rhr': float(last_recovery.resting_heart_rate) if last_recovery.resting_heart_rate else None,
+                }
+        except Exception:
+            pass
+
+        data['health'] = health
+
+        # ── Vehicle obligations expiring ──
+        try:
+            from vehicles.models import VehicleObligation
+            data['vehicle_obligations'] = list(
+                VehicleObligation.objects.filter(
+                    vehicle__user=user, is_current=True,
+                    end_date__gte=today, end_date__lte=today + timedelta(days=14)
+                ).select_related('vehicle').values(
+                    'id', 'obligation_type', 'end_date',
+                    'vehicle__plate_number', 'vehicle__make', 'vehicle__model'
+                )[:10]
+            )
+        except Exception:
+            data['vehicle_obligations'] = []
+
+        # ── Unread notifications count ──
+        try:
+            from notifications.models import Notification
+            data['unread_notifications'] = Notification.objects.filter(user=user, read_status=False).count()
+        except Exception:
+            data['unread_notifications'] = 0
+
+        data['today'] = today.isoformat()
+        data['greeting_hour'] = timezone.now().hour
+
+        return Response(data)

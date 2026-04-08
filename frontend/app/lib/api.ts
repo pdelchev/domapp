@@ -495,6 +495,12 @@ export async function getDashboardSummary() {
   return res.json();
 }
 
+export async function getMorningBriefing() {
+  const res = await apiFetch('/api/dashboard/briefing/');
+  if (!res.ok) throw new Error('Failed to fetch briefing');
+  return res.json();
+}
+
 // --- Finance Summary ---
 export async function getFinanceSummary() {
   const res = await apiFetch('/api/finance/summary/');

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { getDashboardSummary, getRentPayments, updateRentPayment, batchMarkPaid, getProblems } from '../lib/api';
+import { getDashboardSummary, getRentPayments, updateRentPayment, batchMarkPaid, getProblems, getMorningBriefing } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
@@ -152,6 +152,10 @@ export default function DashboardPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Morning briefing
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  const [briefing, setBriefing] = useState<any>(null);
+
   // Expanded card (for custom date/method)
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [expandMethod, setExpandMethod] = useState('bank');
@@ -180,6 +184,8 @@ export default function DashboardPage() {
           setDashboard(dash);
           setProblems(allProbs.filter((p: Problem) => p.status === 'open' || p.status === 'in_progress'));
         }
+        // Non-blocking: load morning briefing
+        getMorningBriefing().then((b) => { if (!cancelled) setBriefing(b); }).catch(() => {});
       } catch {
         if (!cancelled) router.push('/login');
       } finally {
@@ -410,6 +416,102 @@ export default function DashboardPage() {
     <PageShell>
       <NavBar />
       <PageContent>
+        {/* ====== MORNING BRIEFING ====== */}
+        {briefing && (
+          <div className="mb-5">
+            {/* Greeting */}
+            <h2 className="text-lg font-bold text-gray-900 mb-3">
+              {(() => {
+                const h = briefing.greeting_hour ?? new Date().getHours();
+                const greet = h < 12
+                  ? (locale === 'bg' ? 'Добро утро' : 'Good morning')
+                  : h < 18
+                  ? (locale === 'bg' ? 'Добър ден' : 'Good afternoon')
+                  : (locale === 'bg' ? 'Добър вечер' : 'Good evening');
+                return `${greet} 👋`;
+              })()}
+            </h2>
+
+            {/* Quick health status */}
+            {briefing.health && Object.keys(briefing.health).length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {briefing.health.ritual && (
+                  <button onClick={() => router.push('/lifestyle')} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs hover:bg-indigo-100">
+                    <span>💊</span>
+                    <span className="font-medium text-indigo-700">{briefing.health.ritual.completed}/{briefing.health.ritual.total}</span>
+                    <span className="text-indigo-400">{locale === 'bg' ? 'ритуал' : 'ritual'}</span>
+                  </button>
+                )}
+                {briefing.health.recovery && (
+                  <button onClick={() => router.push('/health/recovery')} className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border hover:opacity-80 ${
+                    briefing.health.recovery.score >= 67 ? 'bg-green-50 border-green-200' : briefing.health.recovery.score >= 34 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
+                  }`}>
+                    <span>⌚</span>
+                    <span className={`font-medium ${briefing.health.recovery.score >= 67 ? 'text-green-700' : briefing.health.recovery.score >= 34 ? 'text-yellow-700' : 'text-red-700'}`}>{briefing.health.recovery.score}%</span>
+                    <span className="text-gray-400">recovery</span>
+                  </button>
+                )}
+                {briefing.health.last_bp && (
+                  <button onClick={() => router.push('/health/bp')} className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 border border-rose-200 rounded-xl text-xs hover:bg-rose-100">
+                    <span>💓</span>
+                    <span className="font-medium text-rose-700">{briefing.health.last_bp.systolic}/{briefing.health.last_bp.diastolic}</span>
+                    {briefing.health.last_bp.days_ago > 1 && <span className="text-rose-400">{briefing.health.last_bp.days_ago}d ago</span>}
+                  </button>
+                )}
+                {briefing.health.last_weight && (
+                  <button onClick={() => router.push('/health/weight')} className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs hover:bg-emerald-100">
+                    <span>⚖️</span>
+                    <span className="font-medium text-emerald-700">{briefing.health.last_weight.weight_kg}kg</span>
+                    {briefing.health.last_weight.days_ago > 1 && <span className="text-emerald-400">{briefing.health.last_weight.days_ago}d ago</span>}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Attention items */}
+            {(briefing.payments?.overdue?.length > 0 || briefing.expiring_documents?.length > 0 || briefing.vehicle_obligations?.length > 0) && (
+              <Card className="!bg-amber-50 !border-amber-200 !p-3 mb-3">
+                <h3 className="text-xs font-semibold text-amber-800 uppercase tracking-wider mb-2">
+                  ⚡ {locale === 'bg' ? 'Нужно внимание' : 'Needs Attention'}
+                </h3>
+                <div className="space-y-1.5">
+                  {briefing.payments?.overdue?.map((p: Record<string, unknown>, i: number) => (
+                    <div key={i} className="flex items-center justify-between text-xs">
+                      <span className="text-red-700">🔴 {String(p.lease__tenant__full_name)} — {String(p.lease__property__name)}</span>
+                      <span className="font-medium text-red-800">€{Number(p.amount_due).toFixed(0)}</span>
+                    </div>
+                  ))}
+                  {briefing.expiring_documents?.map((d: Record<string, unknown>, i: number) => (
+                    <div key={`doc-${i}`} className="text-xs text-amber-700">
+                      📄 {String(d.property__name)}: {String(d.document_type)} — {String(d.expiry_date)}
+                    </div>
+                  ))}
+                  {briefing.vehicle_obligations?.map((v: Record<string, unknown>, i: number) => (
+                    <div key={`veh-${i}`} className="text-xs text-amber-700">
+                      🚗 {String(v.vehicle__plate_number)}: {String(v.obligation_type)} — {String(v.end_date)}
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {/* Today's payments */}
+            {briefing.payments?.today?.length > 0 && (
+              <Card className="!p-3 mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                  📅 {locale === 'bg' ? 'Днес за плащане' : "Today's Payments"}
+                </h3>
+                {briefing.payments.today.map((p: Record<string, unknown>, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-sm py-1">
+                    <span className="text-gray-700">{String(p.lease__tenant__full_name)}</span>
+                    <span className="font-medium text-gray-900">€{Number(p.amount_due).toFixed(0)}</span>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
+
         {/* ====== METRIC CARDS — same 4 cards, same colors ====== */}
         {dashboard && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
