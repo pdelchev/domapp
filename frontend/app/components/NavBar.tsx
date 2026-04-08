@@ -15,12 +15,14 @@ interface ModuleItem {
   key: string;
   icon: string;   // emoji for mobile
   color: string;   // bg color for More sheet
+  svgPath: string; // SVG path for desktop nav (Heroicons outline style)
   sub?: { href: string; key: string }[];
 }
 
 const MODULES: ModuleItem[] = [
   {
     href: '/lifestyle', key: 'nav.health_hub', icon: '❤️', color: 'bg-rose-500',
+    svgPath: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z',
     sub: [
       { href: '/lifestyle', key: 'nav.daily_hub' },
       { href: '/health', key: 'nav.blood_results' },
@@ -30,6 +32,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     href: '/properties', key: 'nav.properties', icon: '🏠', color: 'bg-blue-500',
+    svgPath: 'M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25',
     sub: [
       { href: '/properties', key: 'nav.properties' },
       { href: '/owners', key: 'nav.owners' },
@@ -41,6 +44,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     href: '/finance', key: 'nav.financials', icon: '💰', color: 'bg-emerald-500',
+    svgPath: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
     sub: [
       { href: '/finance', key: 'nav.financials' },
       { href: '/finance/payments', key: 'nav.payments' },
@@ -49,6 +53,7 @@ const MODULES: ModuleItem[] = [
   },
   {
     href: '/investments', key: 'nav.investments', icon: '📈', color: 'bg-teal-500',
+    svgPath: 'M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941',
     sub: [
       { href: '/investments', key: 'nav.portfolio' },
       { href: '/investments/analyzer', key: 'nav.deal_analyzer' },
@@ -57,8 +62,14 @@ const MODULES: ModuleItem[] = [
       { href: '/investments/tax-report', key: 'nav.tax_report' },
     ],
   },
-  { href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500' },
-  { href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500' },
+  {
+    href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500',
+    svgPath: 'M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 01-1.632 2.163l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66a2.25 2.25 0 001.632-2.163zm0 0V2.34A1.125 1.125 0 0017.368 1.3l-2.81.8A1.125 1.125 0 0013.5 3.227V9M9 9l-4.5 1.286V15.5A2.25 2.25 0 016.132 17.663l-1.32.377a1.803 1.803 0 11-.99-3.467l2.31-.66A2.25 2.25 0 007.764 11.7V9z',
+  },
+  {
+    href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500',
+    svgPath: 'M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10',
+  },
 ];
 
 // Bottom tab bar items (mobile) — first 4 + More
@@ -69,11 +80,11 @@ const BOTTOM_TABS = MODULES.slice(0, 4);
 const MORE_ITEMS: ModuleItem[] = [
   MODULES[4], // Music
   MODULES[5], // Notes
-  { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500' },
-  { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500' },
-  { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
-  { href: '/tenants', key: 'nav.tenants', icon: '🏘️', color: 'bg-lime-600' },
-  { href: '/leases', key: 'nav.leases', icon: '📋', color: 'bg-violet-500' },
+  { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500', svgPath: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z' },
+  { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500', svgPath: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z' },
+  { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500', svgPath: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z' },
+  { href: '/tenants', key: 'nav.tenants', icon: '🏘️', color: 'bg-lime-600', svgPath: 'M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z' },
+  { href: '/leases', key: 'nav.leases', icon: '📋', color: 'bg-violet-500', svgPath: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15a2.25 2.25 0 012.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25z' },
 ];
 
 function useIsStandalone() {
@@ -157,11 +168,13 @@ export default function NavBar() {
                   <div key={mod.href} className="relative group/nav">
                     <a
                       href={mod.href}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
+                      className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
                         isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                       }`}
                     >
-                      <span className="text-base">{mod.icon}</span>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d={mod.svgPath} />
+                      </svg>
                       {t(mod.key, locale)}
                       <svg className="w-3 h-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -189,11 +202,13 @@ export default function NavBar() {
                   <a
                     key={mod.href}
                     href={mod.href}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
+                    className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
                       isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                     }`}
                   >
-                    <span className="text-base">{mod.icon}</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={mod.svgPath} />
+                    </svg>
                     {t(mod.key, locale)}
                   </a>
                 )
@@ -294,11 +309,14 @@ export default function NavBar() {
                 <div key={mod.href}>
                   <a
                     href={mod.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium ${
                       isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    <span>{mod.icon}</span> {t(mod.key, locale)}
+                    <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={mod.svgPath} />
+                    </svg>
+                    {t(mod.key, locale)}
                   </a>
                   {mod.sub && isActive(mod.href) && (
                     <div className="ml-8 mt-1 space-y-1">
