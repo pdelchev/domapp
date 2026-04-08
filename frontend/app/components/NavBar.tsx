@@ -22,11 +22,10 @@ const MODULES: ModuleItem[] = [
   {
     href: '/lifestyle', key: 'nav.health_hub', icon: '❤️', color: 'bg-rose-500',
     sub: [
-      { href: '/lifestyle', key: 'nav.health_hub' },
-      { href: '/lifestyle/track', key: 'nav.daily_tracking' },
+      { href: '/lifestyle', key: 'nav.daily_hub' },
+      { href: '/health', key: 'nav.blood_results' },
       { href: '/lifestyle/meals', key: 'lifestyle.meal_plan' },
       { href: '/lifestyle/gym', key: 'lifestyle.gym_routine' },
-      { href: '/lifestyle/tests', key: 'lifestyle.follow_up' },
     ],
   },
   {
@@ -51,8 +50,6 @@ const MODULES: ModuleItem[] = [
     ],
   },
   { href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500' },
-  { href: '/dashboard', key: 'nav.dashboard', icon: '📊', color: 'bg-indigo-500' },
-  { href: '/notifications', key: 'nav.notifications', icon: '🔔', color: 'bg-amber-500' },
 ];
 
 // Bottom tab bar items (mobile) — first 4 + More
@@ -60,15 +57,12 @@ const BOTTOM_TABS = MODULES.slice(0, 4);
 
 // Items that appear in the "More" sheet
 const MORE_ITEMS: ModuleItem[] = [
-  MODULES[4], // Dashboard
-  MODULES[5], // Notifications
   { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500' },
   { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500' },
   { href: '/investments', key: 'nav.investments', icon: '📈', color: 'bg-teal-500' },
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
   { href: '/tenants', key: 'nav.tenants', icon: '🏘️', color: 'bg-lime-600' },
   { href: '/leases', key: 'nav.leases', icon: '📋', color: 'bg-violet-500' },
-  { href: '/settings', key: 'nav.settings', icon: '⚙️', color: 'bg-gray-500' },
 ];
 
 function useIsStandalone() {
@@ -93,6 +87,7 @@ export default function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const isPWA = useIsStandalone();
 
   useEffect(() => {
@@ -107,6 +102,7 @@ export default function NavBar() {
   useEffect(() => {
     setMoreOpen(false);
     setMobileOpen(false);
+    setProfileOpen(false);
   }, [pathname]);
 
   const handleLogout = async () => {
@@ -217,16 +213,52 @@ export default function NavBar() {
               >
                 {locale === 'en' ? 'BG' : 'EN'}
               </button>
-              <span className="text-sm text-gray-500 hidden sm:block">{username}</span>
-              <button
-                onClick={handleLogout}
-                className="hidden md:inline-flex p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50 transition-colors"
-                title={t('nav.logout', locale)}
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-              </button>
+              {/* Profile dropdown — desktop */}
+              <div className="relative hidden sm:block">
+                <button
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span className="font-medium">{username}</span>
+                  <svg className="w-3 h-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {profileOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-xl shadow-lg py-1.5 min-w-[180px]">
+                      <a
+                        href="/settings"
+                        className={`flex items-center gap-2.5 px-4 py-2 text-sm transition-colors ${
+                          pathname === '/settings' || pathname.startsWith('/settings/')
+                            ? 'bg-indigo-50 text-indigo-700 font-medium'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {t('nav.settings', locale)}
+                      </a>
+                      <div className="border-t border-gray-100 my-1" />
+                      <button
+                        onClick={handleLogout}
+                        className="flex items-center gap-2.5 w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
+                        {t('nav.logout', locale)}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               {/* Hamburger — mobile non-PWA */}
               {!isPWA && (
                 <button
@@ -273,15 +305,25 @@ export default function NavBar() {
                   )}
                 </div>
               ))}
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                </svg>
-                {t('nav.logout', locale)}
-              </button>
+              <div className="border-t border-gray-200 mt-2 pt-2">
+                <a
+                  href="/settings"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                    pathname === '/settings' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span>⚙️</span> {t('nav.settings', locale)}
+                </a>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
+                >
+                  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                  </svg>
+                  {t('nav.logout', locale)}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -315,26 +357,39 @@ export default function NavBar() {
                       </button>
                     ))}
                   </div>
-                  {/* Settings row */}
-                  <div className="border-t border-gray-100 pt-3 flex items-center justify-between">
+                  {/* User section */}
+                  <div className="border-t border-gray-100 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.982 18.725A7.488 7.488 0 0012 15.75a7.488 7.488 0 00-5.982 2.975m11.963 0a9 9 0 10-11.963 0m11.963 0A8.966 8.966 0 0112 21a8.966 8.966 0 01-5.982-2.275M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span className="text-sm font-medium text-gray-700">{username}</span>
+                        <button
+                          onClick={() => setLocale(locale === 'en' ? 'bg' : 'en')}
+                          className="h-7 px-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                        >
+                          {locale === 'en' ? 'BG' : 'EN'}
+                        </button>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">{username}</span>
                       <button
-                        onClick={() => setLocale(locale === 'en' ? 'bg' : 'en')}
-                        className="h-7 px-2 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg"
+                        onClick={() => navigate('/settings')}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 bg-gray-50 hover:bg-gray-100"
                       >
-                        {locale === 'en' ? 'BG' : 'EN'}
+                        <span>⚙️</span> {t('nav.settings', locale)}
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                        </svg>
+                        {t('nav.logout', locale)}
                       </button>
                     </div>
-                    <button
-                      onClick={handleLogout}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                      </svg>
-                      {t('nav.logout', locale)}
-                    </button>
                   </div>
                 </div>
               </div>
