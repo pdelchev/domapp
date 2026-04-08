@@ -41,26 +41,35 @@ const MODULES: ModuleItem[] = [
     ],
   },
   {
-    href: '/finance', key: 'nav.finance', icon: '💰', color: 'bg-emerald-500',
+    href: '/finance', key: 'nav.financials', icon: '💰', color: 'bg-emerald-500',
     sub: [
-      { href: '/finance', key: 'nav.finance' },
+      { href: '/finance', key: 'nav.financials' },
       { href: '/finance/payments', key: 'nav.payments' },
       { href: '/finance/expenses', key: 'nav.expenses' },
-      { href: '/investments', key: 'nav.investments' },
+    ],
+  },
+  {
+    href: '/investments', key: 'nav.investments', icon: '📈', color: 'bg-teal-500',
+    sub: [
+      { href: '/investments', key: 'nav.portfolio' },
       { href: '/investments/analyzer', key: 'nav.deal_analyzer' },
+      { href: '/investments/watchlist', key: 'nav.watchlist' },
+      { href: '/investments/dividends', key: 'nav.dividends' },
+      { href: '/investments/tax-report', key: 'nav.tax_report' },
     ],
   },
   { href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500' },
 ];
 
 // Bottom tab bar items (mobile) — first 4 + More
+// Health, Properties, Financials, Investments shown as tabs; rest in More sheet
 const BOTTOM_TABS = MODULES.slice(0, 4);
 
 // Items that appear in the "More" sheet
 const MORE_ITEMS: ModuleItem[] = [
+  MODULES[4], // Music
   { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500' },
   { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500' },
-  { href: '/investments', key: 'nav.investments', icon: '📈', color: 'bg-teal-500' },
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
   { href: '/tenants', key: 'nav.tenants', icon: '🏘️', color: 'bg-lime-600' },
   { href: '/leases', key: 'nav.leases', icon: '📋', color: 'bg-violet-500' },
@@ -114,9 +123,10 @@ export default function NavBar() {
   const isActive = useCallback((href: string) => {
     if (pathname === href || pathname.startsWith(href + '/')) return true;
     // Module-level matching
-    if (href === '/lifestyle' && (pathname.startsWith('/lifestyle'))) return true;
+    if (href === '/lifestyle' && pathname.startsWith('/lifestyle')) return true;
     if (href === '/properties' && (pathname.startsWith('/properties') || pathname.startsWith('/owners'))) return true;
-    if (href === '/finance' && (pathname.startsWith('/finance') || pathname.startsWith('/investments'))) return true;
+    if (href === '/finance' && pathname.startsWith('/finance')) return true;
+    if (href === '/investments' && pathname.startsWith('/investments')) return true;
     if (href === '/music' && pathname.startsWith('/music')) return true;
     return false;
   }, [pathname]);

@@ -242,6 +242,11 @@ const translations: Record<string, Record<Locale, string>> = {
 
   // Finance
   'nav.finance': { en: 'Finance', bg: 'Финанси' },
+  'nav.financials': { en: 'Financials', bg: 'Финанси' },
+  'nav.portfolio': { en: 'Portfolio', bg: 'Портфолио' },
+  'nav.watchlist': { en: 'Watchlist', bg: 'Наблюдение' },
+  'nav.dividends': { en: 'Dividends', bg: 'Дивиденти' },
+  'nav.tax_report': { en: 'Tax Report', bg: 'Данъчен отчет' },
   'finance.title': { en: 'Finance', bg: 'Финанси' },
   'finance.overview': { en: 'Financial Overview', bg: 'Финансов преглед' },
   'finance.total_income': { en: 'Total Income', bg: 'Общ приход' },
