@@ -287,6 +287,7 @@ export default function DailyHubPage() {
   // Fasting window — persisted to localStorage
   const [fastingWindow, setFastingWindow] = useState<{ eatStart: number; eatEnd: number }>({ eatStart: 10, eatEnd: 20 });
   const [manualFastStart, setManualFastStart] = useState<string | null>(null); // ISO timestamp
+  const [lastAteAt, setLastAteAt] = useState<string | null>(null); // ISO timestamp — when user last ate
   const [editingFasting, setEditingFasting] = useState(false);
 
   // Add new supplement form
@@ -340,6 +341,8 @@ export default function DailyHubPage() {
     if (fw) setFastingWindow(JSON.parse(fw));
     const mfs = localStorage.getItem('manual_fast_start');
     if (mfs) setManualFastStart(mfs);
+    const laa = localStorage.getItem('last_ate_at');
+    if (laa) setLastAteAt(laa);
   }, []);
 
   const saveFastingWindow = (eatStart: number, eatEnd: number) => {
@@ -347,6 +350,28 @@ export default function DailyHubPage() {
     setFastingWindow(fw);
     localStorage.setItem('fasting_window', JSON.stringify(fw));
     setEditingFasting(false);
+  };
+
+  const markAteNow = () => {
+    const ts = new Date().toISOString();
+    setLastAteAt(ts);
+    localStorage.setItem('last_ate_at', ts);
+    // Stop any manual fast since we just ate
+    setManualFastStart(null);
+    localStorage.removeItem('manual_fast_start');
+  };
+
+  const markAteAt = (hoursAgo: number) => {
+    const ts = new Date(Date.now() - hoursAgo * 3600000).toISOString();
+    setLastAteAt(ts);
+    localStorage.setItem('last_ate_at', ts);
+    setManualFastStart(null);
+    localStorage.removeItem('manual_fast_start');
+  };
+
+  const clearLastAte = () => {
+    setLastAteAt(null);
+    localStorage.removeItem('last_ate_at');
   };
 
   const startManualFast = () => {
@@ -927,78 +952,127 @@ export default function DailyHubPage() {
                 const h = now.getHours();
                 const m = now.getMinutes();
                 const { eatStart, eatEnd } = fastingWindow;
+                const timeFmt = (d: Date) => d.toLocaleTimeString(locale === 'bg' ? 'bg-BG' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+                const gearBtn = (
+                  <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600 shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                  </button>
+                );
 
-                // Manual fast overrides schedule
-                if (manualFastStart) {
-                  const startTime = new Date(manualFastStart);
-                  const elapsedMs = now.getTime() - startTime.getTime();
+                // Determine fasting start: lastAteAt > manualFastStart > schedule
+                const fastingSince = lastAteAt
+                  ? new Date(lastAteAt)
+                  : manualFastStart
+                  ? new Date(manualFastStart)
+                  : null;
+
+                // If we have a real "last ate" or manual fast timestamp
+                if (fastingSince) {
+                  const elapsedMs = now.getTime() - fastingSince.getTime();
                   const elapsedMins = Math.floor(elapsedMs / 60000);
                   const eHrs = Math.floor(elapsedMins / 60);
                   const eMins = elapsedMins % 60;
-                  const startStr = startTime.toLocaleTimeString(locale === 'bg' ? 'bg-BG' : 'en-GB', { hour: '2-digit', minute: '2-digit' });
+                  const isFromLastAte = !!lastAteAt;
                   return (
-                    <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-xl">
-                      <div>
-                        <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Ръчно гладуване' : 'Manual Fast'}</p>
-                        <p className="text-lg font-bold text-purple-700">{eHrs}h {eMins}m</p>
-                        <p className="text-[10px] text-purple-400">{locale === 'bg' ? 'Започнато в' : 'Started at'} {startStr}</p>
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
+                          <p className="text-lg font-bold text-purple-700">{eHrs}h {eMins}m</p>
+                          <p className="text-[10px] text-purple-400">
+                            {isFromLastAte
+                              ? (locale === 'bg' ? `Последно хранене в ${timeFmt(fastingSince)}` : `Last ate at ${timeFmt(fastingSince)}`)
+                              : (locale === 'bg' ? `Започнато в ${timeFmt(fastingSince)}` : `Started at ${timeFmt(fastingSince)}`)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => { clearLastAte(); stopManualFast(); }} className="px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100">
+                            ✕
+                          </button>
+                          {gearBtn}
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button onClick={stopManualFast} className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100">
-                          {locale === 'bg' ? 'Спри' : 'Stop'}
+                      {/* Quick "I just ate" */}
+                      <div className="flex items-center gap-2 pt-1 border-t border-purple-200">
+                        <button onClick={markAteNow} className="px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100">
+                          🍽️ {locale === 'bg' ? 'Ядох сега' : 'I just ate'}
                         </button>
-                        <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                        </button>
+                        <span className="text-[10px] text-purple-300">|</span>
+                        {[1, 2, 3, 4].map((hrs) => (
+                          <button key={hrs} onClick={() => markAteAt(hrs)} className="px-2 py-1.5 text-[11px] font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200">
+                            {hrs}h {locale === 'bg' ? 'назад' : 'ago'}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   );
                 }
 
+                // Schedule-based
                 const isFasting = h >= eatEnd || h < eatStart;
                 if (isFasting) {
                   const minsUntilEat = h >= eatEnd ? (24 - h + eatStart) * 60 - m : (eatStart - h) * 60 - m;
-                  const fastStartH = h >= eatEnd ? eatEnd : eatEnd; // fasting started at eatEnd
                   const hrs = Math.floor(minsUntilEat / 60);
                   const mins = minsUntilEat % 60;
-                  // Time fasted so far
                   const totalFastMins = (24 - eatEnd + eatStart) * 60;
                   const fastedMins = totalFastMins - minsUntilEat;
                   const fHrs = Math.floor(fastedMins / 60);
                   const fMins = fastedMins % 60;
                   return (
-                    <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-xl">
-                      <div>
-                        <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
-                        <p className="text-lg font-bold text-purple-700">{fHrs}h {fMins}m {locale === 'bg' ? 'от' : 'fasted'}</p>
-                        <p className="text-[10px] text-purple-400">
-                          {locale === 'bg' ? `От ${String(eatEnd).padStart(2, '0')}:00 · Хранене в ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)` : `Since ${String(eatEnd).padStart(2, '0')}:00 · Eat at ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)`}
-                        </p>
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[10px] font-semibold text-purple-500 uppercase tracking-wider">⏳ {locale === 'bg' ? 'Гладуване' : 'Fasting'}</p>
+                          <p className="text-lg font-bold text-purple-700">{fHrs}h {fMins}m</p>
+                          <p className="text-[10px] text-purple-400">
+                            {locale === 'bg' ? `От ${String(eatEnd).padStart(2, '0')}:00 · Хранене в ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)` : `Since ${String(eatEnd).padStart(2, '0')}:00 · Eat at ${String(eatStart).padStart(2, '0')}:00 (${hrs}h ${mins}m)`}
+                          </p>
+                        </div>
+                        {gearBtn}
                       </div>
-                      <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      </button>
+                      <div className="flex items-center gap-2 pt-1 border-t border-purple-200">
+                        <button onClick={markAteNow} className="px-2.5 py-1.5 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100">
+                          🍽️ {locale === 'bg' ? 'Ядох сега' : 'I just ate'}
+                        </button>
+                        <span className="text-[10px] text-purple-300">|</span>
+                        {[1, 2, 3, 4].map((hrs) => (
+                          <button key={hrs} onClick={() => markAteAt(hrs)} className="px-2 py-1.5 text-[11px] font-medium text-purple-600 bg-purple-100 rounded-lg hover:bg-purple-200">
+                            {hrs}h {locale === 'bg' ? 'назад' : 'ago'}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   );
                 }
-                // Eating window
+                // Eating window open
                 const minsUntilFast = (eatEnd - h) * 60 - m;
                 const hrs = Math.floor(minsUntilFast / 60);
                 const mins = minsUntilFast % 60;
                 return (
-                  <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-xl">
-                    <div>
-                      <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wider">🍽️ {locale === 'bg' ? 'Хранителен прозорец' : 'Eating Window'}</p>
-                      <p className="text-lg font-bold text-green-700">{hrs}h {mins}m {locale === 'bg' ? 'остават' : 'left'}</p>
-                      <p className="text-[10px] text-green-400">{String(eatStart).padStart(2, '0')}:00 – {String(eatEnd).padStart(2, '0')}:00</p>
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-semibold text-green-500 uppercase tracking-wider">🍽️ {locale === 'bg' ? 'Хранителен прозорец' : 'Eating Window'}</p>
+                        <p className="text-lg font-bold text-green-700">{hrs}h {mins}m {locale === 'bg' ? 'остават' : 'left'}</p>
+                        <p className="text-[10px] text-green-400">{String(eatStart).padStart(2, '0')}:00 – {String(eatEnd).padStart(2, '0')}:00</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button onClick={startManualFast} className="px-2.5 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100">
+                          ⏳ {locale === 'bg' ? 'Започни гладуване' : 'Start Fast'}
+                        </button>
+                        {gearBtn}
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={startManualFast} className="px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100">
-                        ⏳ {locale === 'bg' ? 'Започни гладуване' : 'Start Fast'}
+                    <div className="flex items-center gap-2 pt-1 border-t border-green-200">
+                      <button onClick={markAteNow} className="px-2.5 py-1.5 text-xs font-medium text-green-700 bg-white border border-green-200 rounded-lg hover:bg-green-50">
+                        🍽️ {locale === 'bg' ? 'Ядох сега' : 'I just ate'}
                       </button>
-                      <button onClick={() => setEditingFasting(true)} className="p-1.5 text-gray-400 hover:text-gray-600">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      </button>
+                      <span className="text-[10px] text-green-300">|</span>
+                      {[1, 2, 3].map((hrs) => (
+                        <button key={hrs} onClick={() => markAteAt(hrs)} className="px-2 py-1.5 text-[11px] font-medium text-green-600 bg-white border border-green-200 rounded-lg hover:bg-green-50">
+                          {hrs}h {locale === 'bg' ? 'назад' : 'ago'}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 );
