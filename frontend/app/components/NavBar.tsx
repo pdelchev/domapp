@@ -58,6 +58,7 @@ const MODULES: ModuleItem[] = [
     ],
   },
   { href: '/music', key: 'nav.music', icon: '🎵', color: 'bg-purple-500' },
+  { href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500' },
 ];
 
 // Bottom tab bar items (mobile) — first 4 + More
@@ -67,7 +68,7 @@ const BOTTOM_TABS = MODULES.slice(0, 4);
 // Items that appear in the "More" sheet
 const MORE_ITEMS: ModuleItem[] = [
   MODULES[4], // Music
-  { href: '/notes', key: 'nav.notes', icon: '📝', color: 'bg-yellow-500' },
+  MODULES[5], // Notes
   { href: '/documents', key: 'nav.documents', icon: '📄', color: 'bg-cyan-500' },
   { href: '/problems', key: 'nav.problems', icon: '⚠️', color: 'bg-orange-500' },
   { href: '/owners', key: 'nav.owners', icon: '👤', color: 'bg-sky-500' },
