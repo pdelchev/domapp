@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Tenant
+from .models import Tenant, TenantLog
+
+
+class TenantLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TenantLog
+        fields = ['id', 'tenant', 'log_type', 'message', 'logged_at']
+        read_only_fields = ['id', 'logged_at']
 
 
 class TenantSerializer(serializers.ModelSerializer):

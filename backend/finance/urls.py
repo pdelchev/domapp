@@ -1,6 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import RentPaymentViewSet, ExpenseViewSet, FinanceSummaryView, BatchMarkPaidView
+from .views import (
+    RentPaymentViewSet, ExpenseViewSet, FinanceSummaryView,
+    BatchMarkPaidView, ExpenseForecastView, CollectionHeatmapView,
+)
 
 router = DefaultRouter()
 router.register(r'rent-payments', RentPaymentViewSet, basename='rent-payment')
@@ -10,5 +13,7 @@ urlpatterns = [
     # Batch endpoint before router to avoid pk conflict
     path('rent-payments/batch-mark-paid/', BatchMarkPaidView.as_view(), name='batch-mark-paid'),
     path('finance/summary/', FinanceSummaryView.as_view(), name='finance-summary'),
+    path('finance/forecast/', ExpenseForecastView.as_view(), name='expense-forecast'),
+    path('finance/collection-heatmap/', CollectionHeatmapView.as_view(), name='collection-heatmap'),
     path('', include(router.urls)),
 ]

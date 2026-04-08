@@ -2,9 +2,10 @@ from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Sum, Q
+from django.db.models import Sum, Q, Avg
 from django.utils import timezone
-from datetime import date
+from datetime import date, timedelta
+from dateutil.relativedelta import relativedelta
 from .models import RentPayment, Expense
 from .serializers import RentPaymentSerializer, ExpenseSerializer
 from properties.models import Property
@@ -162,3 +163,158 @@ class FinanceSummaryView(APIView):
             'overdue_amount': float(overdue_amount),
             'by_property': by_property,
         })
+
+
+class ExpenseForecastView(APIView):
+    """Project expenses forward 3/6/12 months based on recurring expenses + history."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.get_data_owner()
+        months = int(request.query_params.get('months', 6))
+        months = min(months, 12)
+        today = timezone.now().date()
+
+        properties = Property.objects.filter(user=user)
+        result = []
+
+        for prop in properties:
+            # Recurring expenses — project forward
+            recurring = Expense.objects.filter(
+                property=prop, recurring=True,
+            )
+
+            # Historical monthly average (last 6 months) for non-recurring
+            six_months_ago = today - relativedelta(months=6)
+            non_recurring_avg = Expense.objects.filter(
+                property=prop, recurring=False,
+                paid_date__gte=six_months_ago, paid_date__isnull=False,
+            ).aggregate(avg=Avg('amount'))['avg'] or 0
+
+            monthly_projection = []
+            for m in range(months):
+                target_date = today + relativedelta(months=m + 1)
+                month_total = float(non_recurring_avg)
+                items = []
+
+                if float(non_recurring_avg) > 0:
+                    items.append({
+                        'category': 'other',
+                        'description': 'Historical average (non-recurring)',
+                        'amount': round(float(non_recurring_avg), 2),
+                        'source': 'historical',
+                    })
+
+                for exp in recurring:
+                    freq = exp.recurrence_frequency
+                    if freq == 'monthly':
+                        month_total += float(exp.amount)
+                        items.append({
+                            'category': exp.category,
+                            'description': exp.description or exp.get_category_display(),
+                            'amount': round(float(exp.amount), 2),
+                            'source': 'recurring',
+                        })
+                    elif freq == 'yearly' and exp.due_date:
+                        if exp.due_date.month == target_date.month:
+                            month_total += float(exp.amount)
+                            items.append({
+                                'category': exp.category,
+                                'description': exp.description or exp.get_category_display(),
+                                'amount': round(float(exp.amount), 2),
+                                'source': 'recurring_yearly',
+                            })
+
+                monthly_projection.append({
+                    'month': target_date.strftime('%Y-%m'),
+                    'total': round(month_total, 2),
+                    'items': items,
+                })
+
+            result.append({
+                'property_id': prop.id,
+                'property_name': prop.name,
+                'months': monthly_projection,
+                'total_projected': round(sum(m['total'] for m in monthly_projection), 2),
+            })
+
+        return Response({
+            'forecast_months': months,
+            'properties': result,
+            'grand_total': round(sum(p['total_projected'] for p in result), 2),
+        })
+
+
+class CollectionHeatmapView(APIView):
+    """12-month payment collection heatmap data for all properties."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user.get_data_owner()
+        today = timezone.now().date()
+        twelve_months_ago = today - relativedelta(months=12)
+
+        payments = RentPayment.objects.filter(
+            lease__property__user=user,
+            due_date__gte=twelve_months_ago,
+        ).select_related('lease__property', 'lease__tenant').values(
+            'id', 'due_date', 'payment_date', 'status', 'amount_due',
+            'lease__property__id', 'lease__property__name',
+            'lease__tenant__full_name',
+        )
+
+        # Build daily map: date -> status
+        days = {}
+        for p in payments:
+            due = p['due_date'].isoformat()
+            if p['status'] == 'paid':
+                if p['payment_date'] and p['payment_date'] <= p['due_date']:
+                    level = 'on_time'
+                else:
+                    level = 'late'
+            elif p['status'] == 'overdue':
+                level = 'missed'
+            else:
+                level = 'pending'
+
+            if due not in days or _level_priority(level) > _level_priority(days[due]['level']):
+                days[due] = {
+                    'date': due,
+                    'level': level,
+                    'count': days.get(due, {}).get('count', 0) + 1,
+                    'amount': float(days.get(due, {}).get('amount', 0)) + float(p['amount_due']),
+                }
+            else:
+                days[due]['count'] += 1
+                days[due]['amount'] += float(p['amount_due'])
+
+        # Per-property monthly summary
+        by_property = {}
+        for p in payments:
+            pid = p['lease__property__id']
+            pname = p['lease__property__name']
+            month_key = p['due_date'].strftime('%Y-%m')
+            if pid not in by_property:
+                by_property[pid] = {'id': pid, 'name': pname, 'months': {}}
+            if month_key not in by_property[pid]['months']:
+                by_property[pid]['months'][month_key] = {'total': 0, 'paid': 0, 'on_time': 0, 'late': 0, 'missed': 0, 'pending': 0}
+            by_property[pid]['months'][month_key]['total'] += 1
+            if p['status'] == 'paid':
+                by_property[pid]['months'][month_key]['paid'] += 1
+                if p['payment_date'] and p['payment_date'] <= p['due_date']:
+                    by_property[pid]['months'][month_key]['on_time'] += 1
+                else:
+                    by_property[pid]['months'][month_key]['late'] += 1
+            elif p['status'] == 'overdue':
+                by_property[pid]['months'][month_key]['missed'] += 1
+            else:
+                by_property[pid]['months'][month_key]['pending'] += 1
+
+        return Response({
+            'days': list(days.values()),
+            'by_property': list(by_property.values()),
+        })
+
+
+def _level_priority(level):
+    return {'on_time': 0, 'pending': 1, 'late': 2, 'missed': 3}.get(level, 0)

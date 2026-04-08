@@ -2,11 +2,11 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTenant, updateTenant, getLeases, getRentPayments } from '../../lib/api';
+import { getTenant, updateTenant, getLeases, getRentPayments, getTenantLogs, createTenantLog, deleteTenantLog } from '../../lib/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
 import NavBar from '../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Button, Input, Alert, Spinner, Badge } from '../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Button, Input, Select, Textarea, Alert, Spinner, Badge } from '../../components/ui';
 
 interface Lease {
   id: number;
@@ -29,6 +29,25 @@ interface Payment {
   method: string | null;
 }
 
+interface LogEntry {
+  id: number;
+  tenant: number;
+  log_type: string;
+  message: string;
+  logged_at: string;
+}
+
+const LOG_TYPES = [
+  { value: 'call', icon: '📞', en: 'Phone Call', bg: 'Обаждане' },
+  { value: 'email', icon: '📧', en: 'Email', bg: 'Имейл' },
+  { value: 'sms', icon: '💬', en: 'SMS', bg: 'SMS' },
+  { value: 'visit', icon: '🏠', en: 'Visit', bg: 'Посещение' },
+  { value: 'reminder', icon: '🔔', en: 'Reminder', bg: 'Напомняне' },
+  { value: 'note', icon: '📝', en: 'Note', bg: 'Бележка' },
+  { value: 'payment', icon: '💰', en: 'Payment', bg: 'Плащане' },
+  { value: 'maintenance', icon: '🔧', en: 'Maintenance', bg: 'Поддръжка' },
+];
+
 export default function EditTenantPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -45,19 +64,25 @@ export default function EditTenantPage({ params }: { params: Promise<{ id: strin
     email: '',
     id_number: '',
   });
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [showLogForm, setShowLogForm] = useState(false);
+  const [logForm, setLogForm] = useState({ log_type: 'note', message: '' });
+  const [savingLog, setSavingLog] = useState(false);
 
   useEffect(() => {
     Promise.all([
       getTenant(Number(id)),
       getLeases(),
+      getTenantLogs(Number(id)),
     ])
-      .then(([data, allLeases]) => {
+      .then(([data, allLeases, tenantLogs]) => {
         setForm({
           full_name: data.full_name || '',
           phone: data.phone || '',
           email: data.email || '',
           id_number: data.id_number || '',
         });
+        setLogs(tenantLogs);
         const tLeases = allLeases.filter((l: Lease & { tenant: number }) => l.tenant === Number(id));
         setTenantLeases(tLeases);
 
@@ -88,6 +113,26 @@ export default function EditTenantPage({ params }: { params: Promise<{ id: strin
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleAddLog = async () => {
+    if (!logForm.message.trim()) return;
+    setSavingLog(true);
+    try {
+      const created = await createTenantLog({ tenant: Number(id), ...logForm });
+      setLogs(prev => [created, ...prev]);
+      setLogForm({ log_type: 'note', message: '' });
+      setShowLogForm(false);
+    } catch { setError('Failed to save log'); }
+    setSavingLog(false);
+  };
+
+  const handleDeleteLog = async (logId: number) => {
+    if (!confirm(locale === 'bg' ? 'Изтриване?' : 'Delete?')) return;
+    try {
+      await deleteTenantLog(logId);
+      setLogs(prev => prev.filter(l => l.id !== logId));
+    } catch { /* */ }
   };
 
   const fmt = (v: string | number) =>
@@ -228,6 +273,95 @@ export default function EditTenantPage({ params }: { params: Promise<{ id: strin
             </Card>
           </div>
         )}
+        {/* Communication Log */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {locale === 'bg' ? 'Комуникация' : 'Communication Log'}
+            </h2>
+            <Button variant="secondary" size="sm" onClick={() => setShowLogForm(!showLogForm)}>
+              + {locale === 'bg' ? 'Добави' : 'Add'}
+            </Button>
+          </div>
+
+          {showLogForm && (
+            <Card className="mb-4">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <Select
+                    label={locale === 'bg' ? 'Тип' : 'Type'}
+                    value={logForm.log_type}
+                    onChange={(e) => setLogForm(p => ({ ...p, log_type: e.target.value }))}
+                  >
+                    {LOG_TYPES.map((lt) => (
+                      <option key={lt.value} value={lt.value}>{lt.icon} {locale === 'bg' ? lt.bg : lt.en}</option>
+                    ))}
+                  </Select>
+                  <div className="md:col-span-3">
+                    <Textarea
+                      label={locale === 'bg' ? 'Бележка' : 'Message'}
+                      value={logForm.message}
+                      onChange={(e) => setLogForm(p => ({ ...p, message: e.target.value }))}
+                      rows={2}
+                      placeholder={locale === 'bg' ? 'Какво се случи...' : 'What happened...'}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={handleAddLog} disabled={savingLog}>
+                    {savingLog ? '...' : t('common.save', locale)}
+                  </Button>
+                  <Button size="sm" variant="secondary" onClick={() => setShowLogForm(false)}>
+                    {t('common.cancel', locale)}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {logs.length === 0 ? (
+            <Card className="py-6 text-center">
+              <p className="text-sm text-gray-400">{locale === 'bg' ? 'Няма записи' : 'No entries yet'}</p>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {logs.map((log) => {
+                const logType = LOG_TYPES.find(lt => lt.value === log.log_type);
+                const timeAgo = (() => {
+                  const diff = Date.now() - new Date(log.logged_at).getTime();
+                  const mins = Math.floor(diff / 60000);
+                  if (mins < 60) return `${mins}m`;
+                  const hrs = Math.floor(mins / 60);
+                  if (hrs < 24) return `${hrs}h`;
+                  const days = Math.floor(hrs / 24);
+                  if (days < 30) return `${days}d`;
+                  return new Date(log.logged_at).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US');
+                })();
+
+                return (
+                  <div key={log.id} className="flex items-start gap-3 p-3 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 group">
+                    <span className="text-lg mt-0.5">{logType?.icon || '📝'}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <Badge color="gray">{locale === 'bg' ? logType?.bg : logType?.en}</Badge>
+                        <span className="text-xs text-gray-400">{timeAgo}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 whitespace-pre-line">{log.message}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteLog(log.id)}
+                      className="p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </PageContent>
     </PageShell>
   );

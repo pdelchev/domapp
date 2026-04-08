@@ -502,6 +502,38 @@ export async function getFinanceSummary() {
   return res.json();
 }
 
+// --- Expense Forecast ---
+export async function getExpenseForecast(months = 6) {
+  const res = await apiFetch(`/api/finance/forecast/?months=${months}`);
+  if (!res.ok) throw new Error('Failed to fetch forecast');
+  return res.json();
+}
+
+// --- Collection Heatmap ---
+export async function getCollectionHeatmap() {
+  const res = await apiFetch('/api/finance/collection-heatmap/');
+  if (!res.ok) throw new Error('Failed to fetch heatmap');
+  return res.json();
+}
+
+// --- Tenant Logs ---
+export async function getTenantLogs(tenantId: number) {
+  const res = await apiFetch(`/api/tenant-logs/?tenant=${tenantId}`);
+  if (!res.ok) throw new Error('Failed to fetch logs');
+  return res.json();
+}
+
+export async function createTenantLog(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/tenant-logs/', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create log');
+  return res.json();
+}
+
+export async function deleteTenantLog(id: number) {
+  const res = await apiFetch(`/api/tenant-logs/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete log');
+}
+
 // --- Problems ---
 export async function getProblems(propertyId?: number, status?: string, priority?: string, category?: string) {
   const params = new URLSearchParams();
