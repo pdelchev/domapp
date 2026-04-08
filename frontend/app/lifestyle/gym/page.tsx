@@ -125,27 +125,6 @@ const SPORTS: Sport[] = [
   { name: { en: 'Yoga', bg: 'Йога' }, icon: '🧘', benefit: { en: 'Reduces cortisol (which raises glucose), improves flexibility, helps liver detox through deep breathing.', bg: 'Намалява кортизола (който повишава глюкозата), подобрява гъвкавостта, помага за детоксикация на черния дроб.' }, frequency: { en: '1-2x/week', bg: '1-2 пъти/седмица' }, linkedResults: ['GLU', 'ALT', 'TP'] },
 ];
 
-const SUPPLEMENTS = {
-  en: [
-    { name: 'Vitamin D3 — 2000-4000 IU daily', reason: 'Improves insulin sensitivity, supports liver and immune function', linked: 'GLU, ALT' },
-    { name: 'Omega-3 Fish Oil — 2g daily', reason: 'Reduces liver inflammation, lowers triglycerides, protects cardiovascular', linked: 'ALT, GLU' },
-    { name: 'Milk Thistle (Silymarin) — 140mg 2x daily', reason: 'Liver protectant, helps normalize ALT/AST', linked: 'ALT, AST, GGT' },
-    { name: 'Magnesium Glycinate — 400mg before bed', reason: 'Improves insulin sensitivity, reduces uric acid, better sleep', linked: 'GLU, URIC' },
-    { name: 'Zinc — 25mg daily', reason: 'Immune support, helps insulin production, liver regeneration', linked: 'GLU, ALT' },
-    { name: 'Berberine — 500mg 2x daily with meals', reason: 'Natural glucose-lowering compound, comparable to metformin in studies', linked: 'GLU' },
-    { name: 'Cherry Extract — 500mg daily', reason: 'Reduces uric acid levels naturally', linked: 'URIC' },
-  ],
-  bg: [
-    { name: 'Витамин D3 — 2000-4000 IU дневно', reason: 'Подобрява инсулиновата чувствителност, поддържа черния дроб и имунитета', linked: 'GLU, ALT' },
-    { name: 'Омега-3 рибено масло — 2g дневно', reason: 'Намалява чернодробното възпаление, понижава триглицеридите', linked: 'ALT, GLU' },
-    { name: 'Бял трън (Силимарин) — 140mg 2 пъти дневно', reason: 'Чернодробен протектант, помага за нормализиране на АЛТ/АСТ', linked: 'ALT, AST, GGT' },
-    { name: 'Магнезий глицинат — 400mg преди сън', reason: 'Подобрява инсулиновата чувствителност, намалява пикочната киселина', linked: 'GLU, URIC' },
-    { name: 'Цинк — 25mg дневно', reason: 'Имунна подкрепа, помага за производството на инсулин', linked: 'GLU, ALT' },
-    { name: 'Берберин — 500mg 2 пъти дневно с храна', reason: 'Естествено понижаващо глюкозата съединение, сравнимо с метформин', linked: 'GLU' },
-    { name: 'Екстракт от череши — 500mg дневно', reason: 'Естествено намалява нивата на пикочна киселина', linked: 'URIC' },
-  ],
-};
-
 const INTENSITY_COLORS: Record<string, 'green' | 'yellow' | 'red'> = { low: 'green', moderate: 'yellow', high: 'red' };
 
 export default function GymRoutinePage() {
@@ -258,24 +237,26 @@ export default function GymRoutinePage() {
           ))}
         </div>
 
-        {/* Supplements */}
-        <h2 className="text-base font-semibold text-gray-900 mb-3">{t('lifestyle.supplements', locale)}</h2>
-        <Card className="mb-8">
-          <div className="space-y-3">
-            {SUPPLEMENTS[locale].map((sup, i) => (
-              <div key={i} className="flex items-start gap-3 py-2 border-b border-gray-100 last:border-0">
-                <span className="text-lg">💊</span>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{sup.name}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{sup.reason}</p>
-                  <div className="mt-1 flex gap-1">
-                    {sup.linked.split(', ').map((code) => <Badge key={code} color="indigo">{code}</Badge>)}
-                  </div>
-                </div>
-              </div>
-            ))}
+        {/* Supplements link */}
+        <button
+          onClick={() => router.push('/lifestyle')}
+          className="w-full flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors mb-8"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">💊</span>
+            <div className="text-left">
+              <p className="text-sm font-semibold text-indigo-800">
+                {locale === 'bg' ? 'Добавки и лекарства' : 'Supplements & Medication'}
+              </p>
+              <p className="text-xs text-indigo-500">
+                {locale === 'bg' ? 'Управлявайте от Дневния ритуал с точни дози и графици' : 'Managed in Daily Ritual with exact doses and schedules'}
+              </p>
+            </div>
           </div>
-        </Card>
+          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
       </PageContent>
     </PageShell>
   );
