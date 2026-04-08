@@ -23,11 +23,11 @@ def seed_protocol(user, profile=None):
         {'name': 'Wake + Hydrate', 'category': 'hydration', 'dose': '500ml water', 'scheduled_time': time(6, 30), 'timing': 'morning', 'sort_order': 10, 'color': 'blue'},
         {'name': 'Olmesta A Plus 40/10/12.5', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — morning (Olmesartan 40 + Amlodipine 10 + HCTZ 12.5)', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 20, 'color': 'red', 'warning': 'CoQ10 also lowers BP — monitor for dizziness', 'prescription_note': 'Д-р Иванка Гоновска (кардиолог)\nDoctors Gonovski, Пловдив, ж.к. Тракия, ул. Шипка 23\nУИН: 2300013756\nRp: Olmesta A Plus 40/10/12.5 — 1/2 x 1т сутрин'},
         {'name': 'Febuxostat 80mg', 'category': 'medication', 'dose': '1 tablet', 'instructions': 'Gout — daily, uric acid lowering', 'scheduled_time': time(7, 0), 'timing': 'morning', 'sort_order': 25, 'color': 'red', 'prescription_note': 'Д-р Кр. Груновски (ортопед-травматолог)\n16.12.2024\nRp: Febuxostat 80mg — 1т дневно'},
-        {'name': 'Saxenda Injection', 'category': 'injection', 'dose': 'Per dose schedule', 'instructions': 'Fasted — no food until 13:00', 'scheduled_time': time(9, 0), 'timing': 'morning', 'sort_order': 30, 'color': 'purple'},
+        {'name': 'Saxenda Injection', 'category': 'injection', 'dose': 'Week 1-4: 0.6mg → Week 5-8: 1.2mg → Week 9-12: 1.8mg → Week 13-16: 2.4mg → Week 17+: 3.0mg', 'instructions': 'Fasted — no food until 13:00. Inject subcutaneously in abdomen/thigh. Rotate injection site daily.', 'scheduled_time': time(9, 0), 'timing': 'morning', 'sort_order': 30, 'color': 'purple'},
 
         # === FASTED WINDOW ===
-        {'name': 'NMN', 'category': 'supplement', 'dose': '250-500mg', 'instructions': 'Fasted — water only, does not break fast', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 40, 'color': 'indigo'},
-        {'name': 'Spermidine', 'category': 'supplement', 'dose': '1-2mg', 'instructions': 'Fasted — autophagy support (Sinclair)', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 45, 'color': 'indigo'},
+        {'name': 'NMN', 'category': 'supplement', 'dose': '500mg (1 capsule)', 'instructions': 'Fasted — water only, does not break fast. Take with water on empty stomach for best absorption.', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 40, 'color': 'indigo'},
+        {'name': 'Spermidine', 'category': 'supplement', 'dose': '1mg (1 capsule)', 'instructions': 'Fasted — autophagy support (Sinclair). Take with water only.', 'scheduled_time': time(10, 0), 'timing': 'fasted', 'sort_order': 45, 'color': 'indigo'},
 
         # === DEEP WORK ===
         {'name': 'Deep Work Block', 'category': 'work', 'dose': '', 'instructions': 'Focus time — no meetings', 'scheduled_time': time(9, 30), 'timing': 'morning', 'sort_order': 50, 'color': 'gray'},
@@ -35,19 +35,19 @@ def seed_protocol(user, profile=None):
         # === FIRST MEAL (13:00) ===
         {'name': 'First Meal', 'category': 'meal', 'dose': '', 'instructions': 'Break fast — include healthy fats for supplement absorption', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 60, 'color': 'green'},
         {'name': 'Vitamin D3 + K2', 'category': 'supplement', 'dose': 'D3 4000IU + K2 200mcg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 70, 'color': 'yellow'},
-        {'name': 'Omega-3', 'category': 'supplement', 'dose': '1000mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 71, 'color': 'yellow'},
-        {'name': 'Zinc', 'category': 'supplement', 'dose': '25mg', 'instructions': 'With food — separated from Febuxostat', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 72, 'color': 'yellow', 'warning': 'Take 6h after Febuxostat to avoid absorption interference'},
-        {'name': 'Boron', 'category': 'supplement', 'dose': '3mg', 'instructions': 'With food', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 73, 'color': 'yellow'},
-        {'name': 'Coenzyme Q10', 'category': 'supplement', 'dose': '250mg', 'instructions': 'With food (fat-soluble)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 74, 'color': 'yellow', 'warning': 'Also lowers BP — synergy with Olmesta A Plus, monitor'},
-        {'name': 'Resveratrol', 'category': 'supplement', 'dose': '500mg', 'instructions': 'With food + fat — pairs with NMN (Sinclair)', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 75, 'color': 'yellow'},
-        {'name': 'Vitamin C', 'category': 'supplement', 'dose': '500mg', 'instructions': 'Optional — helps lower uric acid', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 76, 'color': 'yellow'},
+        {'name': 'Omega-3', 'category': 'supplement', 'dose': '1000mg EPA+DHA (2 softgels)', 'instructions': 'With food — fat improves absorption. Take with first meal.', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 71, 'color': 'yellow'},
+        {'name': 'Zinc', 'category': 'supplement', 'dose': '25mg (1 tablet zinc picolinate)', 'instructions': 'With food — separated from Febuxostat by 6h. Supports testosterone + immune.', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 72, 'color': 'yellow', 'warning': 'Take 6h after Febuxostat to avoid absorption interference'},
+        {'name': 'Boron', 'category': 'supplement', 'dose': '3mg (1 capsule)', 'instructions': 'With food. Supports testosterone, bone health, reduces inflammation.', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 73, 'color': 'yellow'},
+        {'name': 'Coenzyme Q10', 'category': 'supplement', 'dose': '250mg ubiquinol (1 softgel)', 'instructions': 'With food (fat-soluble). Ubiquinol form preferred over ubiquinone — 3-4x better absorption.', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 74, 'color': 'yellow', 'warning': 'Also lowers BP — synergy with Olmesta A Plus, monitor'},
+        {'name': 'Resveratrol', 'category': 'supplement', 'dose': '500mg trans-resveratrol (1 capsule)', 'instructions': 'With food + fat — pairs with NMN for NAD+ synergy (Sinclair protocol).', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 75, 'color': 'yellow'},
+        {'name': 'Vitamin C', 'category': 'supplement', 'dose': '500mg (1 tablet)', 'instructions': 'With food. Helps lower uric acid by 0.5mg/dL. Supports immune + iron absorption.', 'scheduled_time': time(13, 0), 'timing': 'with_meal_1', 'sort_order': 76, 'color': 'yellow'},
 
         # === WORK BLOCK 2 ===
         {'name': 'Work Block 2', 'category': 'work', 'dose': '', 'instructions': 'Afternoon productivity', 'scheduled_time': time(14, 0), 'timing': 'anytime', 'sort_order': 80, 'color': 'gray'},
 
         # === PRE-WORKOUT (conditional) ===
-        {'name': 'L-Citrulline Malate', 'category': 'supplement', 'dose': '6-8g', 'instructions': '30-45 min before gym or 60-90 min before sex', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 90, 'color': 'blue'},
-        {'name': 'Panax Ginseng', 'category': 'supplement', 'dose': '200-400mg', 'instructions': '30-45 min before gym or sex. SKIP on gout flare days', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 91, 'color': 'blue', 'warning': 'Can raise BP — monitor. Pause during gout flares'},
+        {'name': 'L-Citrulline Malate', 'category': 'supplement', 'dose': '8g powder (1 scoop) in 200ml water', 'instructions': '30-45 min before gym or 60-90 min before sex. Mix with water, stir well. Boosts nitric oxide → better blood flow + pump.', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 90, 'color': 'blue'},
+        {'name': 'Panax Ginseng', 'category': 'supplement', 'dose': '300mg standardized extract (1 capsule)', 'instructions': '30-45 min before gym or sex. Boosts energy + performance. SKIP on gout flare days.', 'scheduled_time': time(15, 30), 'timing': 'pre_workout', 'condition': 'gym_day', 'sort_order': 91, 'color': 'blue', 'warning': 'Can raise BP — monitor. Pause during gout flares'},
 
         # === GYM ===
         {'name': 'Gym / Training', 'category': 'exercise', 'dose': '45-60 min', 'instructions': 'Strength training 3-4x/week', 'scheduled_time': time(16, 0), 'timing': 'anytime', 'condition': 'gym_day', 'sort_order': 100, 'color': 'green'},
@@ -62,8 +62,8 @@ def seed_protocol(user, profile=None):
         {'name': 'Moxonidine 0.4mg', 'category': 'medication', 'dose': '0.5 tablet', 'instructions': 'BP medication — evening', 'scheduled_time': time(20, 0), 'timing': 'evening', 'sort_order': 130, 'color': 'red', 'warning': 'Additive BP lowering with Mg Taurate — monitor for low BP', 'prescription_note': 'Д-р Иванка Кулевска Головска (кардиолог)\nУИН: 2300013756\nRp: Мокедин 0.4mg — 0.5 x от вечер'},
 
         # === BEDTIME ===
-        {'name': 'Magnesium Taurate', 'category': 'supplement', 'dose': 'Full daily dose', 'instructions': 'Before bed — supports sleep + heart', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 140, 'color': 'indigo', 'warning': 'Also lowers BP — additive with evening Moxonidine'},
-        {'name': 'Glycine', 'category': 'supplement', 'dose': '3g', 'instructions': 'Before bed — sleep quality + collagen (Sinclair)', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 141, 'color': 'indigo'},
+        {'name': 'Magnesium Taurate', 'category': 'supplement', 'dose': '400mg elemental Mg (2-3 tablets depending on brand)', 'instructions': 'Before bed — supports sleep, heart rhythm, reduces BP. Taurate form best for cardiovascular + calming effect.', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 140, 'color': 'indigo', 'warning': 'Also lowers BP — additive with evening Moxonidine'},
+        {'name': 'Glycine', 'category': 'supplement', 'dose': '3g powder (1 teaspoon) in water', 'instructions': 'Before bed — improves sleep quality, supports collagen synthesis (Sinclair). Mix in warm water or take capsules.', 'scheduled_time': time(21, 0), 'timing': 'bedtime', 'sort_order': 141, 'color': 'indigo'},
 
         # === SLEEP ===
         {'name': 'Sleep', 'category': 'sleep', 'dose': '7-8 hours', 'instructions': 'Lights out by 22:00 — aim for 22:00-06:30', 'scheduled_time': time(22, 0), 'timing': 'bedtime', 'sort_order': 150, 'color': 'gray'},
