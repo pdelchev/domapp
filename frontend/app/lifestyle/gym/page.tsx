@@ -237,26 +237,6 @@ export default function GymRoutinePage() {
           ))}
         </div>
 
-        {/* Supplements link */}
-        <button
-          onClick={() => router.push('/lifestyle')}
-          className="w-full flex items-center justify-between p-4 bg-indigo-50 border border-indigo-200 rounded-xl hover:bg-indigo-100 transition-colors mb-8"
-        >
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">💊</span>
-            <div className="text-left">
-              <p className="text-sm font-semibold text-indigo-800">
-                {locale === 'bg' ? 'Добавки и лекарства' : 'Supplements & Medication'}
-              </p>
-              <p className="text-xs text-indigo-500">
-                {locale === 'bg' ? 'Управлявайте от Дневния ритуал с точни дози и графици' : 'Managed in Daily Ritual with exact doses and schedules'}
-              </p>
-            </div>
-          </div>
-          <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </PageContent>
     </PageShell>
   );

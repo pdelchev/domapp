@@ -65,6 +65,29 @@ const TIME_SECTIONS = [
   { key: 'anytime', label_en: 'Anytime', label_bg: 'По всяко време', icon: '📋', times: ['anytime'] },
 ];
 
+// Health benefit info per supplement/medication — linked biomarkers + short reason
+const HEALTH_INFO: Record<string, { biomarkers: string[]; reason: { en: string; bg: string } }> = {
+  'Olmesta A Plus 40/10/12.5': { biomarkers: ['BP'], reason: { en: 'Lowers blood pressure (ARB + CCB + diuretic)', bg: 'Понижава кръвното налягане (ARB + CCB + диуретик)' } },
+  'Febuxostat 80mg': { biomarkers: ['URIC'], reason: { en: 'Lowers uric acid production — gout prevention', bg: 'Намалява производството на пикочна киселина — превенция на подагра' } },
+  'Saxenda Injection': { biomarkers: ['GLU', 'BMI'], reason: { en: 'GLP-1 agonist — appetite control, glucose regulation, weight loss', bg: 'GLP-1 агонист — контрол на апетита, регулация на глюкозата, отслабване' } },
+  'NMN': { biomarkers: ['NAD+'], reason: { en: 'Boosts NAD+ for cellular repair and energy (Sinclair longevity)', bg: 'Повишава NAD+ за клетъчен ремонт и енергия (Sinclair протокол)' } },
+  'Spermidine': { biomarkers: ['AUTOPHAGY'], reason: { en: 'Activates autophagy — cellular cleanup (Sinclair longevity)', bg: 'Активира автофагия — клетъчно почистване (Sinclair протокол)' } },
+  'Vitamin D3 + K2': { biomarkers: ['VITD', 'GLU', 'ALT'], reason: { en: 'Insulin sensitivity, liver support, immunity, bone health', bg: 'Инсулинова чувствителност, подкрепа на черния дроб, имунитет, кости' } },
+  'Omega-3': { biomarkers: ['ALT', 'TG', 'CRP'], reason: { en: 'Reduces liver inflammation, lowers triglycerides', bg: 'Намалява чернодробното възпаление, понижава триглицеридите' } },
+  'Zinc': { biomarkers: ['GLU', 'ALT'], reason: { en: 'Insulin production, immune support, liver regeneration', bg: 'Производство на инсулин, имунна подкрепа, регенерация на черния дроб' } },
+  'Boron': { biomarkers: ['TESTO', 'VITD'], reason: { en: 'Supports testosterone, bone health, vitamin D metabolism', bg: 'Подкрепя тестостерона, здравето на костите, метаболизъм на витамин D' } },
+  'Coenzyme Q10': { biomarkers: ['BP', 'ALT'], reason: { en: 'Lowers BP, protects liver, mitochondrial energy', bg: 'Понижава АН, защитава черния дроб, митохондриална енергия' } },
+  'Resveratrol': { biomarkers: ['NAD+', 'CRP'], reason: { en: 'Activates sirtuins with NMN, anti-inflammatory (Sinclair)', bg: 'Активира сиртуини с NMN, противовъзпалително (Sinclair)' } },
+  'Vitamin C': { biomarkers: ['URIC', 'FE'], reason: { en: 'Lowers uric acid by ~0.5mg/dL, boosts iron absorption', bg: 'Намалява пикочната киселина с ~0.5mg/dL, подобрява абсорбцията на желязо' } },
+  'L-Citrulline Malate': { biomarkers: ['BP', 'NO'], reason: { en: 'Nitric oxide → vasodilation, better blood flow + pump', bg: 'Азотен оксид → вазодилатация, по-добър кръвоток и помпа' } },
+  'Panax Ginseng': { biomarkers: ['GLU', 'TESTO'], reason: { en: 'Energy, performance, insulin sensitivity', bg: 'Енергия, производителност, инсулинова чувствителност' } },
+  'Moxonidine 0.4mg': { biomarkers: ['BP'], reason: { en: 'Central-acting BP medication — evening dose', bg: 'Централнодействащо АН лекарство — вечерна доза' } },
+  'Magnesium Taurate': { biomarkers: ['BP', 'GLU', 'URIC'], reason: { en: 'Sleep, heart rhythm, insulin sensitivity, lowers uric acid', bg: 'Сън, сърдечен ритъм, инсулинова чувствителност, понижава пикочната киселина' } },
+  'Glycine': { biomarkers: ['SLEEP', 'COLL'], reason: { en: 'Deeper sleep, collagen synthesis, liver detox (Sinclair)', bg: 'По-дълбок сън, синтез на колаген, детоксикация на черния дроб (Sinclair)' } },
+  'Arcoxia 120mg': { biomarkers: ['URIC', 'CRP'], reason: { en: 'NSAID — acute gout flare relief (max 5 days)', bg: 'НСПВС — облекчаване на остър подагрен пристъп (макс 5 дни)' } },
+  'Sanaxa Gel': { biomarkers: ['URIC'], reason: { en: 'Topical anti-inflammatory for gout joint', bg: 'Локално противовъзпалително за подагрозна става' } },
+};
+
 const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const;
 const KCAL_TARGET = 2000;
 
@@ -1049,6 +1072,17 @@ export default function DailyHubPage() {
                           </div>
                           {item.dose && (
                             <p className="text-xs text-gray-500 mt-0.5">{item.dose}{item.scheduled_time && <span className="text-gray-400 ml-2">{item.scheduled_time}</span>}</p>
+                          )}
+                          {/* Health benefit info */}
+                          {HEALTH_INFO[item.name] && !item.completed && (
+                            <div className="mt-1">
+                              <p className="text-[11px] text-gray-400 leading-snug">{HEALTH_INFO[item.name].reason[locale as 'en' | 'bg']}</p>
+                              <div className="flex flex-wrap gap-1 mt-0.5">
+                                {HEALTH_INFO[item.name].biomarkers.map((bm) => (
+                                  <span key={bm} className="px-1 py-0.5 text-[9px] font-mono font-bold text-indigo-600 bg-indigo-50 rounded">{bm}</span>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
