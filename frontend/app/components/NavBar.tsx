@@ -21,13 +21,17 @@ interface ModuleItem {
 
 const MODULES: ModuleItem[] = [
   {
-    href: '/lifestyle', key: 'nav.health_hub', icon: '❤️', color: 'bg-rose-500',
+    href: '/health', key: 'nav.health_hub', icon: '❤️', color: 'bg-rose-500',
     svgPath: 'M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z',
     sub: [
-      { href: '/lifestyle', key: 'nav.daily_hub' },
-      { href: '/health', key: 'nav.blood_results' },
-      { href: '/lifestyle/meals', key: 'lifestyle.meal_plan' },
-      { href: '/lifestyle/gym', key: 'lifestyle.gym_routine' },
+      { href: '/health', key: 'nav.health_hub' },
+      { href: '/health/checkin', key: 'nav.daily_checkin' },
+      { href: '/health/supplements', key: 'nav.supplements' },
+      { href: '/health/timeline', key: 'nav.timeline' },
+      { href: '/health/bp', key: 'nav.blood_pressure' },
+      { href: '/health/weight', key: 'nav.weight' },
+      { href: '/health/lifestyle/meals', key: 'lifestyle.meal_plan' },
+      { href: '/health/lifestyle/gym', key: 'lifestyle.gym_routine' },
     ],
   },
   {
@@ -131,7 +135,7 @@ export default function NavBar() {
   const isActive = useCallback((href: string) => {
     if (pathname === href || pathname.startsWith(href + '/')) return true;
     // Module-level matching
-    if (href === '/lifestyle' && pathname.startsWith('/lifestyle')) return true;
+    if (href === '/health' && (pathname.startsWith('/health') || pathname.startsWith('/lifestyle'))) return true;
     if (href === '/properties' && (pathname.startsWith('/properties') || pathname.startsWith('/owners'))) return true;
     if (href === '/finance' && pathname.startsWith('/finance')) return true;
     if (href === '/investments' && pathname.startsWith('/investments')) return true;

@@ -21,7 +21,7 @@ class GoutAttackViewSet(viewsets.ModelViewSet):
         return GoutAttackSerializer
 
     def get_queryset(self):
-        qs = GoutAttack.objects.filter(user=self.request.user.get_data_owner())
+        qs = GoutAttack.objects.filter(user=self.request.user)
         profile = self.request.query_params.get('profile')
         if profile:
             qs = qs.filter(profile_id=profile)
@@ -31,7 +31,7 @@ class GoutAttackViewSet(viewsets.ModelViewSet):
         return qs.prefetch_related('triggers')
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
         """Override to return the read serializer after creation."""
@@ -57,7 +57,7 @@ class AttackTriggerViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return AttackTrigger.objects.filter(
-            attack__user=self.request.user.get_data_owner()
+            attack__user=self.request.user
         )
 
 
@@ -66,14 +66,14 @@ class UricAcidViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = UricAcidReading.objects.filter(user=self.request.user.get_data_owner())
+        qs = UricAcidReading.objects.filter(user=self.request.user)
         profile = self.request.query_params.get('profile')
         if profile:
             qs = qs.filter(profile_id=profile)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user)
 
 
 class MedicalProcedureViewSet(viewsets.ModelViewSet):
@@ -81,14 +81,14 @@ class MedicalProcedureViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = MedicalProcedure.objects.filter(user=self.request.user.get_data_owner())
+        qs = MedicalProcedure.objects.filter(user=self.request.user)
         profile = self.request.query_params.get('profile')
         if profile:
             qs = qs.filter(profile_id=profile)
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user.get_data_owner())
+        serializer.save(user=self.request.user)
 
 
 class GoutDashboardView(APIView):
@@ -96,7 +96,7 @@ class GoutDashboardView(APIView):
 
     def get(self, request):
         profile_id = request.query_params.get('profile')
-        data = get_gout_dashboard(request.user.get_data_owner(), profile_id)
+        data = get_gout_dashboard(request.user, profile_id)
         return Response(data)
 
 
@@ -106,5 +106,5 @@ class GoutStatisticsView(APIView):
     def get(self, request):
         profile_id = request.query_params.get('profile')
         days = int(request.query_params.get('days', 365))
-        data = get_gout_statistics(request.user.get_data_owner(), profile_id, days)
+        data = get_gout_statistics(request.user, profile_id, days)
         return Response(data)

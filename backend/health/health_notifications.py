@@ -104,32 +104,30 @@ def check_weight_plateau(user):
 
 def check_supplement_streak(user):
     """Alert if supplement adherence dropped (streak broken)."""
-    from health.ritual_models import RitualLog, RitualItem
+    from health.daily_models import SupplementSchedule, DoseLog
 
-    # Check if there are any ritual items
-    active_items = RitualItem.objects.filter(user=user, is_active=True).count()
-    if active_items == 0:
+    # Check if there are any active schedules
+    active_schedules = SupplementSchedule.objects.filter(
+        supplement__user=user, is_active=True, condition='daily'
+    )
+    total = active_schedules.count()
+    if total == 0:
         return
 
     today = timezone.now().date()
     yesterday = today - timedelta(days=1)
 
     # Check yesterday's adherence
-    yesterday_logs = RitualLog.objects.filter(
-        item__user=user,
+    taken = DoseLog.objects.filter(
+        schedule__in=active_schedules,
         date=yesterday,
-        completed=True,
+        taken=True,
     ).count()
 
-    yesterday_total = RitualItem.objects.filter(
-        user=user, is_active=True,
-        condition='daily',
-    ).count()
-
-    if yesterday_total == 0:
+    if total == 0:
         return
 
-    adherence_pct = (yesterday_logs / yesterday_total) * 100
+    adherence_pct = (taken / total) * 100
 
     if adherence_pct < 50:
         prefix = '💊 Supplement Streak'
@@ -140,7 +138,7 @@ def check_supplement_streak(user):
             notification_type='health',
             title=f'{prefix} Broken',
             message=(
-                f'You completed only {yesterday_logs}/{yesterday_total} '
+                f'You completed only {taken}/{total} '
                 f'({adherence_pct:.0f}%) of your daily supplements yesterday. '
                 f'Consistency is key — try to get back on track today!'
             ),

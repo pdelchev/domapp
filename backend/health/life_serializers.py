@@ -35,6 +35,15 @@ class InterventionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'is_active', 'created_at', 'updated_at']
 
+    def validate_profile(self, value):
+        """§SECURITY: Prevent cross-user intervention creation via crafted profile IDs."""
+        if value is None:
+            return value
+        request = self.context.get('request')
+        if request and value.user_id != request.user.id:
+            raise serializers.ValidationError('Profile does not belong to you.')
+        return value
+
     def validate(self, attrs):
         started = attrs.get('started_on') or getattr(self.instance, 'started_on', None)
         ended = attrs.get('ended_on') or getattr(self.instance, 'ended_on', None)

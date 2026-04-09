@@ -8,7 +8,7 @@ from .whoop_models import (
     WhoopConnection, WhoopCycle, WhoopRecovery, WhoopSleep, WhoopWorkout,
 )
 from .gout_models import GoutAttack, AttackTrigger, UricAcidReading, MedicalProcedure
-from .ritual_models import RitualItem, RitualLog, BodyMeasurement
+from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog
 
 
 class BiomarkerInline(admin.TabularInline):
@@ -138,22 +138,31 @@ class MedicalProcedureAdmin(admin.ModelAdmin):
     date_hierarchy = 'procedure_date'
 
 
-# ═══ DAILY RITUAL ═══
+# ═══ UNIFIED DAILY TRACKING ═══
 
-@admin.register(RitualItem)
-class RitualItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'dose', 'scheduled_time', 'timing', 'condition', 'is_active', 'sort_order')
-    list_filter = ('category', 'timing', 'condition', 'is_active')
-    list_editable = ('sort_order', 'is_active')
-
-@admin.register(RitualLog)
-class RitualLogAdmin(admin.ModelAdmin):
-    list_display = ('item', 'date', 'completed', 'skipped')
-    list_filter = ('completed', 'skipped', 'date')
+@admin.register(DailyLog)
+class DailyLogAdmin(admin.ModelAdmin):
+    list_display = ('profile', 'date', 'mood', 'energy', 'water_ml', 'dose_adherence_pct', 'wizard_completed')
+    list_filter = ('wizard_completed', 'profile')
     date_hierarchy = 'date'
 
-@admin.register(BodyMeasurement)
-class BodyMeasurementAdmin(admin.ModelAdmin):
-    list_display = ('user', 'measured_at', 'site', 'value_cm')
-    list_filter = ('site',)
-    date_hierarchy = 'measured_at'
+
+class SupplementScheduleInline(admin.TabularInline):
+    model = SupplementSchedule
+    extra = 0
+    fields = ('profile', 'time_slot', 'dose_amount', 'dose_unit', 'split_count', 'condition', 'is_active')
+
+
+@admin.register(Supplement)
+class SupplementAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'form', 'strength', 'current_stock', 'is_active', 'is_prescription')
+    list_filter = ('category', 'form', 'is_active', 'is_prescription')
+    search_fields = ('name', 'manufacturer')
+    inlines = [SupplementScheduleInline]
+
+
+@admin.register(DoseLog)
+class DoseLogAdmin(admin.ModelAdmin):
+    list_display = ('schedule', 'date', 'taken', 'taken_at', 'skipped_reason')
+    list_filter = ('taken', 'date')
+    date_hierarchy = 'date'

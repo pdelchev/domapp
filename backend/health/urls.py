@@ -20,12 +20,12 @@ urlpatterns = [
     path('whoop/', include('health.whoop_urls')),
     # §GOUT: Gout & joint health tracker
     path('gout/', include('health.gout_urls')),
-    # §RITUAL: Daily health protocol / ritual
-    path('ritual/', include('health.ritual_urls')),
     # §WEIGHT/VITALS: Weight tracking + BP fusion (weight/*, vitals/*)
     path('', include('health.weight_urls')),
     # §LIFE: Unified HealthScore + Intervention log
     path('', include('health.life_urls')),
+    # §DAILY: Unified daily tracking — wizard, supplements, timeline, doses
+    path('', include('health.daily_urls')),
     # Custom paths BEFORE router — otherwise router catches "bulk-upload" as a report pk
     path('reports/bulk-upload/', views.BulkUploadView.as_view(), name='bulk-upload'),
     path('reports/<int:report_id>/results/', views.ManualResultsView.as_view(), name='manual-results'),

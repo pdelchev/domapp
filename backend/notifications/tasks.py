@@ -49,12 +49,15 @@ def _build_weekly_summary(user) -> dict:
         pass
 
     try:
-        from health.ritual_models import RitualItem, RitualLog
-        total_items = RitualItem.objects.filter(user=user, is_active=True, condition='daily').count()
+        from health.daily_models import SupplementSchedule, DoseLog
+        total_items = SupplementSchedule.objects.filter(
+            supplement__user=user, is_active=True, condition='daily'
+        ).count()
         if total_items > 0:
-            logs = RitualLog.objects.filter(
-                item__user=user, item__is_active=True, item__condition='daily',
-                date__gte=week_ago, date__lte=today, completed=True
+            logs = DoseLog.objects.filter(
+                schedule__supplement__user=user, schedule__is_active=True,
+                schedule__condition='daily',
+                date__gte=week_ago, date__lte=today, taken=True
             ).count()
             days = 7
             possible = total_items * days

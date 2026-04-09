@@ -1734,92 +1734,177 @@ export async function getGoutStatistics(profileId?: number, days?: number) {
   return res.json();
 }
 
-// ═══ DAILY RITUAL / HEALTH PROTOCOL ═══
+// ═══ UNIFIED DAILY TRACKING — Wizard, Supplements, Timeline, Doses ═══
 
-export async function getRitualDashboard(date?: string) {
-  const params = date ? `?date=${date}` : '';
-  const res = await apiFetch(`/api/health/ritual/dashboard/${params}`);
-  if (!res.ok) throw new Error('Failed to fetch ritual');
-  return res.json();
-}
-
-export async function toggleRitualItem(itemId: number, date?: string) {
-  const res = await apiFetch(`/api/health/ritual/toggle/${itemId}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ date }),
-  });
-  if (!res.ok) throw new Error('Failed to toggle');
-  return res.json();
-}
-
-export async function seedRitualProtocol(profileId?: number) {
-  const res = await apiFetch('/api/health/ritual/seed/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ profile: profileId }),
-  });
-  if (!res.ok) throw new Error('Failed to seed');
-  return res.json();
-}
-
-export async function getRitualAdherence(days?: number) {
-  const params = days ? `?days=${days}` : '';
-  const res = await apiFetch(`/api/health/ritual/adherence/${params}`);
-  if (!res.ok) throw new Error('Failed to fetch adherence');
-  return res.json();
-}
-
-export async function createRitualItem(data: Record<string, unknown>) {
-  const res = await apiFetch('/api/health/ritual/items/', {
+export async function submitDailyWizard(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/daily-log/wizard/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create item');
+  if (!res.ok) throw new Error('Failed to submit wizard');
   return res.json();
 }
 
-export async function updateRitualItem(id: number, data: Record<string, unknown>) {
-  const res = await apiFetch(`/api/health/ritual/items/${id}/`, {
+export async function getDailyLog(date?: string) {
+  const params = date ? `?date=${date}` : '';
+  const res = await apiFetch(`/api/health/daily-log/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch daily log');
+  return res.json();
+}
+
+export async function getDailyStreak(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/daily-log/streak/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch streak');
+  return res.json();
+}
+
+// §SUPPLEMENTS: Pill/vitamin catalog CRUD
+export async function getSupplements(params?: { active?: boolean; category?: string }) {
+  const q = new URLSearchParams();
+  if (params?.active !== undefined) q.set('active', String(params.active));
+  if (params?.category) q.set('category', params.category);
+  const query = q.toString() ? `?${q}` : '';
+  const res = await apiFetch(`/api/health/supplements/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch supplements');
+  return res.json();
+}
+
+export async function getSupplement(id: number) {
+  const res = await apiFetch(`/api/health/supplements/${id}/`);
+  if (!res.ok) throw new Error('Failed to fetch supplement');
+  return res.json();
+}
+
+export async function createSupplement(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/supplements/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create supplement');
+  return res.json();
+}
+
+export async function updateSupplement(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/supplements/${id}/`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to update');
+  if (!res.ok) throw new Error('Failed to update supplement');
   return res.json();
 }
 
-export async function deleteRitualItem(id: number) {
-  const res = await apiFetch(`/api/health/ritual/items/${id}/`, { method: 'DELETE' });
-  if (!res.ok) throw new Error('Failed to delete');
+export async function deleteSupplement(id: number) {
+  const res = await apiFetch(`/api/health/supplements/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete supplement');
 }
 
-export async function uploadRxImage(itemId: number, file: File) {
+export async function uploadSupplementPhoto(id: number, photo?: File, closeup?: File) {
   const form = new FormData();
-  form.append('image', file);
-  const res = await apiFetch(`/api/health/ritual/upload-rx/${itemId}/`, {
+  if (photo) form.append('photo', photo);
+  if (closeup) form.append('closeup', closeup);
+  const res = await apiFetch(`/api/health/supplements/${id}/photo/`, {
     method: 'POST',
     body: form,
   });
-  if (!res.ok) throw new Error('Failed to upload');
+  if (!res.ok) throw new Error('Failed to upload photo');
   return res.json();
 }
 
-export async function getBodyMeasurements(site?: string) {
-  const params = site ? `?site=${site}` : '';
-  const res = await apiFetch(`/api/health/ritual/measurements/${params}`);
-  if (!res.ok) throw new Error('Failed to fetch measurements');
+export async function getSupplementEffectiveness(id: number, profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/supplements/${id}/effectiveness/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch effectiveness');
   return res.json();
 }
 
-export async function createBodyMeasurement(data: Record<string, unknown>) {
-  const res = await apiFetch('/api/health/ritual/measurements/', {
+export async function getLowStockSupplements() {
+  const res = await apiFetch('/api/health/supplements/low-stock/');
+  if (!res.ok) throw new Error('Failed to fetch low stock');
+  return res.json();
+}
+
+export async function getSupplementInteractions() {
+  const res = await apiFetch('/api/health/supplements/interactions/');
+  if (!res.ok) throw new Error('Failed to fetch interactions');
+  return res.json();
+}
+
+// §SCHEDULES: When/how to take supplements
+export async function getTodaySchedule(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/schedules/today/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch schedule');
+  return res.json();
+}
+
+export async function createSchedule(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/schedules/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create measurement');
+  if (!res.ok) throw new Error('Failed to create schedule');
+  return res.json();
+}
+
+export async function updateSchedule(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/schedules/${id}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update schedule');
+  return res.json();
+}
+
+export async function deleteSchedule(id: number) {
+  const res = await apiFetch(`/api/health/schedules/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete schedule');
+}
+
+// §DOSES: Log supplement intake
+export async function logDose(data: { schedule: number; date?: string; taken: boolean; skipped_reason?: string }) {
+  const res = await apiFetch('/api/health/doses/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to log dose');
+  return res.json();
+}
+
+export async function batchLogDoses(data: { profile_id?: number; date?: string; doses: Array<{ schedule_id: number; taken: boolean; reason?: string }> }) {
+  const res = await apiFetch('/api/health/doses/batch/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to batch log doses');
+  return res.json();
+}
+
+// §TIMELINE: Unified metric history
+export async function getTimeline(params?: { profile?: number; date_from?: string; date_to?: string; metrics?: string }) {
+  const q = new URLSearchParams();
+  if (params?.profile) q.set('profile', String(params.profile));
+  if (params?.date_from) q.set('date_from', params.date_from);
+  if (params?.date_to) q.set('date_to', params.date_to);
+  if (params?.metrics) q.set('metrics', params.metrics);
+  const query = q.toString() ? `?${q}` : '';
+  const res = await apiFetch(`/api/health/timeline/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch timeline');
+  return res.json();
+}
+
+// §SUMMARY: Unified health dashboard data
+export async function getUnifiedHealthSummary(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/summary/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch health summary');
   return res.json();
 }
 
@@ -1868,29 +1953,7 @@ export async function deleteFoodEntry(id: number) {
   if (!res.ok) throw new Error('Failed to delete food entry');
 }
 
-// --- Mobile Health: Daily Rituals ---
-export async function getDailyRituals(date?: string) {
-  const query = date ? `?date=${date}` : '';
-  const res = await apiFetch(`/api/daily-rituals/${query}`);
-  if (!res.ok) throw new Error('Failed to fetch daily rituals');
-  return res.json();
-}
-
-export async function createDailyRitual(data: Record<string, unknown>) {
-  const res = await apiFetch('/api/daily-rituals/', { method: 'POST', body: JSON.stringify(data) });
-  if (!res.ok) throw new Error('Failed to create daily ritual');
-  return res.json();
-}
-
-export async function updateDailyRitual(id: number, data: Record<string, unknown>) {
-  const res = await apiFetch(`/api/daily-rituals/${id}/`, { method: 'PUT', body: JSON.stringify(data) });
-  if (!res.ok) throw new Error('Failed to update daily ritual');
-  return res.json();
-}
-
-// --- Mobile Health: Summary ---
-export async function getHealthSummary() {
-  const res = await apiFetch('/api/health/summary/');
-  if (!res.ok) throw new Error('Failed to fetch health summary');
-  return res.json();
+// --- Mobile Health: Summary (kept for backward compat, delegates to unified) ---
+export async function getHealthSummary(profileId?: number) {
+  return getUnifiedHealthSummary(profileId);
 }

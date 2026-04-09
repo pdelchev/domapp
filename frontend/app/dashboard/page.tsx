@@ -435,11 +435,11 @@ export default function DashboardPage() {
             {/* Quick health status */}
             {briefing.health && Object.keys(briefing.health).length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
-                {briefing.health.ritual && (
-                  <button onClick={() => router.push('/lifestyle')} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs hover:bg-indigo-100">
+                {briefing.health.supplements && (
+                  <button onClick={() => router.push('/health/supplements')} className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs hover:bg-indigo-100">
                     <span>💊</span>
-                    <span className="font-medium text-indigo-700">{briefing.health.ritual.completed}/{briefing.health.ritual.total}</span>
-                    <span className="text-indigo-400">{locale === 'bg' ? 'ритуал' : 'ritual'}</span>
+                    <span className="font-medium text-indigo-700">{briefing.health.supplements.completed}/{briefing.health.supplements.total}</span>
+                    <span className="text-indigo-400">{locale === 'bg' ? 'добавки' : 'supplements'}</span>
                   </button>
                 )}
                 {briefing.health.recovery && (

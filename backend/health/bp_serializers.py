@@ -343,3 +343,10 @@ class BPExportSerializer(serializers.Serializer):
     date_to = serializers.DateField(required=False)
     include_sessions = serializers.BooleanField(default=True)
     include_medications = serializers.BooleanField(default=False)
+
+    def validate_profile(self, value):
+        """§SECURITY: Prevent cross-user data export via crafted profile IDs."""
+        request = self.context.get('request')
+        if request and value.user_id != request.user.id:
+            raise serializers.ValidationError('Profile does not belong to you.')
+        return value

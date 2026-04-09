@@ -26,6 +26,7 @@ from .models import HealthProfile
 
 SOURCE_MANUAL = 'manual'
 SOURCE_CSV = 'csv'
+SOURCE_WIZARD = 'wizard'
 SOURCE_WITHINGS = 'withings'
 SOURCE_APPLE = 'apple_health'
 SOURCE_GARMIN = 'garmin'
@@ -34,6 +35,7 @@ SOURCE_RENPHO = 'renpho'
 SOURCE_CHOICES = [
     (SOURCE_MANUAL, 'Manual'),
     (SOURCE_CSV, 'CSV Import'),
+    (SOURCE_WIZARD, 'Daily Wizard'),
     (SOURCE_WITHINGS, 'Withings'),
     (SOURCE_APPLE, 'Apple Health'),
     (SOURCE_GARMIN, 'Garmin'),

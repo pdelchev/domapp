@@ -1,30 +1,30 @@
 'use client';
 
+/**
+ * §COMPONENT: Health FAB — floating speed-dial for quick health actions.
+ * §UPDATED: Now uses unified daily tracking routes (no more ritual).
+ */
+
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 
-interface HealthFABProps {
-  onAddMeasurement: () => void;
-  onAddFood: () => void;
-  onAddRitual: () => void;
-}
-
 const ACTIONS = [
-  { key: 'food', icon: '🍽️', labelKey: 'health.add_food', color: 'bg-green-500' },
-  { key: 'measurement', icon: '📊', labelKey: 'health.add_measurement', color: 'bg-blue-500' },
-  { key: 'ritual', icon: '✅', labelKey: 'health.daily_ritual', color: 'bg-purple-500' },
+  { key: 'checkin', icon: '✅', label: 'Daily Check-In', color: 'bg-indigo-500', href: '/health/checkin' },
+  { key: 'supplements', icon: '💊', label: 'My Supplements', color: 'bg-purple-500', href: '/health/supplements' },
+  { key: 'timeline', icon: '📊', label: 'Timeline', color: 'bg-blue-500', href: '/health/timeline' },
+  { key: 'bp', icon: '❤️', label: 'Blood Pressure', color: 'bg-rose-500', href: '/health/bp' },
 ] as const;
 
-export default function HealthFAB({ onAddMeasurement, onAddFood, onAddRitual }: HealthFABProps) {
+export default function HealthFAB() {
+  const router = useRouter();
   const { locale } = useLanguage();
   const [open, setOpen] = useState(false);
 
-  const handleAction = (key: string) => {
+  const handleAction = (href: string) => {
     setOpen(false);
-    if (key === 'food') onAddFood();
-    if (key === 'measurement') onAddMeasurement();
-    if (key === 'ritual') onAddRitual();
+    router.push(href);
   };
 
   return (
@@ -43,12 +43,12 @@ export default function HealthFAB({ onAddMeasurement, onAddFood, onAddRitual }: 
           {ACTIONS.map((action, i) => (
             <button
               key={action.key}
-              onClick={() => handleAction(action.key)}
+              onClick={() => handleAction(action.href)}
               className="flex items-center gap-3 animate-[slideUp_0.2s_ease-out_forwards]"
               style={{ animationDelay: `${i * 50}ms`, opacity: 0 }}
             >
               <span className="bg-white text-gray-800 text-sm font-medium px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-                {t(action.labelKey, locale)}
+                {action.label}
               </span>
               <span className={`w-11 h-11 ${action.color} rounded-full flex items-center justify-center shadow-lg text-lg`}>
                 {action.icon}

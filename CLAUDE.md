@@ -21,7 +21,7 @@ backend/
   problems/       # Problem/emergency tracking per property + CRUD API
   notifications/  # Notification model + API
   notes/          # Notes with block editor, folders, tags, entity linking
-  health/         # Blood results tracker + BP monitoring: PDF parsing, biomarker analysis, scoring, recommendations, BP sessions, cardiovascular risk
+  health/         # Unified Health Hub: daily wizard, supplements, timeline, blood results, BP, WHOOP, weight, gout
   vehicles/       # Vehicle obligation tracker: insurance, vignette, MOT, tax, reminders
   dashboard/      # Dashboard summary endpoint (aggregations)
 
@@ -54,7 +54,10 @@ frontend/
     problems/new/page.tsx       # Report new problem form
     problems/[id]/page.tsx      # Edit problem + resolution tracking
     notifications/page.tsx      # Notifications list with type/read filters, dismiss, mark all read
-    health/page.tsx             # Health dashboard — scores, results, recommendations
+    health/page.tsx             # Health Hub — unified dashboard, scores, supplements, metrics
+    health/checkin/page.tsx     # Daily Check-In Wizard — 5-step wizard (mood, weight, BP, water, supplements)
+    health/supplements/page.tsx # Supplement Cabinet — pill catalog with photos, stock, interactions
+    health/timeline/page.tsx    # Unified Timeline — all metrics from first measurement, sparkline charts
     health/upload/page.tsx      # Upload blood test PDFs (single + bulk) or manual entry
     health/report/[id]/page.tsx # Report detail — results table, trends, biomarker education
     health/bp/page.tsx          # Blood pressure dashboard — readings, sessions, staging, trends
@@ -122,7 +125,7 @@ DomApp is organized into **6 top-level modules**. Every module and sub-page MUST
 ### Module Structure
 | Module | Icon | Color | Pages |
 |--------|------|-------|-------|
-| **Health Hub** | ❤️ | `bg-rose-500` | `/lifestyle` (hub), `/lifestyle/track` (daily tracking), `/lifestyle/meals`, `/lifestyle/gym`, `/lifestyle/tests` |
+| **Health Hub** | ❤️ | `bg-rose-500` | `/health` (hub), `/health/checkin` (daily wizard), `/health/supplements`, `/health/timeline`, `/health/bp`, `/health/weight`, `/health/lifestyle/meals`, `/health/lifestyle/gym` |
 | **Properties** | 🏠 | `bg-blue-500` | `/properties`, `/owners`, `/tenants`, `/leases`, `/documents`, `/problems` |
 | **Finance** | 💰 | `bg-emerald-500` | `/finance`, `/finance/payments`, `/finance/expenses`, `/investments` |
 | **Music** | 🎵 | `bg-purple-500` | `/music`, `/music/playlists` |
@@ -246,6 +249,23 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/notes/summary/` | GET | Note counts (total, pinned, archived, trashed, checklist stats) |
 | `/api/notes/quick-capture/` | POST | Minimal note creation (title + optional body + entity link) |
 
+| `/api/health/daily-log/` | GET, POST | List/create daily logs (?date=) |
+| `/api/health/daily-log/<date>/` | GET, PUT, PATCH | Get/update specific day's log |
+| `/api/health/daily-log/wizard/` | POST | Batch-submit wizard data (log + BP + weight + doses) |
+| `/api/health/daily-log/streak/` | GET | Current + longest check-in streak (?profile=) |
+| `/api/health/supplements/` | GET, POST | Supplement catalog CRUD (?active=&category=) |
+| `/api/health/supplements/<id>/` | GET, PUT, DELETE | Supplement detail with schedules |
+| `/api/health/supplements/<id>/photo/` | POST | Upload pill photo (multipart: photo, closeup) |
+| `/api/health/supplements/<id>/effectiveness/` | GET | Before/after biomarker comparison (?profile=) |
+| `/api/health/supplements/low-stock/` | GET | Supplements running low on stock |
+| `/api/health/supplements/interactions/` | GET | Active supplement interaction warnings |
+| `/api/health/schedules/` | GET, POST | Schedule CRUD (when to take what) |
+| `/api/health/schedules/<id>/` | GET, PUT, DELETE | Schedule detail |
+| `/api/health/schedules/today/` | GET | Today's schedule with dose status (?profile=) |
+| `/api/health/doses/` | POST | Log a single dose taken/skipped |
+| `/api/health/doses/batch/` | POST | Batch-log multiple doses |
+| `/api/health/timeline/` | GET | Unified timeline (?profile=&date_from=&date_to=&metrics=) |
+| `/api/health/summary/` | GET | Unified health summary: metrics + schedule + streak (?profile=) |
 | `/api/health/profiles/` | GET, POST | List/create health profiles |
 | `/api/health/profiles/<id>/` | GET, PUT, DELETE | Profile detail/update/delete |
 | `/api/health/reports/` | GET, POST | List/create blood reports (with optional PDF) |
@@ -349,6 +369,11 @@ All health-related recommendations MUST be grounded in the user's actual data. N
 - **Note**: user FK, folder FK, title, content (JSONField — block array), color, is_pinned, is_archived, is_trashed, trashed_at, linked_property FK, linked_tenant FK, linked_lease FK, linked_problem FK, tags M2M, checklist_stats (denormalized JSON), word_count, is_template, template_name
 - **BiomarkerCategory**: name, name_bg, slug, icon, body_system, sort_order (seeded)
 - **Biomarker**: category FK, name, name_bg, abbreviation, aliases (JSON), unit, alt_units (JSON), ref ranges (M/F), optimal range, critical thresholds, description/high_meaning/low_meaning (EN+BG), improve_tips (JSON EN+BG)
+- **DailyLog**: user FK, profile FK, date (UNIQUE per profile+date), mood, energy, sleep_hours, sleep_quality, pain_level, stress_level, water_ml, notes, wizard_completed, dose_adherence_pct, cached_summary (JSON)
+- **Supplement**: user FK, name, name_bg, category, form, color, shape, size, photo, photo_closeup, strength, pack_size, current_stock, low_stock_threshold, is_prescription, linked_biomarkers (JSON), interactions (JSON), is_active, started_at
+- **SupplementSchedule**: supplement FK, profile FK, time_slot, dose_amount, dose_unit, split_count, take_with_food, condition, days_of_week (JSON), is_active, sort_order
+- **DoseLog**: schedule FK, date (UNIQUE per schedule+date), taken, taken_at, skipped_reason
+- **MetricTimeline**: user FK, profile FK, date, metric_type, value, unit, context (JSON) — denormalized read-optimized timeline (UNIQUE per profile+date+metric_type)
 - **HealthProfile**: user FK, full_name, date_of_birth, sex, is_primary, notes
 - **BloodReport**: user FK, profile FK, test_date, lab_name, lab_type, file, overall_score (0-100), system_scores (JSON), parsed_raw (JSON), parse_warnings (JSON)
 - **BloodResult**: report FK, biomarker FK, value, unit, flag (8 tiers: optimal→critical), deviation_pct

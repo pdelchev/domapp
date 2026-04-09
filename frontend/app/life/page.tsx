@@ -17,7 +17,7 @@ import {
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
   getStageRegressionForecast, saveInterventionLogs,
 } from '../lib/api';
-import { RitualModal } from '../components/RitualModal';
+// RitualModal removed — replaced by /health/checkin wizard
 
 type Snapshot = {
   id: number;
@@ -335,9 +335,11 @@ export default function LifePage() {
           title={t('nav.health_hub', locale)}
           action={
             <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => setRitualOpen(true)} disabled={!data?.profile?.id}>
-                + {t('vitals.log_ritual', locale)}
-              </Button>
+              <Link href="/health/checkin">
+                <Button>
+                  + {t('nav.daily_checkin', locale)}
+                </Button>
+              </Link>
               <Link href="/life/lab-order">
                 <Button variant="secondary">
                   {locale === 'bg' ? 'Тестове' : 'Lab Order'}
@@ -896,14 +898,7 @@ export default function LifePage() {
           )}
         </Card>
 
-        {ritualOpen && data?.profile?.id && (
-          <RitualModal
-            profileId={data.profile.id}
-            locale={locale}
-            onClose={() => setRitualOpen(false)}
-            onDone={() => { setRitualOpen(false); load(); }}
-          />
-        )}
+        {/* RitualModal replaced by unified wizard at /health/checkin */}
       </PageContent>
     </PageShell>
   );

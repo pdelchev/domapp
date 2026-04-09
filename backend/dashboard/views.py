@@ -184,13 +184,18 @@ class MorningBriefingView(APIView):
         # ── Health ──
         health = {}
         try:
-            from health.ritual_services import get_ritual_dashboard
-            ritual = get_ritual_dashboard(user, date=today)
-            health['ritual'] = {
-                'total': ritual['total'],
-                'completed': ritual['completed'],
-                'pct': ritual['pct'],
-            }
+            from health.daily_services import get_todays_schedule
+            from health.models import HealthProfile
+            profile = HealthProfile.objects.filter(user=user, is_primary=True).first()
+            if profile:
+                schedule = get_todays_schedule(user, profile)
+                total = sum(g['total'] for g in schedule)
+                taken = sum(g['taken'] for g in schedule)
+                health['supplements'] = {
+                    'total': total,
+                    'completed': taken,
+                    'pct': round((taken / total) * 100) if total > 0 else 100,
+                }
         except Exception:
             pass
 
