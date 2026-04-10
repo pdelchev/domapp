@@ -14,17 +14,27 @@ from .daily_views import (
     health_summary_view, streak_view,
     low_stock_view, interactions_view,
     EmergencyCardView,
+    gamification_view, gamification_seen_view,
+    circadian_suggest_view,
+    fasting_current_view, fasting_start_view, fasting_end_view,
+    SymptomViewSet,
+    WeatherSnapshotViewSet,
+    CaregiverRelationshipViewSet,
+    MedicationReminderViewSet, ReminderLogViewSet,
 )
 
 router = DefaultRouter()
 router.register('daily-log', DailyLogViewSet, basename='daily-log')
 router.register('supplements', SupplementViewSet, basename='supplement')
 router.register('schedules', ScheduleViewSet, basename='schedule')
+router.register('symptoms', SymptomViewSet, basename='symptom')
+router.register('weather', WeatherSnapshotViewSet, basename='weather')
+router.register('caregivers', CaregiverRelationshipViewSet, basename='caregiver')
+router.register('reminders', MedicationReminderViewSet, basename='reminder')
+router.register('reminder-logs', ReminderLogViewSet, basename='reminder-log')
 
 urlpatterns = [
-    # Router-based CRUD
-    path('', include(router.urls)),
-
+    # Custom paths BEFORE router — these must be checked first
     # Wizard (the main entry point)
     path('daily-log/wizard/', WizardSubmitView.as_view(), name='wizard-submit'),
     path('daily-log/streak/', streak_view, name='daily-streak'),
@@ -45,4 +55,19 @@ urlpatterns = [
 
     # Emergency Card (offline-accessible medical info)
     path('emergency-card/', EmergencyCardView.as_view(), name='emergency-card'),
+
+    # Gamification — badges + weekly challenges
+    path('gamification/', gamification_view, name='gamification'),
+    path('gamification/seen/', gamification_seen_view, name='gamification-seen'),
+
+    # Circadian optimizer — stateless timing suggestion
+    path('circadian/suggest/', circadian_suggest_view, name='circadian-suggest'),
+
+    # Fasting protocol — active window + schedule annotation
+    path('fasting/current/', fasting_current_view, name='fasting-current'),
+    path('fasting/start/', fasting_start_view, name='fasting-start'),
+    path('fasting/end/', fasting_end_view, name='fasting-end'),
+
+    # Router-based CRUD — checked after custom paths
+    path('', include(router.urls)),
 ]
