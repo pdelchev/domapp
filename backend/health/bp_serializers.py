@@ -233,7 +233,7 @@ class BPMedicationSerializer(serializers.ModelSerializer):
             'id', 'profile', 'profile_name',
             'name', 'dose', 'frequency',
             'started_at', 'ended_at', 'is_active',
-            'notes', 'adherence_rate',
+            'notes', 'photo', 'photo_prescription', 'adherence_rate',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']

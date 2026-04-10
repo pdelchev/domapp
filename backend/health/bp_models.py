@@ -191,6 +191,19 @@ class BPMedication(models.Model):
     ended_at = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True, default='')
+
+    # ── Photos ──
+    photo = models.ImageField(
+        upload_to='health/bp_medications/pill/',
+        null=True, blank=True,
+        help_text='Photo of pill/package for visual identification'
+    )
+    photo_prescription = models.ImageField(
+        upload_to='health/bp_medications/prescription/',
+        null=True, blank=True,
+        help_text='Photo of prescription/doctor document'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

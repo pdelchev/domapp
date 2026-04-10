@@ -348,6 +348,18 @@ class Intervention(models.Model):
     source_url = models.URLField(blank=True, default='')
     notes = models.TextField(blank=True, default='')
 
+    # ── Photos ──
+    photo = models.ImageField(
+        upload_to='health/interventions/pill/',
+        null=True, blank=True,
+        help_text='Photo of pill/package for visual identification'
+    )
+    photo_prescription = models.ImageField(
+        upload_to='health/interventions/prescription/',
+        null=True, blank=True,
+        help_text='Photo of prescription/doctor document'
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

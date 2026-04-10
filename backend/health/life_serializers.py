@@ -31,6 +31,7 @@ class InterventionSerializer(serializers.ModelSerializer):
             'started_on', 'ended_on',
             'hypothesis', 'target_metrics',
             'evidence_grade', 'source_url', 'notes',
+            'photo', 'photo_prescription',
             'is_active', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'is_active', 'created_at', 'updated_at']

@@ -84,6 +84,7 @@ export default function SupplementsPage() {
   const [interactions, setInteractions] = useState<any[]>([]);
   const [addType, setAddType] = useState<'intervention' | 'bp-med' | 'supplement'>('intervention');
   const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '' });
+  const [addPhotos, setAddPhotos] = useState<{ pill?: File; prescription?: File }>({});
   const [addLoading, setAddLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
@@ -240,22 +241,40 @@ export default function SupplementsPage() {
     setAddLoading(true);
     try {
       if (addType === 'intervention') {
-        await createIntervention({
-          name: addForm.name,
-          dose: addForm.dose,
-          frequency: addForm.frequency,
-          category: addForm.category || 'medication',
-          hypothesis: addForm.notes,
-          is_active: true,
+        // Create FormData for file upload
+        const formData = new FormData();
+        formData.append('name', addForm.name);
+        formData.append('dose', addForm.dose);
+        formData.append('frequency', addForm.frequency);
+        formData.append('category', addForm.category || 'medication');
+        formData.append('hypothesis', addForm.notes);
+        formData.append('is_active', 'true');
+        if (addPhotos.pill) formData.append('photo', addPhotos.pill);
+        if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
+        // HACK: createIntervention doesn't support FormData, so we need to use fetch directly
+        const response = await fetch('/api/health/interventions/', {
+          method: 'POST',
+          body: formData,
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
         });
+        if (!response.ok) throw new Error('Failed to create intervention');
       } else if (addType === 'bp-med') {
-        await createBPMedication({
-          name: addForm.name,
-          dose: addForm.dose,
-          frequency: addForm.frequency,
-          is_active: true,
-          notes: addForm.notes,
+        const formData = new FormData();
+        formData.append('name', addForm.name);
+        formData.append('dose', addForm.dose);
+        formData.append('frequency', addForm.frequency);
+        formData.append('is_active', 'true');
+        formData.append('notes', addForm.notes);
+        formData.append('profile', '1'); // TODO: select profile dynamically
+        formData.append('started_at', new Date().toISOString().split('T')[0]);
+        if (addPhotos.pill) formData.append('photo', addPhotos.pill);
+        if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
+        const response = await fetch('/api/health/bp/medications/', {
+          method: 'POST',
+          body: formData,
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
         });
+        if (!response.ok) throw new Error('Failed to create BP medication');
       } else {
         await createSupplement({
           name: addForm.name,
@@ -267,6 +286,7 @@ export default function SupplementsPage() {
 
       // Reset form and refresh data
       setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '' });
+      setAddPhotos({});
       setShowAdd(false);
       await fetchData();
     } catch (e: any) {
@@ -409,6 +429,8 @@ export default function SupplementsPage() {
             onTypeChange={setAddType}
             form={addForm}
             onFormChange={setAddForm}
+            photos={addPhotos}
+            onPhotosChange={setAddPhotos}
             onClose={() => setShowAdd(false)}
             onSave={handleAddMedicine}
             loading={addLoading}
@@ -430,6 +452,8 @@ function AddMedicineModal({
   onTypeChange,
   form,
   onFormChange,
+  photos,
+  onPhotosChange,
   onClose,
   onSave,
   loading,
@@ -440,6 +464,8 @@ function AddMedicineModal({
   onTypeChange: (t: 'intervention' | 'bp-med' | 'supplement') => void;
   form: { name: string; dose: string; frequency: string; category: string; notes: string };
   onFormChange: (f: typeof form) => void;
+  photos: { pill?: File; prescription?: File };
+  onPhotosChange: (p: { pill?: File; prescription?: File }) => void;
   onClose: () => void;
   onSave: () => Promise<void>;
   loading: boolean;
@@ -503,6 +529,57 @@ function AddMedicineModal({
             onChange={e => onFormChange({ ...form, notes: e.target.value })}
             placeholder={locale === 'bg' ? 'За какво е' : 'Why prescribed'}
           />
+
+          {/* Photo uploads for interventions and BP meds */}
+          {(type === 'intervention' || type === 'bp-med') && (
+            <>
+              <div className="border-t pt-4 mt-4">
+                <p className="text-sm font-medium text-gray-900 mb-3">
+                  {locale === 'bg' ? 'Снимки (опционално)' : 'Photos (optional)'}
+                </p>
+
+                <div className="space-y-3">
+                  {/* Pill/Package photo */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {locale === 'bg' ? '📦 Снимка на опаковката' : '📦 Package/Pill Photo'}
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onPhotosChange({ ...photos, pill: file });
+                      }}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-sm file:font-medium"
+                    />
+                    {photos.pill && (
+                      <p className="text-xs text-gray-500 mt-1">✓ {photos.pill.name}</p>
+                    )}
+                  </div>
+
+                  {/* Prescription/Doctor document photo */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      {locale === 'bg' ? '📄 Снимка на рецепта' : '📄 Prescription/Doctor Note'}
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onPhotosChange({ ...photos, prescription: file });
+                      }}
+                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-sm file:font-medium"
+                    />
+                    {photos.prescription && (
+                      <p className="text-xs text-gray-500 mt-1">✓ {photos.prescription.name}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="flex gap-3 pt-2">
             <Button variant="secondary" onClick={onClose} className="flex-1">
