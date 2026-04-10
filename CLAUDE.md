@@ -136,6 +136,39 @@ cd frontend && npm run lint
 
 **Data loss is irreversible** — always check before suggesting destructive operations on the database.
 
+### Lease Payment Auto-Generation — NEVER DISABLE for Recurring Leases
+**RULE**: Weekly and biweekly leases MUST have `auto_generate_payments=True`. Do NOT disable this flag.
+
+**Why it matters:**
+- Weekly leases (Yuliana, Elena) are short-term and need frequent payment generation
+- If auto-generation is disabled, no RentPayment records are created
+- Users won't see upcoming payments in the dashboard
+- This causes "missing payments" bug (April 2026 incident)
+
+**Safeguards in place:**
+1. **Model save() override** — Automatically forces `auto_generate_payments=True` for weekly/biweekly leases
+   - If code tries to set it to False, it's silently re-enabled with a warning log
+2. **Health check command** — Run weekly to verify:
+   ```bash
+   python manage.py check_lease_health
+   ```
+   - Alerts if any weekly/biweekly leases missing upcoming payments
+   - Alerts if any have auto-generation disabled
+
+**If payments stop appearing:**
+```bash
+# 1. Diagnose
+python manage.py check_lease_health
+
+# 2. Fix (if needed)
+python manage.py fix_weekly_payments --fix
+```
+
+**Data migration safeguard:**
+- Migration 0006_fix_enable_weekly_auto_payments runs on deploy
+- Automatically fixes any leases with disabled auto-generation
+- Generates missing payments retroactively
+
 ## App Modules & Navigation (CRITICAL GUARDRAIL)
 
 DomApp is organized into **6 top-level modules**. Every module and sub-page MUST be accessible from the navigation. When adding new pages, you MUST update the NavBar MODULES array.

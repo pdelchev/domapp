@@ -115,3 +115,19 @@ class Lease(models.Model):
 
     def is_recurring(self):
         return self.rent_frequency != 'one_time'
+
+    def save(self, *args, **kwargs):
+        """
+        Safeguard: Prevent disabling auto-generation for recurring leases.
+        Weekly/biweekly leases MUST have auto_generate_payments=True.
+        """
+        if self.is_recurring() and not self.auto_generate_payments:
+            # Force enable for recurring leases
+            self.auto_generate_payments = True
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f'Auto-forced auto_generate_payments=True for {self.tenant.full_name} '
+                f'@ {self.property.name} (frequency: {self.rent_frequency})'
+            )
+        super().save(*args, **kwargs)
