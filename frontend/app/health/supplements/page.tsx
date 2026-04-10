@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary, getBPMedications, getInterventions, createIntervention, createBPMedication } from '../../lib/api';
+import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary, getBPMedications, getInterventions, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -199,6 +199,38 @@ export default function SupplementsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const handleEditMedicine = (s: Supplement) => {
+    // For now, just populate the form with the medicine data
+    // Could also open an edit modal
+    setAddForm({
+      name: s.name,
+      dose: s.dose || s.strength || '',
+      frequency: s.frequency || '',
+      category: s.category,
+      notes: '',
+    });
+    setShowAdd(true);
+  };
+
+  const handleDeleteMedicine = async (id: number, type: 'intervention' | 'bp-med' | 'supplement') => {
+    if (!confirm(locale === 'bg' ? 'Сигурни ли сте? Това действие не може да бъде отменено.' : 'Are you sure? This cannot be undone.')) {
+      return;
+    }
+
+    try {
+      if (type === 'intervention') {
+        await deleteIntervention(id);
+      } else if (type === 'bp-med') {
+        await deleteBPMedication(id);
+      } else {
+        await deleteSupplement(id);
+      }
+      await fetchData();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
   const handleAddMedicine = async () => {
     if (!addForm.name.trim()) {
       setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
@@ -302,25 +334,31 @@ export default function SupplementsPage() {
             message={locale === 'bg' ? 'Няма лекарства или добавки. Добавете първото си лекарство или витамин.' : 'No medicines or supplements. Add your first pill or vitamin.'}
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {supplements.map(s => (
-              <Card key={s.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <div className="flex gap-4">
-                  {/* §PHOTO: Pill image or category icon */}
-                  <div className="w-20 h-20 rounded-xl bg-gray-100 border border-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
-                    {s.photo_closeup ? (
-                      <img src={s.photo_closeup} alt={s.name} className="w-full h-full object-cover" />
-                    ) : s.photo ? (
-                      <img src={s.photo} alt={s.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-3xl">{CATEGORY_ICONS[s.category] || '💊'}</span>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-gray-900 truncate">{s.name}</h3>
-                      <div className="flex gap-1 flex-shrink-0">
+          <Card padding={false}>
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Име' : 'Name'}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Тип' : 'Type'}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Доза' : 'Dose'}</th>
+                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Честота' : 'Frequency'}</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Действия' : 'Actions'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {supplements.map((s) => (
+                  <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{CATEGORY_ICONS[s.category] || '💊'}</span>
+                        <div>
+                          <div className="font-medium text-gray-900">{s.name}</div>
+                          {s.is_prescription && <span className="text-xs text-red-500 font-medium">Rx</span>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-1">
                         {s._from_intervention && (
                           <Badge color="red">
                             {locale === 'bg' ? 'Терапия' : 'Treatment'}
@@ -335,62 +373,32 @@ export default function SupplementsPage() {
                           {s.category}
                         </Badge>
                       </div>
-                    </div>
-
-                    {s.strength && (
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {s.strength}
-                        {(s._from_bp || s._from_intervention) && s.frequency && ` • ${s.frequency}`}
-                      </p>
-                    )}
-
-                    {/* §VISUAL: Pill description for elderly */}
-                    {(s.color || s.shape) && (
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {[s.color, s.shape, s.form].filter(Boolean).join(' • ')}
-                      </p>
-                    )}
-
-                    <div className="flex items-center gap-3 mt-2">
-                      {/* Schedules count */}
-                      {s.active_schedules > 0 && (
-                        <span className="text-xs text-indigo-600 font-medium">
-                          {s.active_schedules} schedule{s.active_schedules > 1 ? 's' : ''}
-                        </span>
-                      )}
-
-                      {/* §STOCK: Days remaining with color coding */}
-                      {s.days_remaining !== null && (
-                        <span className={`text-xs font-medium ${
-                          s.days_remaining <= 3 ? 'text-red-600' :
-                          s.days_remaining <= 7 ? 'text-amber-600' :
-                          'text-gray-500'
-                        }`}>
-                          {s.days_remaining}d left
-                        </span>
-                      )}
-
-                      {/* Rx indicator */}
-                      {s.is_prescription && (
-                        <span className="text-xs text-red-500 font-medium">Rx</span>
-                      )}
-                    </div>
-
-                    {/* §BIOMARKER: Linked biomarkers */}
-                    {s.linked_biomarkers.length > 0 && (
-                      <div className="flex gap-1 mt-2 flex-wrap">
-                        {s.linked_biomarkers.map(b => (
-                          <span key={b} className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded">
-                            {b}
-                          </span>
-                        ))}
+                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-600">{s.strength || '—'}</td>
+                    <td className="py-3 px-4 text-sm text-gray-600">{s.frequency || '—'}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditMedicine(s)}
+                        >
+                          {locale === 'bg' ? 'Редактирай' : 'Edit'}
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => handleDeleteMedicine(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
+                        >
+                          {locale === 'bg' ? 'Изтрий' : 'Delete'}
+                        </Button>
                       </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Card>
         )}
 
         {/* §MODAL: Unified add form for interventions, BP meds, or supplements */}
