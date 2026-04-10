@@ -1,18 +1,18 @@
 'use client';
 
 /**
- * §PAGE: Supplement Cabinet — My Pills & Vitamins
+ * §PAGE: Medicines & Supplements Cabinet
  * §ROUTE: /health/supplements
- * §PURPOSE: Visual catalog of all supplements/medications with photos,
- *   schedules, stock levels, and interaction warnings.
+ * §PURPOSE: Unified view of all medicines (from health hub) + supplements/vitamins
+ *   with photos, schedules, stock levels, interaction warnings, and tracking.
  * §UX: Card grid with pill photos — optimized for visual identification.
- * §NAV: Linked from Health Hub dashboard supplement section.
+ * §NAV: Linked from Health Hub dashboard. Also shows active medicines from main hub.
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming } from '../../lib/api';
+import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -39,6 +39,7 @@ interface Supplement {
   active_schedules: number;
   started_at: string | null;
   linked_biomarkers: string[];
+  _from_health_summary?: boolean; // Mark medicines from health summary
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -80,11 +81,43 @@ export default function SupplementsPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [supps, warnings] = await Promise.all([
+      const [supps, warnings, healthSummary] = await Promise.all([
         getSupplements(filter === 'all' ? undefined : { active: filter === 'active' }),
         getSupplementInteractions(),
+        getUnifiedHealthSummary().catch(() => null), // Get active interventions/medicines
       ]);
-      setSupplements(supps);
+
+      // Combine supplements with active medicines/interventions from health summary
+      let combined = [...supps];
+
+      if (healthSummary?.active_interventions) {
+        // Add medicines from health summary (convert to supplement format)
+        const medicines = healthSummary.active_interventions.map((med: any) => ({
+          id: med.id,
+          name: med.name,
+          name_bg: med.name,
+          category: 'medication',
+          form: med.frequency ? `${med.frequency}` : 'tablet',
+          color: '',
+          shape: '',
+          photo: null,
+          photo_closeup: null,
+          strength: med.dose || '',
+          strength_unit: '',
+          manufacturer: '',
+          is_prescription: true,
+          is_active: true,
+          current_stock: 0,
+          days_remaining: null,
+          active_schedules: 0,
+          started_at: med.started_on,
+          linked_biomarkers: [],
+          _from_health_summary: true, // Mark as from health summary
+        }));
+        combined = [...medicines, ...combined];
+      }
+
+      setSupplements(combined);
       setInteractions(warnings);
     } catch (e: any) {
       setError(e.message);
@@ -100,11 +133,11 @@ export default function SupplementsPage() {
       <NavBar />
       <PageContent size="lg">
         <PageHeader
-          title="My Supplements"
+          title={locale === 'bg' ? 'Лекарства и добавки' : 'Medicines & Supplements'}
           onBack={() => router.push('/health')}
           action={
             <Button variant="primary" onClick={() => setShowAdd(true)}>
-              + Add Supplement
+              {locale === 'bg' ? '+ Добави' : '+ Add'}
             </Button>
           }
         />
@@ -146,11 +179,11 @@ export default function SupplementsPage() {
         </div>
 
         {loading ? (
-          <Spinner message="Loading supplements..." />
+          <Spinner message={locale === 'bg' ? 'Зарежда лекарства...' : 'Loading medicines...'} />
         ) : supplements.length === 0 ? (
           <EmptyState
             icon="💊"
-            message="No supplements yet. Add your first pill or vitamin."
+            message={locale === 'bg' ? 'Няма лекарства или добавки. Добавете първото си лекарство или витамин.' : 'No medicines or supplements. Add your first pill or vitamin.'}
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
