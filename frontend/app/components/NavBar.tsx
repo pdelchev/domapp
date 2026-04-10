@@ -114,7 +114,18 @@ export default function NavBar() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [moreOpen, setMoreOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [expandedSubmenus, setExpandedSubmenus] = useState<Set<string>>(new Set());
   const isPWA = useIsStandalone();
+
+  const toggleSubmenu = (href: string) => {
+    const newExpanded = new Set(expandedSubmenus);
+    if (newExpanded.has(href)) {
+      newExpanded.delete(href);
+    } else {
+      newExpanded.add(href);
+    }
+    setExpandedSubmenus(newExpanded);
+  };
 
   useEffect(() => {
     getMe()
@@ -389,17 +400,64 @@ export default function NavBar() {
                 </div>
                 <div className="px-5 pb-3">
                   <p className="text-sm font-semibold text-gray-900 mb-3">{t('nav.more', locale)}</p>
-                  <div className="grid grid-cols-4 gap-3 mb-4">
-                    {MORE_ITEMS.map((item) => (
-                      <button
-                        key={item.href}
-                        onClick={() => navigate(item.href)}
-                        className="flex flex-col items-center gap-1.5 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                      >
-                        <span className="text-3xl">{item.icon}</span>
-                        <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{t(item.key, locale)}</span>
-                      </button>
-                    ))}
+                  <div className="space-y-2 mb-4">
+                    {MODULES.map((mod) => {
+                      const isExpanded = expandedSubmenus.has(mod.href);
+                      const hasSub = mod.sub && mod.sub.length > 1;
+
+                      return (
+                        <div key={mod.href}>
+                          {/* Parent item */}
+                          <button
+                            onClick={() => {
+                              if (hasSub) {
+                                toggleSubmenu(mod.href);
+                              } else {
+                                navigate(mod.href);
+                              }
+                            }}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                              isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'bg-gray-50 hover:bg-gray-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{mod.icon}</span>
+                              <span className="text-sm font-medium">{t(mod.key, locale)}</span>
+                            </div>
+                            {hasSub && (
+                              <svg
+                                className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Submenus */}
+                          {hasSub && isExpanded && (
+                            <div className="ml-4 mt-1 space-y-1 pl-4 border-l-2 border-gray-200">
+                              {mod.sub!.map((sub) => (
+                                <button
+                                  key={sub.href}
+                                  onClick={() => navigate(sub.href)}
+                                  className={`block w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                    pathname === sub.href || pathname.startsWith(sub.href + '/')
+                                      ? 'bg-indigo-50 text-indigo-700 font-medium'
+                                      : 'text-gray-600 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {t(sub.key, locale)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                   {/* User section */}
                   <div className="border-t border-gray-100 pt-3 space-y-2">
