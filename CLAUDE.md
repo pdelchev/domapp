@@ -54,7 +54,8 @@ frontend/
     problems/new/page.tsx       # Report new problem form
     problems/[id]/page.tsx      # Edit problem + resolution tracking
     notifications/page.tsx      # Notifications list with type/read filters, dismiss, mark all read
-    health/page.tsx             # Health Hub — unified dashboard, scores, supplements, metrics
+    health/page.tsx             # **Health Hub (main)** — unified dashboard with medicines, blood results, recommendations, vitals, biological age
+    life/page.tsx               # Redirects to /health (deprecated, kept for backward compat)
     health/checkin/page.tsx     # Daily Check-In Wizard — 5-step wizard (mood, weight, BP, water, supplements)
     health/supplements/page.tsx # Supplement Cabinet — pill catalog with photos, stock, interactions
     health/timeline/page.tsx    # Unified Timeline — all metrics from first measurement, sparkline charts
