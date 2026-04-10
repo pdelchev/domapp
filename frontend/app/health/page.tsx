@@ -335,19 +335,19 @@ export default function LifePage() {
           title={t('nav.health_hub', locale)}
           action={
             <div className="flex gap-2 flex-wrap">
-              <Link href="/health/routine">
+              <Link href="/health/genetic">
                 <Button>
+                  🧬 {locale === 'bg' ? 'Гени' : 'Genes'}
+                </Button>
+              </Link>
+              <Link href="/health/routine">
+                <Button variant="secondary">
                   💊 {t('nav.daily_routine', locale)}
                 </Button>
               </Link>
               <Link href="/health/checkin">
                 <Button variant="secondary">
                   + {t('nav.daily_checkin', locale)}
-                </Button>
-              </Link>
-              <Link href="/life/lab-order">
-                <Button variant="secondary">
-                  {locale === 'bg' ? 'Тестове' : 'Lab Order'}
                 </Button>
               </Link>
             </div>
