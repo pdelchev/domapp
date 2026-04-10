@@ -33,6 +33,10 @@ LAB_SIGNATURES = {
     'lina': ['ЛИНА', 'LINA', 'lina-bg.com', 'МДЛ ЛИНА', 'iLab'],
     'acibadem': ['АДЖИБАДЕМ', 'Acibadem', 'ACIBADEM'],
     'cibalab': ['ЦИБАЛАБ', 'Cibalab', 'CIBALAB'],
+    'roche': ['Roche', 'Cobas', 'cobas', 'ROCHE', 'Elecsys'],
+    'abbott': ['Abbott', 'ALINITY', 'Architect', 'ARCHITECT'],
+    'siemens': ['Siemens', 'ADVIA', 'advia'],
+    'biorad': ['Bio-Rad', 'BioPlex', 'BIOPLEX', 'QC Control'],
 }
 
 
@@ -403,44 +407,492 @@ def _extract_lina_name(raw_name: str) -> str:
     return raw
 
 
+# ── Roche Cobas parser ──────────────────────────────────────────────────
+# §ROCHE: Roche Cobas analyzers produce structured HTML tables in PDF.
+#
+# Format (typical):
+#   [Test Name] [Result] [Unit] [Reference Range] [Flag]
+#   Example: "Glucose 124 mg/dL 70-100 ↑"
+#   Example: "Hemoglobin 14.5 g/dL 13.5-17.5"
+#
+# Pattern: <name> <number> <unit> <ref> [flag]
+
+ROCHE_LINE = re.compile(
+    r'^'
+    r'(.+?)'                              # (1) Test name
+    r'\s+'
+    r'(<?\d+\.?\d*)'                      # (2) Result value
+    r'\s+'
+    r'([a-zA-Zμµ/%.]+)'                   # (3) Unit
+    r'(?:\s+(.+?))?'                      # (4) Reference range (optional)
+    r'(?:\s+([↑↓H\-L]))?'                 # (5) Flag (optional: arrow or letter)
+    r'$'
+)
+
+
+def parse_roche(text: str) -> list[dict]:
+    """
+    §ROCHE: Parse Roche Cobas analyzer output.
+    Cobas systems produce clean tabular output.
+    """
+    results = []
+
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line or should_skip_line(line):
+            continue
+
+        match = ROCHE_LINE.match(line)
+        if not match:
+            continue
+
+        name = match.group(1).strip()
+        value_text = match.group(2)
+        unit = match.group(3).strip()
+        ref_text = (match.group(4) or '').strip()
+        flag = (match.group(5) or '').strip()
+
+        if should_skip_line(name):
+            continue
+
+        value = parse_number(value_text)
+        if value is None:
+            continue
+
+        name_for_match = _extract_roche_name(name)
+
+        results.append({
+            'name': name_for_match,
+            'name_original': name,
+            'value': value,
+            'unit': unit,
+            'ref_range': parse_ref_range(ref_text),
+        })
+
+    return results
+
+
+def _extract_roche_name(raw_name: str) -> str:
+    """
+    §NAME: Extract best name from Roche format.
+    Input: "Glucose" → "GLU"
+    Input: "Hemoglobin" → "HGB"
+    Input: "Cholesterol Total" → "CHOL"
+    Input: "Potassium K+" → "K"
+    """
+    raw = raw_name.strip()
+
+    # Pattern: English test names — try to match against ABBR_NORMALIZE
+    for key, val in ABBR_NORMALIZE.items():
+        if key.lower() == raw.lower():
+            return val
+        # Partial match for multi-word names
+        if len(key) >= 4 and key.lower() in raw.lower():
+            return val
+
+    # Extract trailing abbreviation: "Potassium K+" → "K"
+    match = re.search(r'\b([A-Z]+[+\-]?)\b$', raw)
+    if match:
+        abbr = match.group(1)
+        if abbr in ABBR_NORMALIZE:
+            return ABBR_NORMALIZE[abbr]
+        return abbr
+
+    return raw
+
+
+# ── Abbott ALINITY parser ───────────────────────────────────────────────
+# §ABBOTT: Abbott ALINITY analyzers have hierarchical result sections.
+#
+# Format (typical):
+#   Sample: ABC123 | Collection: 15-Mar-2024 10:30
+#   [Section Name]
+#   Test Name                  Result    Unit   Low Ref   High Ref   Flag
+#   Glucose                    125       mg/dL  70        100        H
+#
+# Pattern: hierarchical sections with indented result lines
+
+ABBOTT_LINE = re.compile(
+    r'^'
+    r'(.+?)'                              # (1) Test name (can be indented)
+    r'\s{2,}'                             # Multiple spaces (for alignment)
+    r'(<?\d+\.?\d*)'                      # (2) Result
+    r'\s+'
+    r'([a-zA-Zμµ/%.]+)'                   # (3) Unit
+    r'(?:\s+(<?\d+\.?\d*))?'              # (4) Low ref (optional)
+    r'(?:\s+(<?\d+\.?\d*))?'              # (5) High ref (optional)
+    r'(?:\s+([HL↑↓]))?'                   # (6) Flag (optional)
+    r'$'
+)
+
+
+def parse_abbott(text: str) -> list[dict]:
+    """
+    §ABBOTT: Parse Abbott ALINITY result sections.
+    Handles multi-analyte hierarchical structure.
+    """
+    results = []
+    current_section = ''
+
+    for line in text.split('\n'):
+        line_stripped = line.strip()
+
+        # Skip empty lines and headers
+        if not line_stripped:
+            continue
+        if should_skip_line(line_stripped):
+            continue
+
+        # Detect section headers (all caps, no numbers)
+        if re.match(r'^[A-Z\s]+$', line_stripped) and len(line_stripped) > 3:
+            current_section = line_stripped
+            continue
+
+        match = ABBOTT_LINE.match(line_stripped)
+        if not match:
+            continue
+
+        name = match.group(1).strip()
+        value_text = match.group(2)
+        unit = match.group(3).strip()
+        low_ref = match.group(4) or ''
+        high_ref = match.group(5) or ''
+        flag = match.group(6) or ''
+
+        if should_skip_line(name):
+            continue
+
+        value = parse_number(value_text)
+        if value is None:
+            continue
+
+        # Build reference range from low/high
+        ref_range = ''
+        if low_ref and high_ref:
+            ref_range = f"{low_ref} - {high_ref}"
+        elif low_ref:
+            ref_range = f"> {low_ref}"
+        elif high_ref:
+            ref_range = f"< {high_ref}"
+
+        name_for_match = _extract_abbott_name(name)
+
+        results.append({
+            'name': name_for_match,
+            'name_original': name,
+            'value': value,
+            'unit': unit,
+            'ref_range': ref_range,
+        })
+
+    return results
+
+
+def _extract_abbott_name(raw_name: str) -> str:
+    """
+    §NAME: Extract best name from Abbott format.
+    Input: "Glucose" → "GLU"
+    Input: "Hemoglobin A1c" → "HBA1C"
+    Input: "TSH, 3rd Gen" → "TSH"
+    """
+    raw = raw_name.strip()
+
+    # Remove qualifiers: ", 3rd Gen" or "(Plasma)"
+    name_clean = re.sub(r',.*$', '', raw).strip()
+    name_clean = re.sub(r'\(.*?\)', '', name_clean).strip()
+
+    # Try exact match against ABBR_NORMALIZE
+    if name_clean in ABBR_NORMALIZE:
+        return ABBR_NORMALIZE[name_clean]
+
+    # Case-insensitive match
+    for key, val in ABBR_NORMALIZE.items():
+        if key.lower() == name_clean.lower():
+            return val
+
+    return name_clean
+
+
+# ── Siemens ADVIA parser ────────────────────────────────────────────────
+# §SIEMENS: Siemens ADVIA analyzer structured output.
+#
+# Format (typical):
+#   LIS ID   Test Name              Result    Unit    Ref Low  Ref High  Status
+#   001       Hemoglobin             14.5      g/dL    13.5     17.5      Normal
+#   002       White Blood Cell       7.2       K/µL    4.5      11.0      Normal
+#
+# Pattern: <id> <name> <result> <unit> <ref_low> <ref_high> [status]
+
+SIEMENS_LINE = re.compile(
+    r'^'
+    r'(?:\d+\.?\d*\s+)?'                  # Optional LIS ID
+    r'(.+?)'                              # (1) Test name
+    r'\s{2,}'                             # Multiple spaces
+    r'(<?\d+\.?\d*)'                      # (2) Result
+    r'\s+'
+    r'([a-zA-Zμµ/%.]+)'                   # (3) Unit
+    r'(?:\s+(<?\d+\.?\d*))?'              # (4) Ref low (optional)
+    r'(?:\s+(<?\d+\.?\d*))?'              # (5) Ref high (optional)
+    r'(?:\s+(Normal|Abnormal|Critical|High|Low))?'  # (6) Status (optional)
+    r'$'
+)
+
+
+def parse_siemens(text: str) -> list[dict]:
+    """
+    §SIEMENS: Parse Siemens ADVIA analyzer output.
+    Structured columnar format with optional status indicator.
+    """
+    results = []
+
+    for line in text.split('\n'):
+        line_stripped = line.strip()
+        if not line_stripped or should_skip_line(line_stripped):
+            continue
+
+        match = SIEMENS_LINE.match(line_stripped)
+        if not match:
+            continue
+
+        name = match.group(1).strip()
+        value_text = match.group(2)
+        unit = match.group(3).strip()
+        ref_low = match.group(4) or ''
+        ref_high = match.group(5) or ''
+        status = match.group(6) or ''
+
+        if should_skip_line(name):
+            continue
+
+        value = parse_number(value_text)
+        if value is None:
+            continue
+
+        # Build reference range
+        ref_range = ''
+        if ref_low and ref_high:
+            ref_range = f"{ref_low} - {ref_high}"
+        elif ref_low:
+            ref_range = f"> {ref_low}"
+        elif ref_high:
+            ref_range = f"< {ref_high}"
+
+        name_for_match = _extract_siemens_name(name)
+
+        results.append({
+            'name': name_for_match,
+            'name_original': name,
+            'value': value,
+            'unit': unit,
+            'ref_range': ref_range,
+        })
+
+    return results
+
+
+def _extract_siemens_name(raw_name: str) -> str:
+    """
+    §NAME: Extract best name from Siemens format.
+    Input: "Hemoglobin" → "HGB"
+    Input: "White Blood Cell" → "WBC"
+    Input: "Platelet Count" → "PLT"
+    """
+    raw = raw_name.strip()
+
+    # Try exact match
+    if raw in ABBR_NORMALIZE:
+        return ABBR_NORMALIZE[raw]
+
+    # Case-insensitive match
+    for key, val in ABBR_NORMALIZE.items():
+        if key.lower() == raw.lower():
+            return val
+
+    # Partial match for compound names
+    for key, val in ABBR_NORMALIZE.items():
+        if len(key) >= 4 and key.lower() in raw.lower():
+            return val
+
+    return raw
+
+
+# ── Bio-Rad QC parser ───────────────────────────────────────────────────
+# §BIORAD: Bio-Rad QC control material results.
+#
+# Format (typical):
+#   Control Material    Lot#       Expiry     Result   Unit   Mean±SD    Flag
+#   Liquichek Level 1   L123456    20-Nov-2024  85     mg/dL  100±5      L
+#   Liquichek Level 2   L789012    15-Dec-2024  210    mg/dL  200±10     H
+#
+# These are QC (quality control) samples, not patient results.
+# Mark them as control samples so they can be excluded from patient analysis.
+
+BIORAD_LINE = re.compile(
+    r'^'
+    r'([\w\s\-]+?)'                       # (1) Control name
+    r'\s+'
+    r'(L[\d]+|[A-Z0-9]+)'                 # (2) Lot number
+    r'\s+'
+    r'(\d{1,2}-\w{3}-\d{4}|\d{2}/\d{2}/\d{4})'  # (3) Expiry date
+    r'\s+'
+    r'(<?\d+\.?\d*)'                      # (4) Result
+    r'\s+'
+    r'([a-zA-Zμµ/%.]+)'                   # (5) Unit
+    r'(?:\s+(.+?))?'                      # (6) Mean±SD (optional)
+    r'(?:\s+([HL↑↓]))?'                   # (7) Flag (optional)
+    r'$'
+)
+
+
+def parse_biorad(text: str) -> list[dict]:
+    """
+    §BIORAD: Parse Bio-Rad QC control results.
+    Returns control samples marked with is_qc=True.
+    These should not be used for patient biomarker analysis.
+    """
+    results = []
+
+    for line in text.split('\n'):
+        line_stripped = line.strip()
+        if not line_stripped or should_skip_line(line_stripped):
+            continue
+
+        match = BIORAD_LINE.match(line_stripped)
+        if not match:
+            continue
+
+        control_name = match.group(1).strip()
+        lot_num = match.group(2)
+        expiry = match.group(3)
+        value_text = match.group(4)
+        unit = match.group(5).strip()
+        mean_sd = match.group(6) or ''
+        flag = match.group(7) or ''
+
+        # Extract test name from control name (e.g., "Liquichek Level 1 Glucose" → "Glucose")
+        name_part = control_name
+
+        # Try to extract embedded test name
+        test_match = re.search(r'(Glucose|Electrolytes|Lipids|Liver|Renal|Cardiac)',
+                               control_name, re.IGNORECASE)
+        if test_match:
+            name_part = test_match.group(1)
+
+        value = parse_number(value_text)
+        if value is None:
+            continue
+
+        name_for_match = _extract_biorad_name(name_part)
+
+        # Mark as QC sample for filtering
+        results.append({
+            'name': name_for_match,
+            'name_original': control_name,
+            'value': value,
+            'unit': unit,
+            'ref_range': mean_sd,
+            'is_qc': True,  # Mark as quality control sample
+            'lot_number': lot_num,
+        })
+
+    return results
+
+
+def _extract_biorad_name(raw_name: str) -> str:
+    """
+    §NAME: Extract test name from Bio-Rad control name.
+    Input: "Liquichek Glucose Level 1" → "GLU"
+    Input: "Electrolytes" → original (no mapping)
+    """
+    raw = raw_name.strip()
+
+    # Try exact match
+    if raw in ABBR_NORMALIZE:
+        return ABBR_NORMALIZE[raw]
+
+    # Case-insensitive
+    for key, val in ABBR_NORMALIZE.items():
+        if key.lower() == raw.lower():
+            return val
+
+    # Partial match
+    for key, val in ABBR_NORMALIZE.items():
+        if len(key) >= 4 and key.lower() in raw.lower():
+            return val
+
+    return raw
+
+
 # ── Abbreviation normalization ───────────────────────────────────────
 # §NORM: Map common extracted abbreviations to our canonical abbreviation system.
 # This handles the gap between what the parser extracts and what our biomarker aliases expect.
 
 ABBR_NORMALIZE = {
-    # Ramus extracts
-    'WBC': 'WBC', 'HGB': 'HGB', 'RBC': 'RBC', 'HCT': 'HCT', 'PLT': 'PLT',
+    # Common hematology tests
+    'WBC': 'WBC', 'White Blood Cell': 'WBC', 'WBC Count': 'WBC',
+    'HGB': 'HGB', 'Hemoglobin': 'HGB', 'HB': 'HGB',
+    'RBC': 'RBC', 'Red Blood Cell': 'RBC',
+    'HCT': 'HCT', 'Hematocrit': 'HCT',
+    'PLT': 'PLT', 'Platelet': 'PLT', 'Platelet Count': 'PLT',
     'MCV': 'MCV', 'MCH': 'MCH', 'MCHC': 'MCHC', 'RDW': 'RDW', 'MPV': 'MPV',
-    'Glucose': 'GLU', 'Creatinine': 'CREA', 'Uric acid': 'URIC', 'Urea': 'UREA',
-    'T Cholеsterol': 'CHOL', 'T Cholesterol': 'CHOL',
-    'Triglycerides': 'TG', 'HDL-cholesterol': 'HDL', 'LDL-cholesterol': 'LDL',
-    'VLDL-cholesterol': 'VLDL',
-    'Bilirubin total': 'TBIL', 'Bilirubin direct': 'DBIL',
-    'Protein total': 'TP', 'Albumin': 'ALB',
-    'ASAT(GOT)': 'AST', 'ASAT': 'AST', 'GOT': 'AST',
-    'ALAT(GPT)': 'ALT', 'ALAT': 'ALT', 'GPT': 'ALT',
-    'Alkaline phosphatase': 'ALP', 'ALP': 'ALP',
-    'GGT': 'GGT',
-    'Potassium': 'K', 'Sodium': 'NA', 'Calcium': 'CA',
-    'Iron': 'FE', 'Inorganic phosphorus': 'P',
-    'TSH': 'TSH', 'ERS': 'ESR',
-    # LINA extracts
-    'Glu S': 'GLU', 'Glu': 'GLU', 'GLU': 'GLU',
-    'UA': 'URIC',
-    'CREAT': 'CREA',
-    'CHOL': 'CHOL',
-    'HDL': 'HDL', 'LDL': 'LDL', 'VLDL': 'VLDL',
-    'TRG': 'TG',
-    'BUN': 'UREA',
-    'Ca': 'CA',
-    'P': 'P',
-    'TP': 'TP', 'ALB': 'ALB',
-    # Bulgarian names that might come through
-    'АСАТ': 'AST', 'АЛАТ': 'ALT', 'ГГТ': 'GGT',
-    'АФ': 'ALP',
-    # Tumor markers (not in our system yet, but extract for future)
-    'CEA': 'CEA', 'total PSA': 'PSA', 'free PSA': 'FPSA',
-    'CA -19 -9': 'CA199',
+    # Glucose & metabolic
+    'Glucose': 'GLU', 'GLU': 'GLU', 'Glu': 'GLU', 'Glu S': 'GLU',
+    'Creatinine': 'CREA', 'CREAT': 'CREA', 'Crea': 'CREA',
+    'Uric acid': 'URIC', 'UA': 'URIC', 'Urate': 'URIC',
+    'Urea': 'UREA', 'BUN': 'UREA', 'Blood Urea Nitrogen': 'UREA',
+    # Lipids
+    'T Cholеsterol': 'CHOL', 'T Cholesterol': 'CHOL', 'CHOL': 'CHOL',
+    'Total Cholesterol': 'CHOL', 'Cholesterol': 'CHOL',
+    'Triglycerides': 'TG', 'TRG': 'TG', 'Triglyceride': 'TG',
+    'HDL-cholesterol': 'HDL', 'HDL': 'HDL', 'HDL-C': 'HDL',
+    'LDL-cholesterol': 'LDL', 'LDL': 'LDL', 'LDL-C': 'LDL',
+    'VLDL-cholesterol': 'VLDL', 'VLDL': 'VLDL',
+    # Bilirubin
+    'Bilirubin total': 'TBIL', 'Total Bilirubin': 'TBIL', 'TBIL': 'TBIL',
+    'Bilirubin direct': 'DBIL', 'Direct Bilirubin': 'DBIL', 'DBIL': 'DBIL',
+    # Proteins
+    'Protein total': 'TP', 'Total Protein': 'TP', 'TP': 'TP',
+    'Albumin': 'ALB', 'ALB': 'ALB',
+    # Liver enzymes
+    'ASAT(GOT)': 'AST', 'ASAT': 'AST', 'GOT': 'AST', 'AST': 'AST',
+    'Aspartate Aminotransferase': 'AST',
+    'ALAT(GPT)': 'ALT', 'ALAT': 'ALT', 'GPT': 'ALT', 'ALT': 'ALT',
+    'Alanine Aminotransferase': 'ALT',
+    'Alkaline phosphatase': 'ALP', 'ALP': 'ALP', 'Alk Phos': 'ALP',
+    'GGT': 'GGT', 'Gamma-glutamyl transferase': 'GGT',
+    # Electrolytes
+    'Potassium': 'K', 'K+': 'K', 'K': 'K',
+    'Sodium': 'NA', 'Na+': 'NA', 'NA': 'NA',
+    'Calcium': 'CA', 'Ca': 'CA', 'CA': 'CA',
+    'Chloride': 'CL', 'Cl': 'CL',
+    'Magnesium': 'MG', 'Mg': 'MG',
+    'Phosphorus': 'P', 'Inorganic phosphorus': 'P',
+    # Thyroid
+    'TSH': 'TSH', 'Thyroid Stimulating Hormone': 'TSH',
+    'T3': 'T3', 'T4': 'T4', 'Free T3': 'FT3', 'Free T4': 'FT4',
+    # Inflammation
+    'CRP': 'CRP', 'C-Reactive Protein': 'CRP',
+    'ERS': 'ESR', 'ESR': 'ESR', 'Erythrocyte Sedimentation': 'ESR',
+    # Bulgarian names
+    'АСАТ': 'AST', 'АЛАТ': 'ALT', 'ГГТ': 'GGT', 'АФ': 'ALP',
+    # Tumor markers
+    'CEA': 'CEA', 'Carcinoembryonic Antigen': 'CEA',
+    'total PSA': 'PSA', 'free PSA': 'FPSA', 'PSA': 'PSA',
+    'CA -19 -9': 'CA199', 'CA19-9': 'CA199', 'CA 19-9': 'CA199',
+    # Iron metabolism
+    'Iron': 'FE', 'Serum Iron': 'FE',
+    'Ferritin': 'FERR',
+    'TIBC': 'TIBC', 'Total Iron Binding Capacity': 'TIBC',
+    'UIBC': 'UIBC', 'Unsaturated Iron Binding Capacity': 'UIBC',
+    # B12 & folate
+    'Vitamin B12': 'B12', 'B12': 'B12',
+    'Folate': 'FOLATE', 'Folic Acid': 'FOLATE',
+    # Coagulation
+    'PT': 'PT', 'Prothrombin Time': 'PT', 'INR': 'INR',
+    'aPTT': 'APTT', 'Activated Partial Thromboplastin': 'APTT',
+    'Fibrinogen': 'FIB',
+    # Glucose variants
+    'HbA1c': 'HBA1C', 'Hemoglobin A1c': 'HBA1C', 'Glycated Hemoglobin': 'HBA1C',
 }
 
 
@@ -506,7 +958,7 @@ def parse_pdf(file_path: str) -> dict:
     """
     §MAIN: Entry point for PDF parsing.
     1. Extract text from PDF
-    2. Detect lab type (Ramus/LINA/other)
+    2. Detect lab type (Ramus/LINA/Roche/Abbott/Siemens/Bio-Rad/other)
     3. Apply lab-specific line parser
     4. Normalize extracted names to canonical abbreviations
     5. Return {lab_type, results[], warnings[], patient_info}
@@ -525,20 +977,44 @@ def parse_pdf(file_path: str) -> dict:
     lab_type = detect_lab(text)
     patient_info = extract_patient_info(text)
 
-    # §CHAIN: Lab-specific parser → fallback
-    if lab_type == 'ramus':
-        raw_results = parse_ramus(text)
-    elif lab_type == 'lina':
-        raw_results = parse_lina(text)
+    # §CHAIN: Lab-specific parser → fallback to best parser
+    parser_map = {
+        'ramus': parse_ramus,
+        'lina': parse_lina,
+        'roche': parse_roche,
+        'abbott': parse_abbott,
+        'siemens': parse_siemens,
+        'biorad': parse_biorad,
+    }
+
+    if lab_type in parser_map:
+        raw_results = parser_map[lab_type](text)
     else:
-        # Try both parsers, take whichever yields more results
-        ramus_results = parse_ramus(text)
-        lina_results = parse_lina(text)
-        raw_results = ramus_results if len(ramus_results) >= len(lina_results) else lina_results
+        # Unknown lab: try all parsers, take whichever yields most results
+        all_results = {
+            'ramus': parse_ramus(text),
+            'lina': parse_lina(text),
+            'roche': parse_roche(text),
+            'abbott': parse_abbott(text),
+            'siemens': parse_siemens(text),
+            'biorad': parse_biorad(text),
+        }
+        best_parser = max(all_results.keys(), key=lambda k: len(all_results[k]))
+        raw_results = all_results[best_parser]
+        if raw_results:
+            lab_type = best_parser
+            warnings.append(f'Lab type not recognized. Best guess: {lab_type}')
+
+    # §FILTER: Exclude QC (quality control) samples from patient analysis
+    patient_results = [r for r in raw_results if not r.get('is_qc', False)]
+    qc_results = [r for r in raw_results if r.get('is_qc', False)]
+
+    if qc_results:
+        warnings.append(f'Excluded {len(qc_results)} QC control samples from analysis')
 
     # §NORMALIZE: Map extracted names to canonical abbreviations
     results = []
-    for r in raw_results:
+    for r in patient_results:
         normalized = normalize_name(r['name'])
         results.append({
             'name': normalized,

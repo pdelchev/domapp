@@ -318,3 +318,65 @@ class CollectionHeatmapView(APIView):
 
 def _level_priority(level):
     return {'on_time': 0, 'pending': 1, 'late': 2, 'missed': 3}.get(level, 0)
+
+
+# ── Financial Reports ────────────────────────────────────────────────────
+
+class PropertyReportView(APIView):
+    """Comprehensive property financial report (income, expenses, net)."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, property_id):
+        from .finance_reports import get_property_report
+
+        try:
+            prop = Property.objects.get(id=property_id, user=request.user.get_data_owner())
+        except Property.DoesNotExist:
+            return Response({'error': 'Property not found'}, status=404)
+
+        year = request.query_params.get('year', timezone.now().year)
+        try:
+            year = int(year)
+        except ValueError:
+            return Response({'error': 'Invalid year'}, status=400)
+
+        report = get_property_report(prop, year=year)
+        return Response(report)
+
+
+class TaxReportView(APIView):
+    """Tax summary: gross rent, deductible expenses, taxable income across properties."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .finance_reports import get_tax_report
+
+        user = request.user.get_data_owner()
+        year = request.query_params.get('year', timezone.now().year)
+
+        try:
+            year = int(year)
+        except ValueError:
+            return Response({'error': 'Invalid year'}, status=400)
+
+        report = get_tax_report(user, year=year)
+        return Response(report)
+
+
+class AnnualReportView(APIView):
+    """Year-over-year comparison: current year vs previous year."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .finance_reports import get_annual_report
+
+        user = request.user.get_data_owner()
+        year = request.query_params.get('year', timezone.now().year)
+
+        try:
+            year = int(year)
+        except ValueError:
+            return Response({'error': 'Invalid year'}, status=400)
+
+        report = get_annual_report(user, year=year)
+        return Response(report)

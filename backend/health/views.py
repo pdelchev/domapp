@@ -473,3 +473,61 @@ class TestPanelView(APIView):
 
         panel = get_recommended_panel(request.user, profile)
         return Response(panel)
+
+
+# ── Health Passport Export ──────────────────────────────────────────────
+
+class HealthPassportExportView(APIView):
+    """
+    §EXPORT: Generate and download health passport PDF.
+    GET: Generate passport for a profile with selected sections.
+    Query params:
+      ?profile=<id>          — Health profile (default: primary or first)
+      ?sections=blood,bp,weight — Comma-separated sections to include
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .health_passport import generate_health_passport
+        from django.http import HttpResponse
+
+        profile_id = request.query_params.get('profile')
+        sections_param = request.query_params.get('sections', 'header,blood,bp,weight,supplements,timeline,risk,recommendations')
+
+        # Get profile
+        profiles = HealthProfile.objects.filter(user=request.user)
+
+        if not profiles.exists():
+            return Response({'error': 'No health profile found'}, status=404)
+
+        if profile_id:
+            try:
+                profile = profiles.get(id=profile_id)
+            except HealthProfile.DoesNotExist:
+                return Response({'error': 'Profile not found'}, status=404)
+        else:
+            profile = profiles.filter(is_primary=True).first() or profiles.first()
+
+        # Parse sections
+        valid_sections = {'header', 'blood', 'bp', 'weight', 'supplements', 'timeline', 'risk', 'recommendations'}
+        requested_sections = [s.strip() for s in sections_param.split(',')]
+        sections = [s for s in requested_sections if s in valid_sections]
+
+        if not sections:
+            sections = list(valid_sections)
+
+        # Generate PDF
+        try:
+            pdf_bytes = generate_health_passport(profile, sections=sections)
+
+            # Return as download
+            response = HttpResponse(pdf_bytes, content_type='application/pdf')
+            filename = f"health-passport-{profile.full_name.replace(' ', '-')}-{request.user.id}.pdf"
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Health passport generation failed: {e}")
+            return Response({'error': f'PDF generation failed: {str(e)}'}, status=500)

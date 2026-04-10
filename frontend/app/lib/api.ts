@@ -522,6 +522,34 @@ export async function getCollectionHeatmap() {
   return res.json();
 }
 
+// --- Financial Reports ---
+export async function getPropertyReport(propertyId: number, year?: number) {
+  const params = new URLSearchParams();
+  if (year) params.set('year', String(year));
+  const url = `/api/finance/reports/property/${propertyId}/?${params}`;
+  const res = await apiFetch(url);
+  if (!res.ok) throw new Error('Failed to fetch property report');
+  return res.json();
+}
+
+export async function getFinancialTaxReport(year?: number) {
+  const params = new URLSearchParams();
+  if (year) params.set('year', String(year));
+  const url = `/api/finance/reports/tax/?${params}`;
+  const res = await apiFetch(url);
+  if (!res.ok) throw new Error('Failed to fetch tax report');
+  return res.json();
+}
+
+export async function getAnnualReport(year?: number) {
+  const params = new URLSearchParams();
+  if (year) params.set('year', String(year));
+  const url = `/api/finance/reports/annual/?${params}`;
+  const res = await apiFetch(url);
+  if (!res.ok) throw new Error('Failed to fetch annual report');
+  return res.json();
+}
+
 // --- Tenant Logs ---
 export async function getTenantLogs(tenantId: number) {
   const res = await apiFetch(`/api/tenant-logs/?tenant=${tenantId}`);
@@ -1290,6 +1318,17 @@ export async function deleteObligationFile(fileId: number) {
   if (!res.ok) throw new Error('Failed to delete file');
 }
 
+// --- VEHICLE CALENDAR EXPORT (iCalendar format) ---
+export async function exportVehicleCalendar(vehicleId: number) {
+  // Trigger download of .ics file for single vehicle
+  window.location.href = `/api/vehicles/${vehicleId}/export-calendar/`;
+}
+
+export async function exportAllVehiclesCalendar() {
+  // Trigger download of .ics file for all vehicles
+  window.location.href = '/api/vehicles/export-calendar-all/';
+}
+
 // --- WHOOP Recovery ---
 export async function getWhoopStatus() {
   const res = await apiFetch('/api/health/whoop/status/');
@@ -1742,7 +1781,14 @@ export async function submitDailyWizard(data: Record<string, unknown>) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to submit wizard');
+  if (!res.ok) {
+    let detail = '';
+    try {
+      const body = await res.json();
+      detail = typeof body === 'string' ? body : JSON.stringify(body);
+    } catch { detail = res.statusText; }
+    throw new Error(`Wizard submit failed (${res.status}): ${detail}`);
+  }
   return res.json();
 }
 
@@ -1855,6 +1901,134 @@ export async function updateEmergencyCard(data: Record<string, unknown>, profile
 export async function getSupplementInteractions() {
   const res = await apiFetch('/api/health/supplements/interactions/');
   if (!res.ok) throw new Error('Failed to fetch interactions');
+  return res.json();
+}
+
+// §GAMIFICATION: badges + weekly challenges
+export async function getGamification(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/gamification/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch gamification');
+  return res.json();
+}
+
+// §SYMPTOMS: event-based health complaint log + correlations
+export async function getSymptoms(params: { profile?: number; category?: string; days?: number } = {}) {
+  const q = new URLSearchParams();
+  if (params.profile) q.set('profile', String(params.profile));
+  if (params.category) q.set('category', params.category);
+  if (params.days) q.set('days', String(params.days));
+  const res = await apiFetch(`/api/health/symptoms/${q.toString() ? '?' + q : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch symptoms');
+  return res.json();
+}
+
+export async function createSymptom(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/symptoms/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try { detail = JSON.stringify(await res.json()); } catch { detail = res.statusText; }
+    throw new Error(`Failed to create symptom: ${detail}`);
+  }
+  return res.json();
+}
+
+export async function deleteSymptom(id: number) {
+  const res = await apiFetch(`/api/health/symptoms/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete symptom');
+}
+
+export async function getSymptomCorrelations(params: { profile?: number; days?: number } = {}) {
+  const q = new URLSearchParams();
+  if (params.profile) q.set('profile', String(params.profile));
+  if (params.days) q.set('days', String(params.days));
+  const res = await apiFetch(`/api/health/symptoms/correlations/${q.toString() ? '?' + q : ''}`);
+  if (!res.ok) throw new Error('Failed to fetch correlations');
+  return res.json();
+}
+
+// §WEATHER: Manual entry + timeline + correlations
+export async function getWeatherTimeline(profileId: number, days: number = 90) {
+  const res = await apiFetch(`/api/health/weather/timeline/?profile=${profileId}&days=${days}`);
+  if (!res.ok) throw new Error('Failed to fetch weather timeline');
+  return res.json();
+}
+
+export async function createWeather(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/weather/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to save weather data');
+  return res.json();
+}
+
+export async function updateWeather(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/weather/${id}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update weather data');
+  return res.json();
+}
+
+export async function deleteWeather(id: number) {
+  const res = await apiFetch(`/api/health/weather/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete weather data');
+}
+
+// §FASTING: active window + schedule reshuffle
+export async function getFastingCurrent(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/fasting/current/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch fasting status');
+  return res.json();
+}
+
+export async function startFast(data: { profile?: number; protocol?: string; hours?: number; ends_at?: string; notes?: string }) {
+  const res = await apiFetch('/api/health/fasting/start/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to start fast');
+  return res.json();
+}
+
+export async function endFast(profileId?: number) {
+  const res = await apiFetch('/api/health/fasting/end/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(profileId ? { profile: profileId } : {}),
+  });
+  if (!res.ok) throw new Error('Failed to end fast');
+  return res.json();
+}
+
+// §CIRCADIAN: rule-based timing suggestion for a supplement
+export async function suggestSupplementTiming(data: { name: string; category?: string; form?: string }) {
+  const res = await apiFetch('/api/health/circadian/suggest/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to fetch timing suggestion');
+  return res.json();
+}
+
+export async function markBadgesSeen(codes: string[]) {
+  const res = await apiFetch('/api/health/gamification/seen/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ codes }),
+  });
+  if (!res.ok) throw new Error('Failed to mark badges seen');
   return res.json();
 }
 
@@ -1976,6 +2150,126 @@ export async function createFoodEntry(data: Record<string, unknown>) {
 export async function deleteFoodEntry(id: number) {
   const res = await apiFetch(`/api/food-entries/${id}/`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete food entry');
+}
+
+// §CAREGIVERS: Delegation and access management
+export async function getCaregiverRelationships() {
+  const res = await apiFetch('/api/health/caregivers/');
+  if (!res.ok) throw new Error('Failed to fetch caregiver relationships');
+  return res.json();
+}
+
+export async function getCaregiverMyInvites() {
+  const res = await apiFetch('/api/health/caregivers/my-invites/');
+  if (!res.ok) throw new Error('Failed to fetch pending invites');
+  return res.json();
+}
+
+export async function getCaregiverMyAccess() {
+  const res = await apiFetch('/api/health/caregivers/my-access/');
+  if (!res.ok) throw new Error('Failed to fetch my access');
+  return res.json();
+}
+
+export async function inviteCaregiver(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/caregivers/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to send invite');
+  return res.json();
+}
+
+export async function acceptInvite(id: number) {
+  const res = await apiFetch(`/api/health/caregivers/${id}/accept/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to accept invite');
+  return res.json();
+}
+
+export async function declineInvite(id: number) {
+  const res = await apiFetch(`/api/health/caregivers/${id}/decline/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to decline invite');
+  return res.json();
+}
+
+export async function revokeCaregiverAccess(id: number) {
+  const res = await apiFetch(`/api/health/caregivers/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to revoke access');
+}
+
+// §MEDICATION REMINDERS: Adherence tracking with smart scheduling
+export async function getMedicationReminders(profileId: number) {
+  const res = await apiFetch(`/api/health/reminders/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch reminders');
+  return res.json();
+}
+
+export async function getTodayReminders(profileId: number) {
+  const res = await apiFetch(`/api/health/reminders/today/?profile=${profileId}`);
+  if (!res.ok) throw new Error('Failed to fetch today reminders');
+  return res.json();
+}
+
+export async function createMedicationReminder(data: Record<string, unknown>) {
+  const res = await apiFetch('/api/health/reminders/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create reminder');
+  return res.json();
+}
+
+export async function updateMedicationReminder(id: number, data: Record<string, unknown>) {
+  const res = await apiFetch(`/api/health/reminders/${id}/`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update reminder');
+  return res.json();
+}
+
+export async function deleteMedicationReminder(id: number) {
+  const res = await apiFetch(`/api/health/reminders/${id}/`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete reminder');
+}
+
+export async function markReminderTaken(logId: number, notes: string = '') {
+  const res = await apiFetch(`/api/health/reminder-logs/${logId}/mark-taken/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw new Error('Failed to mark taken');
+  return res.json();
+}
+
+export async function markReminderSkipped(logId: number, notes: string = '') {
+  const res = await apiFetch(`/api/health/reminder-logs/${logId}/mark-skipped/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notes }),
+  });
+  if (!res.ok) throw new Error('Failed to mark skipped');
+  return res.json();
+}
+
+export async function snoozeReminder(logId: number, minutes: number = 30) {
+  const res = await apiFetch(`/api/health/reminder-logs/${logId}/snooze/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ minutes }),
+  });
+  if (!res.ok) throw new Error('Failed to snooze');
+  return res.json();
 }
 
 // --- Mobile Health: Summary (kept for backward compat, delegates to unified) ---

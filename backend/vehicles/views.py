@@ -20,9 +20,11 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.http import HttpResponse
 from datetime import timedelta
 
 from .models import Vehicle, VehicleObligation, ObligationFile
@@ -35,6 +37,7 @@ from .services import (
     sync_reminders, renew_obligation, create_bg_presets,
     get_cost_report, get_compliance_summary,
 )
+from .calendar_export import export_calendar_for_vehicle, export_calendar_for_user
 
 
 class VehicleViewSet(viewsets.ModelViewSet):
@@ -76,6 +79,31 @@ class VehicleViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import ValidationError
             raise ValidationError({'plate_number': 'A vehicle with this plate number already exists.'})
         serializer.save(user=user)
+
+    @action(detail=True, methods=['get'], url_path='export-calendar')
+    def export_calendar(self, request, pk=None):
+        """
+        §API: GET /api/vehicles/<id>/export-calendar/
+        Export vehicle's obligations as iCalendar (.ics) file.
+        """
+        vehicle = self.get_object()
+        ics_content = export_calendar_for_vehicle(vehicle)
+
+        response = HttpResponse(ics_content, content_type='text/calendar; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="{vehicle.name or vehicle.plate_number}.ics"'
+        return response
+
+    @action(detail=False, methods=['get'], url_path='export-calendar-all')
+    def export_calendar_all(self, request):
+        """
+        §API: GET /api/vehicles/export-calendar-all/
+        Export all user's vehicles' obligations as iCalendar (.ics) file.
+        """
+        ics_content = export_calendar_for_user(request.user.get_data_owner())
+
+        response = HttpResponse(ics_content, content_type='text/calendar; charset=utf-8')
+        response['Content-Disposition'] = 'attachment; filename="vehicle-obligations.ics"'
+        return response
 
 
 # ─── VEHICLE OBLIGATIONS ───
