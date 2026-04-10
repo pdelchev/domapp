@@ -1,703 +1,904 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useLanguage } from '../context/LanguageContext';
-import { t, Locale } from '../lib/i18n';
-import {
-  getHealthDashboard,
-  getUnifiedHealthSummary,
-  createHealthProfile,
-  logDose,
-  getLowStockSupplements,
-} from '../lib/api';
+// Unified Life landing page — one HealthScore + sub-scores + deltas + history sparkline
+// + active interventions + blood test results + recommendations (merged from lifestyle).
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import NavBar from '../components/NavBar';
-import { PageShell, PageContent, Card, Button, Badge, Alert, Spinner, Input, Select, EmptyState } from '../components/ui';
+import {
+  PageShell, PageContent, PageHeader, Card, Button,
+  Badge, EmptyState, Spinner, Alert,
+} from '../components/ui';
+import { useLanguage } from '../context/LanguageContext';
+import { t } from '../lib/i18n';
+import {
+  getLifeSummary, deleteIntervention,
+  getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
+  getStageRegressionForecast, saveInterventionLogs,
+} from '../lib/api';
+// RitualModal removed — replaced by /health/checkin wizard
 
-// ── Types ──────────────────────────────────────────────────────────
-
-interface Profile {
-  id: number; full_name: string; sex: string; is_primary: boolean;
-  date_of_birth: string | null; report_count: number;
-  latest_report_date: string | null; latest_score: number | null;
-}
-
-interface Report {
-  id: number; test_date: string; lab_name: string; lab_type: string;
-  overall_score: number | null; system_scores: Record<string, number>;
-  results: { id: number; flag: string }[];
-  recommendations: { id: number; category: string; priority: string; title: string; title_bg: string }[];
-}
-
-interface DashboardData {
-  profiles: Profile[]; current_profile: Profile; has_data: boolean;
-  latest_report?: Report; score_change?: number | null;
-  previous_report_id?: number | null; report_count?: number;
-}
-
-interface ScheduleItem {
-  schedule_id: number;
-  supplement_id: number;
-  name: string;
-  name_bg: string;
-  dose_amount: number;
-  dose_unit: string;
-  split_count: number;
-  strength: string;
-  photo_closeup: string | null;
-  take_with_food: boolean;
-  take_on_empty_stomach: boolean;
-  is_optional: boolean;
-  taken: boolean;
-}
-
-interface ScheduleGroup {
-  time_slot: string;
-  items: ScheduleItem[];
-  taken: number;
-  total: number;
-}
-
-interface MetricEntry {
-  value: number;
-  unit: string;
+type Snapshot = {
+  id: number;
   date: string;
-  context: Record<string, unknown>;
-}
+  composite_score: number | null;
+  blood_score: number | null;
+  bp_score: number | null;
+  recovery_score: number | null;
+  lifestyle_score: number | null;
+  confidence: number;
+  inputs: Record<string, unknown>;
+};
 
-interface TrendEntry {
-  direction: 'up' | 'down' | 'flat';
-  delta: number;
-  data_points: number;
-}
-
-interface SummaryData {
-  latest: Record<string, MetricEntry>;
-  today: {
-    doses_total: number;
-    doses_taken: number;
-    adherence_pct: number;
-    schedule: ScheduleGroup[];
-  };
-  streak: { current: number; longest: number; total_days: number };
-  trends: Record<string, TrendEntry>;
-}
-
-interface LowStockItem {
+type Intervention = {
   id: number;
   name: string;
-  current_stock: number;
-  days_remaining: number;
-  threshold: number;
+  category: string;
+  dose: string;
+  frequency: string;
+  reminder_times: string[];
+  started_on: string;
+  ended_on: string | null;
+  hypothesis: string;
+  target_metrics: string[];
+  evidence_grade: string;
+  source_url: string;
+  notes: string;
+  is_active: boolean;
+  last_taken_date: string | null;
+  taken_today: boolean | null;
+};
+
+type PhenoAge = {
+  phenoage: number | null;
+  chronological_age: number | null;
+  age_accel: number | null;
+  mortality_score: number | null;
+  report_id: number | null;
+  test_date: string | null;
+  inputs_used: Record<string, number>;
+  missing_markers: string[];
+  note: string | null;
+};
+
+type Briefing = {
+  date: string;
+  headline: string;
+  advice: string[];
+  metrics: {
+    recovery: number | null;
+    bp_sys_avg: number | null;
+    bp_dia_avg: number | null;
+    bp_reading_count_7d: number;
+    active_interventions: number;
+  };
+};
+
+type LifeSummary = {
+  profile: { id: number; full_name: string; sex: string; is_primary: boolean };
+  today: Snapshot & { snapshot_id: number | null };
+  deltas: Record<string, { prior_date: string; composite_score: number | null; blood_score: number | null; bp_score: number | null; recovery_score: number | null } | null>;
+  history: Snapshot[];
+  active_interventions: Intervention[];
+  phenoage: PhenoAge;
+  briefing: Briefing;
+};
+
+// Vitals section types
+interface VitalsDash {
+  latest_weight: { weight_kg: string; bmi: number | null; waist_hip_ratio: number | null; measured_at: string } | null;
+  latest_bp_session: { measured_at: string; avg_systolic: number; avg_diastolic: number; stage: string } | null;
+}
+interface CMAge { chronological_age: number; cardiometabolic_age: number; delta_years: number; signals_present: number; confidence: number; }
+interface Slope { status: string; slope_mmhg_per_kg?: number; r_squared?: number; paired_days?: number; need?: number; }
+interface Forecast { status: string; kg_to_lose?: number; target_systolic?: number; eta_date?: string; weeks?: number; }
+
+const STAGE_COLORS: Record<string, 'green' | 'yellow' | 'red' | 'gray'> = {
+  normal: 'green', elevated: 'yellow', stage_1: 'yellow', stage_2: 'red', crisis: 'red',
+};
+
+const FREQ_LABELS: Record<string, string> = {
+  daily: '1×/day', twice_daily: '2×/day', three_daily: '3×/day',
+  weekly: 'Weekly', as_needed: 'PRN', one_time: 'Once',
+};
+
+// ── Blood test data (from latest results) ──
+interface BloodResult {
+  id: string; category: string;
+  name: { en: string; bg: string }; code: string;
+  refMin: number; refMax: number; unit: string;
+  value: number; status: 'optimal' | 'borderline' | 'abnormal';
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────
+const BLOOD_RESULTS: BloodResult[] = [
+  { id: 'glu', category: 'metabolic', name: { en: 'Glucose (fasting)', bg: 'Глюкоза (на гладно)' }, code: 'GLU', refMin: 3.9, refMax: 6.1, unit: 'mmol/L', value: 8.64, status: 'abnormal' },
+  { id: 'alt', category: 'liver', name: { en: 'ALT (SGPT)', bg: 'АЛТ (СГПТ)' }, code: 'ALT', refMin: 0, refMax: 41, unit: 'U/L', value: 49.7, status: 'abnormal' },
+  { id: 'ast', category: 'liver', name: { en: 'AST (SGOT)', bg: 'АСТ (СГОТ)' }, code: 'AST', refMin: 0, refMax: 40, unit: 'U/L', value: 32.8, status: 'borderline' },
+  { id: 'ggt', category: 'liver', name: { en: 'GGT', bg: 'ГГТ' }, code: 'GGT', refMin: 0, refMax: 55, unit: 'U/L', value: 35, status: 'borderline' },
+  { id: 'alp', category: 'liver', name: { en: 'Alkaline Phosphatase', bg: 'Алкална фосфатаза (АФ)' }, code: 'ALP', refMin: 40, refMax: 130, unit: 'U/L', value: 73, status: 'optimal' },
+  { id: 'crea', category: 'kidney', name: { en: 'Creatinine', bg: 'Креатинин' }, code: 'CREA', refMin: 62, refMax: 106, unit: 'μmol/L', value: 95, status: 'optimal' },
+  { id: 'urea', category: 'kidney', name: { en: 'Urea', bg: 'Урея' }, code: 'UREA', refMin: 2.5, refMax: 7.1, unit: 'mmol/L', value: 5.3, status: 'optimal' },
+  { id: 'uric', category: 'kidney', name: { en: 'Uric Acid', bg: 'Пикочна киселина' }, code: 'URIC', refMin: 200, refMax: 430, unit: 'μmol/L', value: 481, status: 'abnormal' },
+  { id: 'ca', category: 'electrolytes', name: { en: 'Calcium', bg: 'Калций' }, code: 'CA', refMin: 2.15, refMax: 2.55, unit: 'mmol/L', value: 2.43, status: 'optimal' },
+  { id: 'p', category: 'electrolytes', name: { en: 'Phosphorus', bg: 'Фосфор' }, code: 'P', refMin: 0.81, refMax: 1.45, unit: 'mmol/L', value: 1.23, status: 'optimal' },
+  { id: 'tp', category: 'protein', name: { en: 'Total Protein', bg: 'Общ белтък' }, code: 'TP', refMin: 60, refMax: 83, unit: 'g/L', value: 81.5, status: 'borderline' },
+  { id: 'alb', category: 'protein', name: { en: 'Albumin', bg: 'Албумин' }, code: 'ALB', refMin: 35, refMax: 55, unit: 'g/L', value: 44.6, status: 'optimal' },
+  { id: 'psa', category: 'tumor', name: { en: 'Total PSA', bg: 'Общ ПСА' }, code: 'PSA', refMin: 0, refMax: 4, unit: 'ng/mL', value: 0.73, status: 'optimal' },
+  { id: 'cea', category: 'tumor', name: { en: 'CEA', bg: 'Карциноембрионален антиген' }, code: 'CEA', refMin: 0, refMax: 3.8, unit: 'ng/mL', value: 0.22, status: 'optimal' },
+  { id: 'ca199', category: 'tumor', name: { en: 'CA 19-9', bg: 'CA 19-9' }, code: 'CA199', refMin: 0, refMax: 34, unit: 'U/mL', value: 8.38, status: 'optimal' },
+];
 
-const SYSTEM_ICONS: Record<string, string> = {
-  blood: '🩸', heart: '❤️', metabolic: '⚡', liver: '🫁',
-  kidney: '🫘', thyroid: '🦋', nutrition: '💊', immune: '🔥', hormonal: '⚖️',
+interface Recommendation {
+  icon: string; priority: 'high' | 'medium' | 'low';
+  title: { en: string; bg: string }; description: { en: string; bg: string };
+  linkedResults: string[];
+}
+
+const RECOMMENDATIONS: Recommendation[] = [
+  { icon: '🏥', priority: 'high', title: { en: 'Metabolic Syndrome Pattern Detected', bg: 'Открит модел на метаболитен синдром' }, description: { en: 'Elevated glucose combined with liver enzyme changes suggests metabolic syndrome risk. Focus: 1) Cut refined carbs & sugar, 2) Exercise 30+ min daily, 3) Reduce belly fat, 4) Mediterranean diet.', bg: 'Комбинацията от повишена глюкоза и промени в чернодробните ензими предполага риск от метаболитен синдром. Фокус: 1) Намалете рафинираните въглехидрати и захарта, 2) Упражнения 30+ мин дневно, 3) Свалете коремните мазнини, 4) Средиземноморска диета.' }, linkedResults: ['glu', 'alt', 'ast'] },
+  { icon: '🫁', priority: 'high', title: { en: 'Elevated Liver Enzymes', bg: 'Множество повишени чернодробни ензими' }, description: { en: 'Two or more elevated liver enzymes suggest liver stress. Actions: eliminate alcohol for 30 days, reduce sugar, exercise daily, drink coffee (protective).', bg: 'Два или повече повишени чернодробни ензима предполагат чернодробно натоварване. Действия: елиминирайте алкохола за 30 дни, намалете захарта, упражнения ежедневно, пийте кафе (защитно).' }, linkedResults: ['alt', 'ast', 'ggt'] },
+  { icon: '⚡', priority: 'high', title: { en: 'Fasting Glucose Significantly Elevated', bg: 'Значително повишена кръвна захар на гладно' }, description: { en: 'Fasting glucose of 8.64 mmol/L is well above reference (3.9-6.1). This indicates pre-diabetic or diabetic range. Urgent: consult endocrinologist, HbA1c test needed, strict carb management.', bg: 'Глюкоза на гладно 8.64 mmol/L е значително над нормата (3.9-6.1). Това показва пре-диабетен или диабетен диапазон. Спешно: консултация с ендокринолог, необходим HbA1c тест, строг контрол на въглехидратите.' }, linkedResults: ['glu'] },
+  { icon: '🫘', priority: 'medium', title: { en: 'Uric Acid Above Normal', bg: 'Пикочна киселина над нормата' }, description: { en: 'Risk of gout, kidney stones. Linked to metabolic syndrome. Reduce purine-rich foods: organ meats, sardines, beer. Drink plenty of water. Limit fructose & alcohol. Cherry extract may help.', bg: 'Риск от подагра, бъбречни камъни. Свързано с метаболитен синдром. Намалете храни богати на пурини: карантии, сардини, бира. Пийте много вода. Ограничете фруктозата и алкохола. Екстракт от череши може да помогне.' }, linkedResults: ['uric', 'glu'] },
+  { icon: '🧬', priority: 'low', title: { en: 'Total Protein: Upper Borderline', bg: 'Общ белтък: горна граница' }, description: { en: 'Most common cause is dehydration. Ensure adequate hydration (2.5-3L water/day). Distribute protein evenly across meals (1.2-1.6g/kg body weight).', bg: 'Най-честа причина е дехидратация. Осигурете адекватна хидратация (2.5-3L вода/ден). Разпределете протеина равномерно в храненията (1.2-1.6г/кг телесно тегло).' }, linkedResults: ['tp'] },
+  { icon: '❤️', priority: 'high', title: { en: 'Blood Pressure Monitoring Recommended', bg: 'Препоръчва се проследяване на кръвното налягане' }, description: { en: 'Elevated glucose + liver enzyme changes indicate cardiovascular risk. Regular BP monitoring is critical. Track your blood pressure alongside blood results for integrated cardiovascular risk assessment.', bg: 'Повишена глюкоза + промени в чернодробните ензими показват сърдечно-съдов риск. Редовното мониториране на кръвното налягане е критично. Проследявайте кръвното налягане заедно с кръвните резултати.' }, linkedResults: ['glu', 'alt'] },
+];
+
+const CATEGORY_LABELS: Record<string, { en: string; bg: string; icon: string }> = {
+  metabolic: { en: 'Metabolic Panel', bg: 'Метаболитен панел', icon: '⚡' },
+  liver: { en: 'Liver Function', bg: 'Чернодробна функция', icon: '🫁' },
+  kidney: { en: 'Kidney Function', bg: 'Бъбречна функция', icon: '🫘' },
+  electrolytes: { en: 'Electrolytes', bg: 'Електролити', icon: '⚡' },
+  protein: { en: 'Protein Panel', bg: 'Протеинов панел', icon: '🧬' },
+  tumor: { en: 'Tumor Markers', bg: 'Туморни маркери', icon: '🔬' },
 };
 
-const SLOT_LABELS: Record<string, { en: string; bg: string; icon: string }> = {
-  morning:   { en: 'Morning',   bg: 'Сутрин',     icon: '🌅' },
-  fasted:    { en: 'Fasted',    bg: 'На гладно',  icon: '🥛' },
-  breakfast: { en: 'Breakfast', bg: 'Закуска',    icon: '🍳' },
-  midday:    { en: 'Midday',    bg: 'По обяд',    icon: '☀️' },
-  lunch:     { en: 'Lunch',     bg: 'Обяд',       icon: '🍽️' },
-  afternoon: { en: 'Afternoon', bg: 'Следобед',   icon: '🌤️' },
-  dinner:    { en: 'Dinner',    bg: 'Вечеря',     icon: '🍝' },
-  evening:   { en: 'Evening',   bg: 'Вечер',      icon: '🌆' },
-  bedtime:   { en: 'Bedtime',   bg: 'Преди сън',  icon: '🌙' },
-};
+const STATUS_COLORS: Record<string, 'green' | 'yellow' | 'red'> = { optimal: 'green', borderline: 'yellow', abnormal: 'red' };
+const PRIORITY_COLORS: Record<string, 'red' | 'yellow' | 'blue'> = { high: 'red', medium: 'yellow', low: 'blue' };
 
-function scoreColor(s: number | null) {
-  if (s === null) return 'text-gray-400';
-  if (s >= 85) return 'text-emerald-600';
-  if (s >= 70) return 'text-amber-600';
+function scoreColor(score: number | null) {
+  if (score == null) return 'text-gray-400';
+  if (score >= 80) return 'text-green-600';
+  if (score >= 60) return 'text-amber-600';
   return 'text-red-600';
 }
 
-function scoreBgGradient(s: number | null) {
-  if (s === null) return 'from-gray-100 to-gray-50';
-  if (s >= 85) return 'from-emerald-50 to-emerald-100/50';
-  if (s >= 70) return 'from-amber-50 to-amber-100/50';
-  return 'from-red-50 to-red-100/50';
+function scoreBg(score: number | null) {
+  if (score == null) return 'bg-gray-100';
+  if (score >= 80) return 'bg-green-50';
+  if (score >= 60) return 'bg-amber-50';
+  return 'bg-red-50';
 }
 
-// ── Score Ring ─────────────────────────────────────────────────────
-
-function ScoreRing({ score, size = 100 }: { score: number | null; size?: number }) {
-  if (score === null) return <span className="text-4xl font-bold text-gray-300">—</span>;
-  const r = (size - 10) / 2;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference - (score / 100) * circumference;
-  const color = score >= 85 ? '#10b981' : score >= 70 ? '#f59e0b' : '#ef4444';
-
+function DeltaArrow({ value }: { value: number | null }) {
+  if (value == null) return <span className="text-gray-400 text-xs">—</span>;
+  if (value === 0) return <span className="text-gray-500 text-xs">±0</span>;
+  const up = value > 0;
   return (
-    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7"
-          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
-          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
-      </svg>
-      <span className="absolute text-3xl font-bold" style={{ color }}>{score}</span>
-    </div>
+    <span className={`text-xs font-medium ${up ? 'text-green-600' : 'text-red-600'}`}>
+      {up ? '▲' : '▼'} {Math.abs(value)}
+    </span>
   );
 }
 
-// ── Metric Card ────────────────────────────────────────────────────
-
-function MetricCard({
-  icon, label, value, unit, trend, onClick,
-}: {
-  icon: string; label: string; value: string; unit?: string;
-  trend?: TrendEntry; onClick?: () => void;
-}) {
-  const arrow = trend?.direction === 'up' ? '↑' : trend?.direction === 'down' ? '↓' : trend?.direction === 'flat' ? '→' : '';
-  const trendColor = trend?.direction === 'up' ? 'text-emerald-600' : trend?.direction === 'down' ? 'text-red-600' : 'text-gray-400';
-
+function Sparkline({ values, width = 220, height = 40 }: { values: (number | null)[]; width?: number; height?: number }) {
+  const clean = values.filter((v): v is number => v != null);
+  if (clean.length < 2) return <div className="text-xs text-gray-400">Not enough history yet</div>;
+  const min = Math.min(...clean);
+  const max = Math.max(...clean);
+  const range = Math.max(max - min, 1);
+  const step = values.length > 1 ? width / (values.length - 1) : width;
+  const points = values.map((v, i) => {
+    if (v == null) return null;
+    const x = i * step;
+    const y = height - ((v - min) / range) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).filter(Boolean).join(' ');
   return (
-    <button
-      onClick={onClick}
-      className="text-left rounded-xl border border-gray-200 bg-white p-3 hover:border-indigo-300 hover:shadow-sm transition-all"
-    >
-      <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
-        <span className="text-base">{icon}</span> {label}
-      </div>
-      <div className="mt-1.5 flex items-baseline gap-1">
-        <span className="text-2xl font-bold text-gray-900 tabular-nums">{value}</span>
-        {unit && <span className="text-xs text-gray-400">{unit}</span>}
-      </div>
-      {trend && (
-        <div className={`text-[11px] mt-0.5 font-medium ${trendColor}`}>
-          {arrow} {Math.abs(trend.delta)} <span className="text-gray-400">/30d</span>
-        </div>
-      )}
-    </button>
+    <svg width={width} height={height} className="overflow-visible">
+      <polyline fill="none" stroke="currentColor" strokeWidth="2" points={points} className="text-indigo-500" />
+    </svg>
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────
+function SubScoreCard({
+  label, score, delta7, delta30, href, hint,
+}: { label: string; score: number | null; delta7: number | null; delta30: number | null; href?: string; hint?: string }) {
+  const body = (
+    <Card>
+      <div className="flex items-start justify-between mb-0.5">
+        <div className="text-[13px] font-medium text-gray-700">{label}</div>
+        {href && <span className="text-xs text-gray-400">→</span>}
+      </div>
+      {hint && <div className="text-[10px] text-gray-400 mb-2 leading-snug">{hint}</div>}
+      <div className={`text-4xl font-bold ${scoreColor(score)}`}>
+        {score != null ? score : '—'}
+      </div>
+      <div className="flex gap-4 mt-2 text-xs text-gray-500">
+        <div>7d <DeltaArrow value={delta7} /></div>
+        <div>30d <DeltaArrow value={delta30} /></div>
+      </div>
+    </Card>
+  );
+  return href ? <Link href={href}>{body}</Link> : body;
+}
 
-export default function HealthPage() {
-  const router = useRouter();
+export default function LifePage() {
   const { locale } = useLanguage();
+  const [data, setData] = useState<LifeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
+  const [vitals, setVitals] = useState<VitalsDash | null>(null);
+  const [cmAge, setCmAge] = useState<CMAge | null>(null);
+  const [slope, setSlope] = useState<Slope | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [ritualOpen, setRitualOpen] = useState(false);
+  const [bloodOpen, setBloodOpen] = useState(false);
+  const [recsOpen, setRecsOpen] = useState(false);
 
-  // Profile creation
-  const [showCreateProfile, setShowCreateProfile] = useState(false);
-  const [profileForm, setProfileForm] = useState({ full_name: '', date_of_birth: '', sex: 'male' });
-  const [profileError, setProfileError] = useState('');
-
-  const loadAll = useCallback((profileId?: number) => {
+  const load = async () => {
     setLoading(true);
-    Promise.all([
-      getHealthDashboard(profileId).catch(() => null),
-      getUnifiedHealthSummary(profileId).catch(() => null),
-      getLowStockSupplements().catch(() => []),
-    ])
-      .then(([dash, sum, stock]) => {
-        if (!dash) { router.push('/login'); return; }
-        setData(dash);
-        setSummary(sum);
-        setLowStock(stock || []);
-        setError('');
-      })
-      .finally(() => setLoading(false));
-  }, [router]);
-
-  useEffect(() => { loadAll(); }, [loadAll]);
-
-  const handleProfileChange = (id: string) => {
-    const numId = Number(id);
-    setSelectedProfile(numId);
-    loadAll(numId);
-  };
-
-  const handleCreateProfile = async () => {
-    if (!profileForm.full_name.trim()) { setProfileError(t('common.required', locale)); return; }
-    setProfileError('');
     try {
-      await createHealthProfile(profileForm);
-      setShowCreateProfile(false);
-      setProfileForm({ full_name: '', date_of_birth: '', sex: 'male' });
-      loadAll();
-    } catch { setProfileError('Failed to create profile'); }
-  };
-
-  // Optimistic toggle of a single dose
-  const toggleDose = async (scheduleId: number, currentlyTaken: boolean) => {
-    if (!summary) return;
-    const next = !currentlyTaken;
-
-    setSummary(prev => {
-      if (!prev) return prev;
-      const schedule = prev.today.schedule.map(group => {
-        const items = group.items.map(item =>
-          item.schedule_id === scheduleId ? { ...item, taken: next } : item
-        );
-        const taken = items.filter(i => i.taken).length;
-        return { ...group, items, taken };
-      });
-      const totalTaken = schedule.reduce((acc, g) => acc + g.taken, 0);
-      const totalDoses = schedule.reduce((acc, g) => acc + g.total, 0);
-      return {
-        ...prev,
-        today: {
-          ...prev.today,
-          schedule,
-          doses_taken: totalTaken,
-          adherence_pct: totalDoses > 0 ? Math.round((totalTaken / totalDoses) * 100) : 100,
-        },
-      };
-    });
-
-    try {
-      await logDose({ schedule: scheduleId, taken: next });
-    } catch {
-      // Revert on failure
-      loadAll(selectedProfile || undefined);
+      const res = await getLifeSummary();
+      setData(res);
+      setError('');
+      const pid = res?.profile?.id;
+      if (pid) {
+        Promise.all([
+          getVitalsDashboard(pid).catch(() => null),
+          getCardiometabolicAge(pid).catch(() => null),
+          getBPPerKgSlope(pid).catch(() => null),
+          getStageRegressionForecast(pid).catch(() => null),
+        ]).then(([d, a, s, f]) => {
+          setVitals(d); setCmAge(a); setSlope(s); setForecast(f);
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading) return (
-    <PageShell><NavBar /><PageContent size="lg"><Spinner message={t('common.loading', locale)} /></PageContent></PageShell>
-  );
+  useEffect(() => { load(); }, []);
 
-  const profiles = data?.profiles || [];
-  const report = data?.latest_report;
-  const hasBloodData = data?.has_data || false;
-  const today = summary?.today;
-  const streak = summary?.streak;
-  const latest = summary?.latest || {};
-  const trends = summary?.trends || {};
-
-  const fmtMetric = (key: string, fallback = '—') => {
-    const m = latest[key];
-    if (!m) return fallback;
-    return m.unit === 'kg' || m.unit === 'mmHg' ? Math.round(m.value).toString() : m.value.toString();
+  const handleEnd = async (id: number) => {
+    if (!confirm(locale === 'bg' ? 'Маркирай тази интервенция като приключена днес?' : 'Mark this intervention as ended today?')) return;
+    try {
+      const res = await fetch(`/api/health/interventions/${id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({ ended_on: new Date().toISOString().slice(0, 10) }),
+      });
+      if (!res.ok) throw new Error('Failed to end intervention');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    }
   };
-  const metricUnit = (key: string) => latest[key]?.unit || '';
+
+  const handleDelete = async (id: number) => {
+    if (!confirm(locale === 'bg' ? 'Изтрий тази интервенция?' : 'Delete this intervention? This cannot be undone.')) return;
+    try {
+      await deleteIntervention(id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
+  const handleMarkTaken = async (iv: Intervention) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const newTaken = !iv.taken_today;
+    // Optimistic update
+    if (data) {
+      setData({
+        ...data,
+        active_interventions: data.active_interventions.map(i =>
+          i.id === iv.id ? { ...i, taken_today: newTaken, last_taken_date: newTaken ? today : i.last_taken_date } : i
+        ),
+      });
+    }
+    try {
+      await saveInterventionLogs(today, [{ intervention: iv.id, taken: newTaken }]);
+    } catch (e) {
+      await load(); // revert on error
+      setError(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
+  if (loading) {
+    return (
+      <PageShell>
+        <NavBar />
+        <PageContent size="lg">
+          <Spinner message={t('common.loading', locale)} />
+        </PageContent>
+      </PageShell>
+    );
+  }
+
+  const today = data?.today;
+  const d7 = data?.deltas?.['7'] ?? data?.deltas?.[7 as unknown as string];
+  const d30 = data?.deltas?.['30'] ?? data?.deltas?.[30 as unknown as string];
+  const historyComposite = (data?.history ?? []).map((s) => s.composite_score);
+  const bloodCategories = [...new Set(BLOOD_RESULTS.map((r) => r.category))];
 
   return (
     <PageShell>
       <NavBar />
       <PageContent size="lg">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('health.title', locale)}</h1>
-            {data?.current_profile && (
-              <p className="text-sm text-gray-500 mt-1">{data.current_profile.full_name}</p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {profiles.length > 1 && (
-              <select
-                value={selectedProfile || data?.current_profile?.id || ''}
-                onChange={(e) => handleProfileChange(e.target.value)}
-                className="h-10 px-3 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>{p.full_name}{p.is_primary ? ' (me)' : ''}</option>
+        <PageHeader
+          title={t('nav.health_hub', locale)}
+          action={
+            <div className="flex gap-2 flex-wrap">
+              <Link href="/health/checkin">
+                <Button>
+                  + {t('nav.daily_checkin', locale)}
+                </Button>
+              </Link>
+              <Link href="/life/lab-order">
+                <Button variant="secondary">
+                  {locale === 'bg' ? 'Тестове' : 'Lab Order'}
+                </Button>
+              </Link>
+            </div>
+          }
+        />
+
+        {error && <Alert type="error" message={error} />}
+
+        {/* MORNING BRIEFING */}
+        {data?.briefing && (
+          <Card>
+            <div className="flex items-baseline justify-between mb-2">
+              <div className="text-[13px] font-medium text-gray-700">
+                {t('life.briefing', locale)} · {data.briefing.date}
+              </div>
+              <div className="text-xs text-gray-500">{data.briefing.headline}</div>
+            </div>
+            {data.briefing.advice.length === 0 ? (
+              <div className="text-sm text-gray-500">{t('life.briefing_empty', locale)}</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {data.briefing.advice.map((line, i) => (
+                  <li key={i} className="text-sm text-gray-800 flex gap-2">
+                    <span className="text-indigo-500 flex-shrink-0">•</span>
+                    <span>{line}</span>
+                  </li>
                 ))}
-              </select>
+              </ul>
             )}
-            <Button size="sm" variant="secondary" onClick={() => setShowCreateProfile(true)}>
-              + {t('health.add_profile', locale)}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => router.push('/health/upload')}>
-              + {locale === 'bg' ? 'Кръвно изследване' : 'Blood Test'}
-            </Button>
-          </div>
-        </div>
-
-        <Alert type="error" message={error} />
-
-        {/* Create Profile */}
-        {showCreateProfile && (
-          <Card className="mb-6">
-            <h3 className="font-semibold text-gray-900 mb-4">{t('health.add_profile', locale)}</h3>
-            <Alert type="error" message={profileError} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <Input label={t('health.full_name', locale)} required value={profileForm.full_name}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileForm((p) => ({ ...p, full_name: e.target.value }))} />
-              <Input label={t('health.date_of_birth', locale)} type="date" value={profileForm.date_of_birth}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProfileForm((p) => ({ ...p, date_of_birth: e.target.value }))} />
-              <Select label={t('health.sex', locale)} value={profileForm.sex}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setProfileForm((p) => ({ ...p, sex: e.target.value }))}>
-                <option value="male">{t('health.male', locale)}</option>
-                <option value="female">{t('health.female', locale)}</option>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleCreateProfile}>{t('common.save', locale)}</Button>
-              <Button variant="secondary" onClick={() => setShowCreateProfile(false)}>{t('common.cancel', locale)}</Button>
-            </div>
           </Card>
         )}
 
-        {/* Empty: no profile at all */}
-        {!data && (
-          <EmptyState icon="🩸" message={t('health.no_profiles', locale)} />
-        )}
-
-        {data && (
-          <div className="space-y-5">
-            {/* ─── Daily Check-In Hero ─── */}
-            <Card className="bg-gradient-to-br from-indigo-50 via-white to-rose-50 border-indigo-100">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-                    <span>📋</span> {locale === 'bg' ? 'Дневна проверка' : 'Daily Check-In'}
-                  </div>
-                  <h2 className="text-xl font-bold text-gray-900 mt-1">
-                    {locale === 'bg' ? 'Как се чувстваш днес?' : 'How are you feeling today?'}
-                  </h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {locale === 'bg'
-                      ? 'Запиши настроение, тегло, кръвно и днешните хапчета за 60 секунди.'
-                      : 'Log mood, weight, BP, and today\'s pills in under a minute.'}
-                  </p>
+        {/* HERO: composite score + sparkline */}
+        <Card>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {t('life.health_score', locale)} · {data?.profile.full_name}
+              </div>
+              <div className="text-[11px] text-gray-400 mb-1">{t('life.health_score_hint', locale)}</div>
+              <div className={`text-7xl font-bold ${scoreColor(today?.composite_score ?? null)}`}>
+                {today?.composite_score ?? '—'}
+              </div>
+              <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                <div>7d <DeltaArrow value={d7?.composite_score ?? null} /></div>
+                <div>30d <DeltaArrow value={d30?.composite_score ?? null} /></div>
+                <div className="text-xs text-gray-400">
+                  {t('life.confidence', locale)}: {Math.round((today?.confidence ?? 0) * 100)}%
                 </div>
-                <div className="flex items-center gap-3">
-                  {streak && streak.current > 0 && (
-                    <div className="text-center">
-                      <div className="text-3xl font-bold text-amber-600">🔥{streak.current}</div>
-                      <div className="text-[10px] uppercase tracking-wider text-gray-500">
-                        {locale === 'bg' ? 'дни поред' : 'day streak'}
-                      </div>
-                    </div>
-                  )}
-                  <Button onClick={() => router.push('/health/checkin')}>
-                    {locale === 'bg' ? 'Започни →' : 'Start →'}
-                  </Button>
+              </div>
+            </div>
+            <div className={`flex-1 md:max-w-sm ${scoreBg(today?.composite_score ?? null)} rounded-lg p-4`}>
+              <div className="text-[13px] font-medium text-gray-700 mb-2">{t('life.trend_30d', locale)}</div>
+              <Sparkline values={historyComposite} width={320} height={56} />
+            </div>
+          </div>
+        </Card>
+
+        {/* Sub-scores grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+          <SubScoreCard
+            label={t('life.sub.blood', locale)}
+            hint={t('life.sub.blood_hint', locale)}
+            score={today?.blood_score ?? null}
+            delta7={d7?.blood_score ?? null}
+            delta30={d30?.blood_score ?? null}
+            href="/health"
+          />
+          <SubScoreCard
+            label={t('life.sub.bp', locale)}
+            hint={t('life.sub.bp_hint', locale)}
+            score={today?.bp_score ?? null}
+            delta7={d7?.bp_score ?? null}
+            delta30={d30?.bp_score ?? null}
+            href="/health/bp"
+          />
+          <SubScoreCard
+            label={t('life.sub.recovery', locale)}
+            hint={t('life.sub.recovery_hint', locale)}
+            score={today?.recovery_score ?? null}
+            delta7={d7?.recovery_score ?? null}
+            delta30={d30?.recovery_score ?? null}
+            href="/health/recovery"
+          />
+          <SubScoreCard
+            label={t('life.sub.lifestyle', locale)}
+            hint={t('life.sub.lifestyle_hint', locale)}
+            score={today?.lifestyle_score ?? null}
+            delta7={null}
+            delta30={null}
+          />
+        </div>
+
+        {/* ═══ QUICK TOOLS ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Бързи инструменти' : 'Quick Tools'}
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <Link href="/health/recovery" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F49A;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'WHOOP' : 'WHOOP Recovery'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Стрейн, пулс' : 'Strain, HR & recovery'}</p>
                 </div>
               </div>
             </Card>
-
-            {/* ─── Today's Schedule ─── */}
-            {today && today.schedule.length > 0 && (
-              <Card>
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                      💊 {locale === 'bg' ? 'Днешни добавки' : 'Today\'s Schedule'}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {today.doses_taken} / {today.doses_total} {locale === 'bg' ? 'взети' : 'taken'} · {today.adherence_pct}%
-                    </p>
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => router.push('/health/supplements')}>
-                    {locale === 'bg' ? 'Управление' : 'Manage'} →
-                  </Button>
-                </div>
-
-                {/* Adherence bar */}
-                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">
-                  <div
-                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all"
-                    style={{ width: `${today.adherence_pct}%` }}
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  {today.schedule.map(group => {
-                    const slot = SLOT_LABELS[group.time_slot] || { en: group.time_slot, bg: group.time_slot, icon: '⏰' };
-                    return (
-                      <div key={group.time_slot}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            <span className="text-base">{slot.icon}</span>
-                            {locale === 'bg' ? slot.bg : slot.en}
-                          </div>
-                          <span className="text-[11px] text-gray-400">{group.taken}/{group.total}</span>
-                        </div>
-                        <div className="space-y-1.5">
-                          {group.items.map(item => (
-                            <button
-                              key={item.schedule_id}
-                              onClick={() => toggleDose(item.schedule_id, item.taken)}
-                              className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
-                                item.taken
-                                  ? 'bg-emerald-50 border-emerald-200'
-                                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
-                              }`}
-                            >
-                              <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
-                                {item.photo_closeup ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={item.photo_closeup} alt={item.name} className="w-full h-full object-cover" />
-                                ) : (
-                                  <span className="text-xl">💊</span>
-                                )}
-                              </div>
-                              <div className="flex-1 text-left min-w-0">
-                                <p className={`font-medium text-sm truncate ${item.taken ? 'text-emerald-800' : 'text-gray-900'}`}>
-                                  {locale === 'bg' && item.name_bg ? item.name_bg : item.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {item.dose_amount}{item.split_count > 1 ? `/${item.split_count}` : ''} {item.dose_unit}
-                                  {item.strength && ` · ${item.strength}`}
-                                  {item.take_with_food && ` · 🍽️`}
-                                  {item.take_on_empty_stomach && ` · 🥛`}
-                                </p>
-                              </div>
-                              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                item.taken ? 'bg-emerald-500 text-white' : 'border-2 border-gray-300'
-                              }`}>
-                                {item.taken && (
-                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            )}
-
-            {today && today.schedule.length === 0 && (
-              <Card>
-                <div className="text-center py-6">
-                  <div className="text-4xl mb-2">💊</div>
-                  <p className="text-gray-700 font-medium">
-                    {locale === 'bg' ? 'Няма планирани добавки' : 'No supplements scheduled'}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {locale === 'bg' ? 'Добави своите витамини и хапчета.' : 'Add your vitamins and pills to get started.'}
-                  </p>
-                  <Button size="sm" className="mt-3" onClick={() => router.push('/health/supplements')}>
-                    {locale === 'bg' ? 'Добавки →' : 'Supplements →'}
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* ─── Quick Metrics ─── */}
-            {Object.keys(latest).length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    {locale === 'bg' ? 'Текущи показатели' : 'Current Metrics'}
-                  </h3>
-                  <button
-                    onClick={() => router.push('/health/timeline')}
-                    className="text-xs text-indigo-600 font-medium hover:text-indigo-700"
-                  >
-                    {locale === 'bg' ? 'Хронология' : 'Timeline'} →
-                  </button>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                  {latest.weight && (
-                    <MetricCard
-                      icon="⚖️"
-                      label={locale === 'bg' ? 'Тегло' : 'Weight'}
-                      value={fmtMetric('weight')}
-                      unit={metricUnit('weight')}
-                      trend={trends.weight}
-                      onClick={() => router.push('/health/weight')}
-                    />
-                  )}
-                  {(latest.bp_systolic || latest.bp_diastolic) && (
-                    <MetricCard
-                      icon="❤️"
-                      label={locale === 'bg' ? 'Кръвно' : 'Blood Pressure'}
-                      value={`${fmtMetric('bp_systolic')}/${fmtMetric('bp_diastolic')}`}
-                      unit="mmHg"
-                      trend={trends.bp_systolic}
-                      onClick={() => router.push('/health/bp')}
-                    />
-                  )}
-                  {latest.mood && (
-                    <MetricCard
-                      icon="😊"
-                      label={locale === 'bg' ? 'Настроение' : 'Mood'}
-                      value={`${fmtMetric('mood')}/10`}
-                      trend={trends.mood}
-                    />
-                  )}
-                  {latest.energy && (
-                    <MetricCard
-                      icon="⚡"
-                      label={locale === 'bg' ? 'Енергия' : 'Energy'}
-                      value={`${fmtMetric('energy')}/10`}
-                      trend={trends.energy}
-                    />
-                  )}
-                  {latest.sleep_hours && (
-                    <MetricCard
-                      icon="😴"
-                      label={locale === 'bg' ? 'Сън' : 'Sleep'}
-                      value={fmtMetric('sleep_hours')}
-                      unit="h"
-                    />
-                  )}
-                  {latest.water_ml && (
-                    <MetricCard
-                      icon="💧"
-                      label={locale === 'bg' ? 'Вода' : 'Water'}
-                      value={String(Math.round(latest.water_ml.value / 250))}
-                      unit={locale === 'bg' ? 'чаши' : 'glasses'}
-                    />
-                  )}
-                  {latest.pain_level && (
-                    <MetricCard
-                      icon="🩹"
-                      label={locale === 'bg' ? 'Болка' : 'Pain'}
-                      value={`${fmtMetric('pain_level')}/10`}
-                    />
-                  )}
-                  {latest.stress_level && (
-                    <MetricCard
-                      icon="😰"
-                      label={locale === 'bg' ? 'Стрес' : 'Stress'}
-                      value={`${fmtMetric('stress_level')}/10`}
-                    />
-                  )}
+          </Link>
+          <Link href="/health/bp" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x2764;&#xFE0F;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'КН и сърдечен риск' : 'Track BP & CV risk'}</p>
                 </div>
               </div>
-            )}
+            </Card>
+          </Link>
+          <Link href="/health/lifestyle/meals" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F957;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Меню' : 'Meal Plan'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Ротиращо меню' : 'Daily rotating menu'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+          <Link href="/health/lifestyle/gym" className="block group">
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">&#x1F3CB;&#xFE0F;</span>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">{locale === 'bg' ? 'Фитнес' : 'Gym & Sports'}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{locale === 'bg' ? 'Тренировки' : 'Training & recovery'}</p>
+                </div>
+              </div>
+            </Card>
+          </Link>
+        </div>
 
-            {/* ─── Low Stock Alert ─── */}
-            {lowStock.length > 0 && (
-              <Card className="border-amber-200 bg-amber-50/50">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">📦</span>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-amber-900 text-sm">
-                      {locale === 'bg' ? 'Свършват се' : 'Running Low'}
-                    </h3>
-                    <p className="text-xs text-amber-700 mt-0.5">
-                      {lowStock.length} {locale === 'bg' ? 'добавки скоро ще свършат' : 'supplements need refilling soon'}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {lowStock.slice(0, 5).map(s => (
-                        <Badge key={s.id} color="yellow">
-                          {s.name} · {s.days_remaining}d
-                        </Badge>
-                      ))}
+        {/* ═══ BIOLOGICAL AGE ═══ */}
+        {(data?.phenoage || cmAge) && (
+          <>
+            <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {t('life.bio_age_section', locale)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {data?.phenoage && (
+                <Card>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-gray-700">{t('life.phenoage', locale)}</div>
+                      <div className="text-[11px] text-gray-400">Levine 2018 · 9 blood markers</div>
+                    </div>
+                    {data.phenoage.test_date && <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>}
+                  </div>
+                  {data.phenoage.phenoage != null ? (
+                    <div className="flex items-end gap-5">
+                      <div>
+                        <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
+                        <div className="text-5xl font-bold text-indigo-600">{data.phenoage.phenoage}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
+                        <div className="text-3xl font-medium text-gray-700">{data.phenoage.chronological_age}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] text-gray-500">Δ</div>
+                        <div className={`text-3xl font-medium ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">{data.phenoage.note}</div>
+                  )}
+                </Card>
+              )}
+              {cmAge && cmAge.signals_present > 0 && (
+                <Card>
+                  <div className="flex items-baseline justify-between mb-3">
+                    <div>
+                      <div className="text-[13px] font-medium text-gray-700">{t('vitals.cm_age_title', locale)}</div>
+                      <div className="text-[11px] text-gray-400">BP + body comp · {cmAge.signals_present}/4 signals</div>
                     </div>
                   </div>
-                  <Button size="sm" variant="secondary" onClick={() => router.push('/health/supplements')}>
-                    {locale === 'bg' ? 'Виж' : 'View'}
-                  </Button>
+                  <div className="flex items-end gap-5">
+                    <div>
+                      <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
+                      <div className="text-5xl font-bold text-indigo-600">{cmAge.cardiometabolic_age}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
+                      <div className="text-3xl font-medium text-gray-700">{cmAge.chronological_age}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-gray-500">Δ</div>
+                      <div className={`text-3xl font-medium ${cmAge.delta_years <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {cmAge.delta_years >= 0 ? '+' : ''}{cmAge.delta_years}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ═══ VITALS SNAPSHOT ═══ */}
+        {(vitals || slope) && (
+          <>
+            <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {t('life.vitals_section', locale)}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Link href="/health/weight" className="block">
+                <Card className="hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-start justify-between">
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.weight', locale)}</div>
+                    <span className="text-xs text-gray-400">→</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.weight_hint', locale)}</div>
+                  {vitals?.latest_weight ? (
+                    <>
+                      <div className="text-3xl font-semibold text-gray-900">
+                        {Number(vitals.latest_weight.weight_kg).toFixed(1)}
+                        <span className="text-lg text-gray-500 ml-1">kg</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(vitals.latest_weight.measured_at).toLocaleDateString()}
+                      </div>
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {vitals.latest_weight.bmi && <Badge color="indigo">BMI {vitals.latest_weight.bmi}</Badge>}
+                        {vitals.latest_weight.waist_hip_ratio && <Badge color="blue">WHR {vitals.latest_weight.waist_hip_ratio}</Badge>}
+                      </div>
+                    </>
+                  ) : <div className="text-sm text-gray-500 py-4">{t('weight.no_readings', locale)}</div>}
+                </Card>
+              </Link>
+
+              <Link href="/health/bp" className="block">
+                <Card className="hover:shadow-md transition-shadow h-full">
+                  <div className="flex items-start justify-between">
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('nav.bp', locale)}</div>
+                    <span className="text-xs text-gray-400">→</span>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.bp_hint', locale)}</div>
+                  {vitals?.latest_bp_session ? (
+                    <>
+                      <div className="text-3xl font-semibold text-gray-900">
+                        {Math.round(vitals.latest_bp_session.avg_systolic)}/{Math.round(vitals.latest_bp_session.avg_diastolic)}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(vitals.latest_bp_session.measured_at).toLocaleDateString()}
+                      </div>
+                      <Badge color={STAGE_COLORS[vitals.latest_bp_session.stage] || 'gray'}>
+                        {vitals.latest_bp_session.stage.replace('_', ' ')}
+                      </Badge>
+                    </>
+                  ) : <div className="text-sm text-gray-500 py-4">{t('vitals.no_bp', locale)}</div>}
+                </Card>
+              </Link>
+
+              <Card>
+                <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('vitals.bp_per_kg', locale)}</div>
+                <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.slope_hint', locale)}</div>
+                {slope?.status === 'ok' ? (
+                  <>
+                    <div className="text-3xl font-semibold text-gray-900">
+                      {slope.slope_mmhg_per_kg! > 0 ? '+' : ''}{slope.slope_mmhg_per_kg}
+                      <span className="text-sm text-gray-500 ml-1">mmHg/kg</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      R² {slope.r_squared} • {slope.paired_days}d {t('vitals.paired', locale)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm text-gray-600">
+                      {slope?.paired_days || 0} / {slope?.need || 20} {t('vitals.paired_days_needed', locale)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">{t('vitals.log_weight_bp', locale)}</div>
+                  </>
+                )}
+              </Card>
+            </div>
+
+            {forecast?.status === 'ok' && (
+              <Card>
+                <div className="flex items-center justify-between flex-wrap gap-4">
+                  <div>
+                    <div className="text-[13px] font-medium text-gray-500 uppercase tracking-wide">{t('vitals.forecast_title', locale)}</div>
+                    <div className="text-[10px] text-gray-400 mb-2 leading-snug">{t('life.forecast_hint', locale)}</div>
+                    <div className="text-lg text-gray-900">
+                      {t('vitals.forecast_lose', locale).replace('{kg}', String(forecast.kg_to_lose))}
+                      {' → '}
+                      <span className="font-medium">{forecast.target_systolic} mmHg</span>
+                    </div>
+                    {forecast.eta_date && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        ETA: {new Date(forecast.eta_date).toLocaleDateString()} ({forecast.weeks} wks)
+                      </div>
+                    )}
+                  </div>
+                  <Badge color="indigo">{t('vitals.projection', locale)}</Badge>
                 </div>
               </Card>
             )}
+          </>
+        )}
 
-            {/* ─── Recent Blood Work ─── */}
-            {hasBloodData && report ? (
-              <div>
-                <div className="flex items-center justify-between mb-3 px-1">
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    {locale === 'bg' ? 'Кръвни изследвания' : 'Recent Blood Work'}
-                  </h3>
-                  <button
-                    onClick={() => router.push(`/health/report/${report.id}`)}
-                    className="text-xs text-indigo-600 font-medium hover:text-indigo-700"
-                  >
-                    {locale === 'bg' ? 'Пълен доклад' : 'Full report'} →
-                  </button>
-                </div>
-                <Card>
-                  <div className="flex flex-col sm:flex-row items-center gap-6">
-                    <div className="flex flex-col items-center">
-                      <ScoreRing score={report.overall_score} size={100} />
-                      <div className="text-[11px] text-gray-400 mt-1.5 text-center">
-                        {report.test_date}
-                        <br />
-                        {report.lab_name || report.lab_type}
+        {/* ═══ INTERVENTIONS (meds & supplements) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Лекарства и добавки' : 'Medications & Supplements'}
+        </div>
+        {(data?.active_interventions ?? []).length === 0 ? (
+          <Card>
+            <EmptyState
+              icon="💊"
+              message={locale === 'bg'
+                ? 'Няма активни добавки. Добавете нови чрез ритуала.'
+                : 'No active supplements or meds. Add via the ritual.'}
+            />
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {data!.active_interventions.map((iv) => {
+              const isMed = iv.category === 'medication';
+              const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : iv.category === 'diet' ? '🥗' : iv.category === 'exercise' ? '🏃' : '⚡';
+              const takenToday = iv.taken_today === true;
+              const daysSinceStart = Math.floor((Date.now() - new Date(iv.started_on).getTime()) / 86400000);
+              const lastTakenLabel = iv.last_taken_date
+                ? (() => {
+                    const daysAgo = Math.floor((Date.now() - new Date(iv.last_taken_date).getTime()) / 86400000);
+                    if (daysAgo === 0) return locale === 'bg' ? 'днес' : 'today';
+                    if (daysAgo === 1) return locale === 'bg' ? 'вчера' : 'yesterday';
+                    return locale === 'bg' ? `преди ${daysAgo} дни` : `${daysAgo}d ago`;
+                  })()
+                : (locale === 'bg' ? 'няма запис' : 'no log');
+
+              return (
+                <Card key={iv.id} className="!p-0 overflow-hidden">
+                  <div className="flex">
+                    {/* Take button — left strip */}
+                    <button
+                      type="button"
+                      onClick={() => handleMarkTaken(iv)}
+                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                        takenToday
+                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                      title={takenToday
+                        ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
+                        : (locale === 'bg' ? 'Маркирай като взето' : 'Mark taken')}
+                    >
+                      <span className="text-xl">{takenToday ? '✓' : '○'}</span>
+                      <span className="text-[9px] font-medium leading-tight">
+                        {takenToday
+                          ? (locale === 'bg' ? 'Взето' : 'Taken')
+                          : (locale === 'bg' ? 'Вземи' : 'Take')}
+                      </span>
+                    </button>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg flex-shrink-0">{icon}</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-gray-900 truncate">{iv.name}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {iv.dose && (
+                                <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                  {iv.dose}
+                                </span>
+                              )}
+                              {iv.frequency && iv.frequency !== 'daily' && (
+                                <span className="text-xs text-gray-500">{FREQ_LABELS[iv.frequency] || iv.frequency}</span>
+                              )}
+                              {iv.reminder_times && iv.reminder_times.length > 0 && (
+                                <span className="text-xs text-gray-400">⏰ {iv.reminder_times.join(', ')}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                          {iv.evidence_grade}
+                        </Badge>
                       </div>
-                      {data?.score_change !== null && data?.score_change !== undefined && (
-                        <div className={`text-xs mt-1 font-medium ${data.score_change > 0 ? 'text-emerald-600' : data.score_change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                          {data.score_change > 0 ? '↑' : data.score_change < 0 ? '↓' : '→'} {Math.abs(data.score_change)}
+
+                      {/* Footer: last taken + days active + end action */}
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                          <span>
+                            {locale === 'bg' ? 'Последно:' : 'Last:'}{' '}
+                            <span className={iv.last_taken_date ? 'text-gray-600' : 'text-amber-500'}>{lastTakenLabel}</span>
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {locale === 'bg' ? `Ден ${daysSinceStart}` : `Day ${daysSinceStart}`}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleEnd(iv.id)}
+                          className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          {locale === 'bg' ? 'Приключи' : 'End'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ═══ BLOOD TEST RESULTS (from lifestyle) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Кръвни резултати' : 'Blood Test Results'}
+        </div>
+        <Card>
+          <button
+            type="button"
+            onClick={() => setBloodOpen(!bloodOpen)}
+            className="w-full flex items-center justify-between"
+          >
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {locale === 'bg' ? 'Последни резултати' : 'Latest Results'}
+              </div>
+              <div className="text-[10px] text-gray-400">
+                {locale === 'bg'
+                  ? 'Преглед на кръвните тестове по системи'
+                  : 'Blood test overview by body system'}
+              </div>
+            </div>
+            <span className={`text-gray-400 transition-transform ${bloodOpen ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {bloodOpen && (
+            <div className="mt-4 space-y-4">
+              {bloodCategories.map(cat => {
+                const catLabel = CATEGORY_LABELS[cat];
+                const results = BLOOD_RESULTS.filter(r => r.category === cat);
+                return (
+                  <div key={cat}>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                      <span>{catLabel?.icon}</span> {catLabel?.[locale] || cat}
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-left">
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase">{locale === 'bg' ? 'Тест' : 'Test'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-right hidden sm:table-cell">{locale === 'bg' ? 'Референция' : 'Reference'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-right">{locale === 'bg' ? 'Резултат' : 'Result'}</th>
+                            <th className="px-3 py-2 text-xs font-medium text-gray-500 uppercase text-center">{locale === 'bg' ? 'Статус' : 'Status'}</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {results.map(r => (
+                            <tr key={r.id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2">
+                                <span className="text-sm font-medium text-gray-900">{r.name[locale]}</span>
+                                <span className="text-xs text-gray-400 ml-1.5">{r.code}</span>
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-500 text-right hidden sm:table-cell">
+                                {r.refMin}–{r.refMax} {r.unit}
+                              </td>
+                              <td className="px-3 py-2 text-right">
+                                <span className={`text-sm font-semibold ${r.status === 'abnormal' ? 'text-red-600' : r.status === 'borderline' ? 'text-yellow-600' : 'text-gray-900'}`}>
+                                  {r.value}
+                                </span>
+                                <span className="text-xs text-gray-400 ml-1">{r.unit}</span>
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <Badge color={STATUS_COLORS[r.status]}>
+                                  {r.status === 'optimal' ? (locale === 'bg' ? 'Оптимален' : 'Optimal') :
+                                   r.status === 'borderline' ? (locale === 'bg' ? 'Гранична' : 'Borderline') :
+                                   (locale === 'bg' ? 'Отклонение' : 'Abnormal')}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+
+        {/* ═══ RECOMMENDATIONS (from lifestyle) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Препоръки' : 'Recommendations'}
+        </div>
+        <Card>
+          <button
+            type="button"
+            onClick={() => setRecsOpen(!recsOpen)}
+            className="w-full flex items-center justify-between"
+          >
+            <div>
+              <div className="text-[13px] font-medium text-gray-700">
+                {locale === 'bg' ? 'Персонализирани препоръки' : 'Personalized Recommendations'}
+              </div>
+              <div className="text-[10px] text-gray-400">
+                {locale === 'bg'
+                  ? 'На база кръвните ви резултати'
+                  : 'Based on your blood test results'}
+              </div>
+            </div>
+            <span className={`text-gray-400 transition-transform ${recsOpen ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+          {recsOpen && (
+            <div className="mt-4 space-y-4">
+              {RECOMMENDATIONS.map((rec, i) => {
+                const linked = BLOOD_RESULTS.filter(r => rec.linkedResults.includes(r.id));
+                return (
+                  <div key={i} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-2xl mt-0.5">{rec.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-sm font-semibold text-gray-900">{rec.title[locale]}</h3>
+                        <Badge color={PRIORITY_COLORS[rec.priority]}>
+                          {rec.priority === 'high' ? (locale === 'bg' ? 'Висок' : 'High Priority') :
+                           rec.priority === 'medium' ? (locale === 'bg' ? 'Среден' : 'Medium Priority') :
+                           (locale === 'bg' ? 'Нисък' : 'Low Priority')}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-600 leading-relaxed">{rec.description[locale]}</p>
+                      {linked.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs text-gray-400">{locale === 'bg' ? 'Свързани:' : 'Linked:'}</span>
+                          {linked.map(r => (
+                            <Badge key={r.id} color={STATUS_COLORS[r.status]}>{r.code} {r.value}</Badge>
+                          ))}
                         </div>
                       )}
                     </div>
-                    <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 w-full">
-                      {Object.entries(report.system_scores).map(([sys, score]) => (
-                        <div
-                          key={sys}
-                          className={`rounded-xl p-2.5 text-center bg-gradient-to-b ${scoreBgGradient(score)} border border-gray-100`}
-                        >
-                          <div className="text-lg">{SYSTEM_ICONS[sys] || '📊'}</div>
-                          <div className={`text-xl font-bold ${scoreColor(score)}`}>{score}</div>
-                          <div className="text-[10px] text-gray-500 leading-tight">{t(`system.${sys}`, locale as Locale)}</div>
-                        </div>
-                      ))}
-                    </div>
                   </div>
-                  <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
-                    <span>{report.results.length} {t('health.results', locale).toLowerCase()}</span>
-                    {data?.report_count && data.report_count > 1 && (
-                      <span>{data.report_count} {t('health.reports', locale).toLowerCase()}</span>
-                    )}
-                  </div>
-                </Card>
-              </div>
-            ) : (
-              <Card>
-                <div className="flex items-center gap-4">
-                  <span className="text-3xl">🩸</span>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 text-sm">
-                      {locale === 'bg' ? 'Качи кръвно изследване' : 'Upload Blood Test'}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {locale === 'bg'
-                        ? 'PDF от Рамус, ЛИНА или ръчно въвеждане.'
-                        : 'PDF from Ramus, LINA or manual entry.'}
-                    </p>
-                  </div>
-                  <Button size="sm" onClick={() => router.push('/health/upload')}>
-                    {locale === 'bg' ? 'Качи' : 'Upload'}
-                  </Button>
-                </div>
-              </Card>
-            )}
-
-            {/* ─── Quick Links Grid ─── */}
-            <div>
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">
-                {locale === 'bg' ? 'Още' : 'More'}
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                {[
-                  { icon: '💊', label: locale === 'bg' ? 'Добавки' : 'Supplements', href: '/health/supplements' },
-                  { icon: '📈', label: locale === 'bg' ? 'Хронология' : 'Timeline', href: '/health/timeline' },
-                  { icon: '🚨', label: locale === 'bg' ? 'Спешна карта' : 'Emergency Card', href: '/health/emergency' },
-                  { icon: '❤️', label: locale === 'bg' ? 'Кръвно' : 'Blood Pressure', href: '/health/bp' },
-                  { icon: '⚖️', label: locale === 'bg' ? 'Тегло' : 'Weight', href: '/health/weight' },
-                  { icon: '🏃', label: locale === 'bg' ? 'Възстановяване' : 'Recovery', href: '/health/recovery' },
-                  { icon: '🧪', label: locale === 'bg' ? 'Препоръчани тестове' : 'Test Panel', href: '/health/lifestyle/tests' },
-                  { icon: '🥗', label: locale === 'bg' ? 'Храна' : 'Meals', href: '/health/lifestyle/meals' },
-                  { icon: '💪', label: locale === 'bg' ? 'Тренировки' : 'Workouts', href: '/health/lifestyle/gym' },
-                ].map(link => (
-                  <button
-                    key={link.href}
-                    onClick={() => router.push(link.href)}
-                    className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
-                  >
-                    <span className="text-2xl">{link.icon}</span>
-                    <span className="text-xs font-medium text-gray-700 text-center">{link.label}</span>
-                  </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </Card>
+
+        {/* RitualModal replaced by unified wizard at /health/checkin */}
       </PageContent>
     </PageShell>
   );

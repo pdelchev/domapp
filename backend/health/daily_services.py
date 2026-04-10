@@ -86,17 +86,28 @@ def submit_wizard(user, profile, data: dict):
     # §STEP 2: Weight (optional)
     weight_data = data.get('weight')
     if weight_data and weight_data.get('value'):
-        wr, _ = WeightReading.objects.update_or_create(
-            user=user, profile=profile,
-            measured_at__date=log_date,
-            source='wizard',
-            defaults={
-                'weight_kg': Decimal(str(weight_data['value'])),
-                'body_fat_pct': weight_data.get('body_fat'),
-                'is_fasted': weight_data.get('fasted', False),
-                'measured_at': timezone.now(),
-            }
+        # §NOTE: WeightReading has no unique constraint on (profile, date)
+        # so we look up by day + source and update, else create.
+        existing = (
+            WeightReading.objects
+            .filter(user=user, profile=profile, source='wizard', measured_at__date=log_date)
+            .first()
         )
+        fields = {
+            'weight_kg': Decimal(str(weight_data['value'])),
+            'body_fat_pct': weight_data.get('body_fat'),
+            'context_flags': {'fasted': bool(weight_data.get('fasted', False))},
+            'measured_at': timezone.now(),
+        }
+        if existing:
+            for k, v in fields.items():
+                setattr(existing, k, v)
+            existing.save()
+            wr = existing
+        else:
+            wr = WeightReading.objects.create(
+                user=user, profile=profile, source='wizard', **fields
+            )
         result['weight_reading'] = wr
         # §TIMELINE: Write to denormalized timeline
         _upsert_metric(user, profile, log_date, 'weight', wr.weight_kg, 'kg')
@@ -490,7 +501,17 @@ def get_health_summary(user, profile):
         },
         'streak': streak,
         'trends': trends,
+        'fasting': _fasting_payload(user, profile, schedule),
     }
+
+
+def _fasting_payload(user, profile, schedule):
+    """Attach fast status to each schedule item + return meta."""
+    from .fasting import get_active_fast, annotate_schedule_for_fast
+    active = get_active_fast(user, profile)
+    data = annotate_schedule_for_fast(schedule, active)
+    # Drop groups from payload — caller already has schedule mutated in place
+    return {k: v for k, v in data.items() if k != 'groups'}
 
 
 # ──────────────────────────────────────────────────────────────

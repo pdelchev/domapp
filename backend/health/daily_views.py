@@ -13,7 +13,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard
+from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard, Symptom, WeatherSnapshot, CaregiverRelationship, MedicationReminder, ReminderLog
 from .daily_serializers import (
     DailyLogSerializer, WizardSubmitSerializer,
     SupplementListSerializer, SupplementDetailSerializer, SupplementCreateSerializer,
@@ -21,6 +21,10 @@ from .daily_serializers import (
     DoseLogSerializer, BatchDoseSerializer,
     MetricTimelineSerializer, TimelineQuerySerializer,
     EmergencyCardSerializer,
+    SymptomSerializer,
+    WeatherSnapshotSerializer,
+    CaregiverRelationshipSerializer, CaregiverInviteListSerializer,
+    MedicationReminderSerializer, MedicationReminderListSerializer, ReminderLogSerializer,
 )
 from .daily_services import (
     get_or_create_daily_log, submit_wizard,
@@ -264,6 +268,113 @@ class SupplementViewSet(viewsets.ModelViewSet):
             return Response({'message': 'Insufficient data for comparison.'})
         return Response(result)
 
+    @action(detail=True, methods=['get'], url_path='suggest-timing')
+    def suggest_timing(self, request, pk=None):
+        """
+        §API: GET /api/health/supplements/<id>/suggest-timing/
+        Rule-based chronobiology suggestion for this supplement's optimal dosing time.
+        """
+        from .circadian import suggest_timing as suggest_fn
+
+        supplement = self.get_object()
+        return Response(suggest_fn(
+            name=supplement.name,
+            category=supplement.category,
+            form=supplement.form,
+        ))
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def fasting_current_view(request):
+    """
+    §API: GET /api/health/fasting/current/?profile=<id>
+    Return the active fasting session with annotated schedule, or null.
+    """
+    from .fasting import get_active_fast, annotate_schedule_for_fast
+
+    profile = _get_profile(request, request.query_params.get('profile'))
+    if not profile:
+        return Response({'error': 'No profile found.'}, status=404)
+    active = get_active_fast(request.user, profile)
+    schedule = get_todays_schedule(request.user, profile)
+    payload = annotate_schedule_for_fast(schedule, active)
+    return Response(payload)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def fasting_start_view(request):
+    """
+    §API: POST /api/health/fasting/start/
+    Body: {profile, protocol?, hours?, ends_at?, notes?}
+    """
+    from .fasting import start_fast
+    from django.utils.dateparse import parse_datetime
+
+    profile = _get_profile(request, request.data.get('profile'))
+    if not profile:
+        return Response({'error': 'No profile found.'}, status=404)
+
+    ends_at_raw = request.data.get('ends_at')
+    ends_at = parse_datetime(ends_at_raw) if ends_at_raw else None
+
+    session = start_fast(
+        user=request.user,
+        profile=profile,
+        protocol=request.data.get('protocol', '16_8'),
+        hours=request.data.get('hours'),
+        ends_at=ends_at,
+        notes=request.data.get('notes', ''),
+    )
+    return Response({
+        'id': session.id,
+        'protocol': session.protocol,
+        'starts_at': session.starts_at.isoformat(),
+        'ends_at': session.ends_at.isoformat() if session.ends_at else None,
+    }, status=201)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def fasting_end_view(request):
+    """
+    §API: POST /api/health/fasting/end/
+    Body: {profile}
+    """
+    from .fasting import end_fast
+
+    profile = _get_profile(request, request.data.get('profile'))
+    if not profile:
+        return Response({'error': 'No profile found.'}, status=404)
+    session = end_fast(request.user, profile)
+    if not session:
+        return Response({'message': 'No active fast'}, status=200)
+    return Response({
+        'id': session.id,
+        'ended_at': session.ended_early_at.isoformat(),
+    })
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def circadian_suggest_view(request):
+    """
+    §API: POST /api/health/circadian/suggest/
+    Stateless timing suggestion for an unsaved supplement.
+    Body: {name, category, form, take_with_food?, take_on_empty_stomach?}
+    """
+    from .circadian import suggest_timing as suggest_fn
+
+    data = request.data or {}
+    return Response(suggest_fn(
+        name=data.get('name', ''),
+        category=data.get('category', ''),
+        form=data.get('form', ''),
+        take_with_food=data.get('take_with_food'),
+        take_on_empty_stomach=data.get('take_on_empty_stomach'),
+    ))
+
 
 # ──────────────────────────────────────────────────────────────
 # §VIEW: Schedule CRUD
@@ -410,6 +521,38 @@ def health_summary_view(request):
 
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
+def gamification_view(request):
+    """
+    §API: GET /api/health/gamification/?profile=<id>
+    Returns badges, current weekly challenge with progress, and any
+    new badges unlocked since the last poll (for celebratory toast).
+    """
+    from .gamification import compute_gamification, mark_unlocks_seen
+
+    profile = _get_profile(request, request.query_params.get('profile'))
+    if not profile:
+        return Response({'error': 'No profile found.'}, status=404)
+    return Response(compute_gamification(request.user, profile))
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def gamification_seen_view(request):
+    """
+    §API: POST /api/health/gamification/seen/
+    Body: {codes: ['streak_7', ...]} — marks toast-shown badges as seen.
+    """
+    from .gamification import mark_unlocks_seen
+
+    codes = request.data.get('codes', [])
+    if not isinstance(codes, list):
+        return Response({'error': 'codes must be a list'}, status=400)
+    updated = mark_unlocks_seen(request.user, codes)
+    return Response({'marked': updated})
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
 def streak_view(request):
     """§API: GET /api/health/daily-log/streak/"""
     profile = _get_profile(request, request.query_params.get('profile'))
@@ -465,3 +608,484 @@ class EmergencyCardView(generics.RetrieveUpdateAPIView):
             raise NotFound('No health profile exists yet.')
         card, _ = EmergencyCard.objects.get_or_create(profile=profile)
         return card
+
+
+# ──────────────────────────────────────────────────────────────
+# §VIEW: Symptom tracker + correlations
+# ──────────────────────────────────────────────────────────────
+
+class SymptomViewSet(viewsets.ModelViewSet):
+    """
+    §API: /api/health/symptoms/
+    CRUD over user's symptom log entries. Filters:
+      - ?profile=<id>
+      - ?category=<str>
+      - ?days=<int> (last N days)
+    """
+    serializer_class = SymptomSerializer
+    permission_classes = [permissions.IsAuthenticated, IsHealthDataOwner]
+
+    def get_queryset(self):
+        from datetime import date as _date, timedelta as _td
+        qs = Symptom.objects.filter(user=self.request.user)
+        profile_id = self.request.query_params.get('profile')
+        if profile_id:
+            qs = qs.filter(profile_id=profile_id)
+        category = self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(category=category)
+        days = self.request.query_params.get('days')
+        if days:
+            try:
+                cutoff = _date.today() - _td(days=int(days))
+                qs = qs.filter(occurred_at__date__gte=cutoff)
+            except ValueError:
+                pass
+        return qs.select_related('profile')
+
+    def perform_create(self, serializer):
+        from django.utils import timezone as _tz
+        profile = serializer.validated_data['profile']
+        if profile.user_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Profile not owned by user.')
+        if 'occurred_at' not in serializer.validated_data:
+            serializer.save(user=self.request.user, occurred_at=_tz.now())
+        else:
+            serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['get'], url_path='correlations')
+    def correlations(self, request):
+        """
+        §API: GET /api/health/symptoms/correlations/?profile=<id>&days=90
+        Run the correlation engine over logged symptoms and return
+        per-category findings (hypothesis-generating, not causal).
+        """
+        from .symptom_correlations import analyze
+
+        profile = _get_profile(request, request.query_params.get('profile'))
+        if not profile:
+            return Response({'error': 'No profile found.'}, status=404)
+        days = int(request.query_params.get('days', 90))
+        return Response(analyze(request.user, profile, days=days))
+
+
+# ──────────────────────────────────────────────────────────────
+# §VIEW: Weather snapshots for correlation analysis
+# ──────────────────────────────────────────────────────────────
+
+class WeatherSnapshotViewSet(viewsets.ModelViewSet):
+    """
+    Weather data CRUD + list.
+    §API: POST /api/health/weather/ (manual entry)
+          GET /api/health/weather/ (list with ?profile=&days=)
+          GET /api/health/weather/<id>/
+          PUT /api/health/weather/<id>/
+          DELETE /api/health/weather/<id>/
+    """
+    serializer_class = WeatherSnapshotSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = WeatherSnapshot.objects.filter(user=user)
+
+        # Filter by profile if provided
+        profile_id = self.request.query_params.get('profile')
+        if profile_id:
+            qs = qs.filter(profile_id=profile_id)
+
+        # Filter by days if provided (last N days)
+        days = self.request.query_params.get('days')
+        if days:
+            from datetime import timedelta
+            start = date.today() - timedelta(days=int(days))
+            qs = qs.filter(date__gte=start)
+
+        return qs.select_related('profile').order_by('-date')
+
+    def perform_create(self, serializer):
+        profile = serializer.validated_data['profile']
+        if profile.user_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Profile not owned by user.')
+        serializer.save(user=self.request.user)
+
+    @action(detail=False, methods=['post'], url_path='fetch-range')
+    def fetch_range(self, request):
+        """
+        §API: POST /api/health/weather/fetch-range/
+        Trigger weather data fetch for date range (for future API integration).
+        Currently returns stub message (MVP: manual entry only).
+
+        §BODY: {
+            "profile": <id>,
+            "start_date": "2026-04-01",
+            "end_date": "2026-04-10",
+            "location": "Sofia, Bulgaria" (optional, inferred if omitted)
+        }
+        """
+        profile_id = request.data.get('profile')
+        start_date_str = request.data.get('start_date')
+        end_date_str = request.data.get('end_date')
+        location = request.data.get('location', '')
+
+        if not all([profile_id, start_date_str, end_date_str]):
+            return Response(
+                {'error': 'Required: profile, start_date, end_date'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            start_date = date.fromisoformat(start_date_str)
+            end_date = date.fromisoformat(end_date_str)
+        except ValueError:
+            return Response(
+                {'error': 'Invalid date format (use YYYY-MM-DD)'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        profile = _get_profile(request, profile_id)
+        if not profile:
+            return Response({'error': 'Profile not found.'}, status=404)
+
+        # For MVP: just create stubs for missing dates (user fills in manually via POST)
+        from .weather_services import fetch_weather_range
+        result = fetch_weather_range(
+            request.user, profile, start_date, end_date, location=location
+        )
+
+        return Response({
+            'message': 'Weather records created/retrieved. Please fill in data manually.',
+            'dates_processed': len(result),
+            'date_range': f'{start_date} to {end_date}',
+        })
+
+    @action(detail=False, methods=['get'], url_path='timeline')
+    def timeline(self, request):
+        """
+        §API: GET /api/health/weather/timeline/?profile=<id>&days=90
+        Get weather timeline for the last N days (for dashboard/graphs).
+        """
+        profile = _get_profile(request, request.query_params.get('profile'))
+        if not profile:
+            return Response({'error': 'No profile found.'}, status=404)
+
+        days = int(request.query_params.get('days', 90))
+
+        from .weather_services import get_weather_timeline
+        timeline = get_weather_timeline(profile, days=days)
+
+        serializer = WeatherSnapshotSerializer(
+            timeline.values(), many=True
+        )
+        return Response({
+            'dates': len(timeline),
+            'window_days': days,
+            'snapshots': serializer.data,
+        })
+
+
+# ──────────────────────────────────────────────────────────────
+# §VIEW: Caregiver relationships — delegate health data access
+# ──────────────────────────────────────────────────────────────
+
+class CaregiverRelationshipViewSet(viewsets.ModelViewSet):
+    """
+    Caregiver relationship management.
+
+    §API:
+      POST /api/health/caregivers/ — primary invites caregiver
+      GET /api/health/caregivers/ — primary views own invites + list of caregivers
+      PUT /api/health/caregivers/<id>/ — primary updates permissions
+      DELETE /api/health/caregivers/<id>/ — primary revokes
+      POST /api/health/caregivers/<id>/accept/ — caregiver accepts
+      POST /api/health/caregivers/<id>/decline/ — caregiver declines
+      GET /api/health/caregivers/my-invites/ — caregiver views pending invites
+      GET /api/health/caregivers/my-access/ — caregiver views accepted relationships
+    """
+    serializer_class = CaregiverRelationshipSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        # Primary user sees their own invites
+        qs = CaregiverRelationship.objects.filter(user=user)
+        return qs.select_related('profile', 'caregiver_user')
+
+    def perform_create(self, serializer):
+        """Create a caregiver invite (primary user inviting)."""
+        from .caregiver_services import create_caregiver_invite
+
+        profile = serializer.validated_data['profile']
+        caregiver_user = serializer.validated_data['caregiver_user']
+        permissions = serializer.validated_data.get('permissions', ['view_all'])
+        relationship_note = serializer.validated_data.get('relationship_note', '')
+
+        create_caregiver_invite(
+            self.request.user, profile, caregiver_user,
+            permissions=permissions, relationship_note=relationship_note
+        )
+
+    def perform_update(self, serializer):
+        """Update permissions (primary user only)."""
+        rel = serializer.instance
+        if rel.user_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Not your invite.')
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        """Revoke access (primary or caregiver)."""
+        from .caregiver_services import revoke_caregiver_access
+
+        revoke_caregiver_access(self.request.user, instance.id)
+
+    @action(detail=True, methods=['post'], url_path='accept')
+    def accept(self, request, pk=None):
+        """Caregiver accepts an invite."""
+        from .caregiver_services import accept_caregiver_invite
+
+        try:
+            rel = accept_caregiver_invite(request.user, pk)
+            serializer = self.get_serializer(rel)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='decline')
+    def decline(self, request, pk=None):
+        """Caregiver declines an invite."""
+        from .caregiver_services import decline_caregiver_invite
+
+        try:
+            decline_caregiver_invite(request.user, pk)
+            return Response({'status': 'Invite declined'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=False, methods=['get'], url_path='my-invites')
+    def my_invites(self, request):
+        """Caregiver views pending invites."""
+        invites = CaregiverRelationship.objects.filter(
+            caregiver_user=request.user,
+            status='pending'
+        ).select_related('user', 'profile')
+
+        serializer = CaregiverInviteListSerializer(invites, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='my-access')
+    def my_access(self, request):
+        """Caregiver views accepted relationships (profiles they can access)."""
+        rels = CaregiverRelationship.objects.filter(
+            caregiver_user=request.user,
+            status='accepted'
+        ).exclude(revoked_at__isnull=False).select_related('user', 'profile')
+
+        serializer = CaregiverInviteListSerializer(rels, many=True)
+        return Response(serializer.data)
+
+
+# ──────────────────────────────────────────────────────────────
+# §VIEW: Medication reminders + adherence tracking
+# ──────────────────────────────────────────────────────────────
+
+class MedicationReminderViewSet(viewsets.ModelViewSet):
+    """
+    Medication reminders CRUD.
+
+    §API:
+      POST /api/health/reminders/ — create reminder
+      GET /api/health/reminders/ — list with ?profile=&status=
+      GET /api/health/reminders/<id>/ — detail
+      PUT /api/health/reminders/<id>/ — update
+      DELETE /api/health/reminders/<id>/ — delete
+      POST /api/health/reminders/<id>/pause/ — pause
+      POST /api/health/reminders/<id>/resume/ — resume
+      POST /api/health/reminders/<id>/complete/ — mark as completed
+      GET /api/health/reminders/today/ — today's reminders + stats
+      GET /api/health/reminders/<id>/history/ — adherence history
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = MedicationReminder.objects.filter(user=user)
+
+        # Filter by profile if provided
+        profile_id = self.request.query_params.get('profile')
+        if profile_id:
+            qs = qs.filter(profile_id=profile_id)
+
+        # Filter by status
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs.select_related('profile', 'supplement').order_by('reminder_time')
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return MedicationReminderListSerializer
+        return MedicationReminderSerializer
+
+    def perform_create(self, serializer):
+        """Create reminder (validates profile ownership)."""
+        profile = serializer.validated_data['profile']
+        if profile.user_id != self.request.user.id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Profile not owned by user.')
+        serializer.save(user=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='pause')
+    def pause(self, request, pk=None):
+        """Pause a reminder (stops creating logs)."""
+        from .medication_reminder_services import pause_reminder
+
+        reminder = self.get_object()
+        reminder = pause_reminder(reminder)
+        serializer = self.get_serializer(reminder)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='resume')
+    def resume(self, request, pk=None):
+        """Resume a paused reminder."""
+        from .medication_reminder_services import resume_reminder
+
+        reminder = self.get_object()
+        reminder = resume_reminder(reminder)
+        serializer = self.get_serializer(reminder)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        """Mark reminder as completed (course finished)."""
+        from .medication_reminder_services import complete_reminder
+
+        reminder = self.get_object()
+        reminder = complete_reminder(reminder)
+        serializer = self.get_serializer(reminder)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['get'], url_path='today')
+    def today(self, request):
+        """Get today's reminders + adherence stats."""
+        from .medication_reminder_services import get_todays_reminders
+
+        profile = _get_profile(request, request.query_params.get('profile'))
+        data = get_todays_reminders(request.user, profile)
+
+        return Response({
+            'date': data['date'],
+            'stats': data['stats'],
+            'reminders': [
+                {
+                    'reminder': MedicationReminderListSerializer(item['reminder']).data,
+                    'log': ReminderLogSerializer(item['log']).data if item['log'] else None,
+                    'status': item['status'],
+                    'is_overdue': item['is_overdue'],
+                }
+                for item in data['reminders']
+            ],
+        })
+
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """Get adherence history for a reminder."""
+        from .medication_reminder_services import get_reminder_history
+
+        reminder = self.get_object()
+        days = int(request.query_params.get('days', 30))
+        hist = get_reminder_history(reminder, days)
+
+        return Response({
+            'reminder': MedicationReminderSerializer(hist['reminder']).data,
+            'window_days': hist['window_days'],
+            'taken': hist['taken'],
+            'skipped': hist['skipped'],
+            'total_scheduled': hist['total_scheduled'],
+            'adherence_rate': hist['adherence_rate'],
+            'logs': ReminderLogSerializer(hist['logs'], many=True).data,
+        })
+
+
+class ReminderLogViewSet(viewsets.ModelViewSet):
+    """
+    Reminder adherence logs.
+
+    §API:
+      GET /api/health/reminder-logs/ — list with ?reminder=&date=&status=
+      GET /api/health/reminder-logs/<id>/ — detail
+      PATCH /api/health/reminder-logs/<id>/ — update status
+      POST /api/health/reminder-logs/<id>/mark-taken/ — mark as taken
+      POST /api/health/reminder-logs/<id>/mark-skipped/ — mark as skipped
+      POST /api/health/reminder-logs/<id>/snooze/ — snooze (30min default)
+      POST /api/health/reminder-logs/<id>/dismiss/ — dismiss
+    """
+    serializer_class = ReminderLogSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = ReminderLog.objects.filter(reminder__user=user)
+
+        # Filter by reminder if provided
+        reminder_id = self.request.query_params.get('reminder')
+        if reminder_id:
+            qs = qs.filter(reminder_id=reminder_id)
+
+        # Filter by date
+        date_str = self.request.query_params.get('date')
+        if date_str:
+            qs = qs.filter(date=date_str)
+
+        # Filter by status
+        status = self.request.query_params.get('status')
+        if status:
+            qs = qs.filter(status=status)
+
+        return qs.select_related('reminder').order_by('-date', 'reminder__reminder_time')
+
+    @action(detail=True, methods=['post'], url_path='mark-taken')
+    def mark_taken(self, request, pk=None):
+        """Mark reminder as taken."""
+        from .medication_reminder_services import mark_reminder_taken
+
+        log = self.get_object()
+        notes = request.data.get('notes', '')
+        log = mark_reminder_taken(log, notes)
+        serializer = self.get_serializer(log)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='mark-skipped')
+    def mark_skipped(self, request, pk=None):
+        """Mark reminder as skipped."""
+        from .medication_reminder_services import mark_reminder_skipped
+
+        log = self.get_object()
+        notes = request.data.get('notes', '')
+        log = mark_reminder_skipped(log, notes)
+        serializer = self.get_serializer(log)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='snooze')
+    def snooze(self, request, pk=None):
+        """Snooze a reminder."""
+        from .medication_reminder_services import snooze_reminder
+
+        log = self.get_object()
+        minutes = int(request.data.get('minutes', 30))
+        log = snooze_reminder(log, minutes)
+        serializer = self.get_serializer(log)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'], url_path='dismiss')
+    def dismiss(self, request, pk=None):
+        """Dismiss a reminder."""
+        from .medication_reminder_services import dismiss_reminder
+
+        log = self.get_object()
+        log = dismiss_reminder(log)
+        serializer = self.get_serializer(log)
+        return Response(serializer.data)

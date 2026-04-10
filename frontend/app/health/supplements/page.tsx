@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { getSupplements, getSupplementInteractions, createSupplement } from '../../lib/api';
+import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -252,6 +252,7 @@ function AddSupplementModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { locale } = useLanguage();
   const [form, setForm] = useState({
     name: '', category: 'supplement', form: 'tablet',
     strength: '', color: '', shape: '',
@@ -259,6 +260,40 @@ function AddSupplementModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+
+  // §CIRCADIAN: live timing suggestion as the user types
+  const [suggestion, setSuggestion] = useState<{
+    time_slot: string;
+    reason: string;
+    reason_bg: string;
+    confidence: 'high' | 'medium' | 'low';
+    take_with_food: boolean;
+    take_on_empty_stomach: boolean;
+    alternatives: string[];
+    avoid_with: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!form.name || form.name.trim().length < 3) { setSuggestion(null); return; }
+    const handle = setTimeout(() => {
+      suggestSupplementTiming({ name: form.name, category: form.category, form: form.form })
+        .then(setSuggestion)
+        .catch(() => setSuggestion(null));
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [form.name, form.category, form.form]);
+
+  const SLOT_LABEL: Record<string, { en: string; bg: string; icon: string }> = {
+    morning:   { en: 'Morning',     bg: 'Сутрин',     icon: '🌅' },
+    fasted:    { en: 'Fasted',      bg: 'На гладно',  icon: '🥛' },
+    breakfast: { en: 'Breakfast',   bg: 'Закуска',    icon: '🍳' },
+    midday:    { en: 'Midday',      bg: 'По обяд',    icon: '☀️' },
+    lunch:     { en: 'Lunch',       bg: 'Обяд',       icon: '🍽️' },
+    afternoon: { en: 'Afternoon',   bg: 'Следобед',   icon: '🌤️' },
+    dinner:    { en: 'Dinner',      bg: 'Вечеря',     icon: '🍝' },
+    evening:   { en: 'Evening',     bg: 'Вечер',      icon: '🌆' },
+    bedtime:   { en: 'Bedtime',     bg: 'Преди сън',  icon: '🌙' },
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,6 +331,54 @@ function AddSupplementModal({
             onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
             placeholder="e.g., Vitamin D3 2000IU"
           />
+
+          {/* §CIRCADIAN: timing suggestion hint */}
+          {suggestion && (
+            <div className={`rounded-xl border p-3 ${
+              suggestion.confidence === 'high' ? 'bg-indigo-50 border-indigo-200' :
+              suggestion.confidence === 'medium' ? 'bg-blue-50 border-blue-200' :
+              'bg-gray-50 border-gray-200'
+            }`}>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">{SLOT_LABEL[suggestion.time_slot]?.icon || '💡'}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-700">
+                      {locale === 'bg' ? 'Препоръка за време' : 'Suggested Timing'}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+                      suggestion.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' :
+                      suggestion.confidence === 'medium' ? 'bg-amber-100 text-amber-700' :
+                      'bg-gray-200 text-gray-600'
+                    }`}>
+                      {suggestion.confidence}
+                    </span>
+                  </div>
+                  <div className="font-semibold text-sm text-gray-900 mt-0.5">
+                    {locale === 'bg' ? SLOT_LABEL[suggestion.time_slot]?.bg : SLOT_LABEL[suggestion.time_slot]?.en}
+                    {suggestion.take_on_empty_stomach && (
+                      <span className="ml-2 text-[11px] font-normal text-amber-700">
+                        · {locale === 'bg' ? 'на гладно' : 'empty stomach'}
+                      </span>
+                    )}
+                    {suggestion.take_with_food && !suggestion.take_on_empty_stomach && (
+                      <span className="ml-2 text-[11px] font-normal text-emerald-700">
+                        · {locale === 'bg' ? 'с храна' : 'with food'}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1 leading-snug">
+                    {locale === 'bg' ? suggestion.reason_bg : suggestion.reason}
+                  </p>
+                  {suggestion.avoid_with && suggestion.avoid_with.length > 0 && (
+                    <p className="text-[11px] text-rose-600 mt-1.5">
+                      ⚠️ {locale === 'bg' ? 'Дистанция от' : 'Space away from'}: {suggestion.avoid_with.join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Select

@@ -118,6 +118,23 @@ cd frontend && npm run build
 cd frontend && npm run lint
 ```
 
+## ⚠️ CRITICAL SAFETY RULES
+
+### Database Migrations — NEVER DELETE db.sqlite3
+**RULE**: Never suggest deleting the database during migrations. The database contains user data.
+
+**Correct approach** when migrations fail:
+1. Try: `python manage.py migrate --fake-initial` to re-sync migration state
+2. Try: `python manage.py migrate --plan` to preview pending migrations
+3. Try: `python manage.py migrate <app> <migration_name>` to apply specific migration
+4. **ONLY** delete db.sqlite3 if:
+   - User explicitly asks to reset the entire database
+   - You're in early development with ZERO user data
+   - User acknowledges data loss
+   - It's documented in the chat as intentional
+
+**Data loss is irreversible** — always check before suggesting destructive operations on the database.
+
 ## App Modules & Navigation (CRITICAL GUARDRAIL)
 
 DomApp is organized into **6 top-level modules**. Every module and sub-page MUST be accessible from the navigation. When adding new pages, you MUST update the NavBar MODULES array.

@@ -7,7 +7,7 @@ Serializers for the unified Health Hub daily tracking.
 """
 
 from rest_framework import serializers
-from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard
+from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard, Symptom, WeatherSnapshot, CaregiverRelationship, MedicationReminder, ReminderLog
 from .models import HealthProfile
 
 
@@ -333,3 +333,152 @@ class EmergencyCardSerializer(serializers.ModelSerializer):
             }
             for m in meds
         ]
+
+
+class SymptomSerializer(_ProfileOwnershipMixin, serializers.ModelSerializer):
+    """Full CRUD serializer for Symptom."""
+    profile = serializers.PrimaryKeyRelatedField(queryset=HealthProfile.objects.all())
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
+
+    class Meta:
+        model = Symptom
+        fields = [
+            'id', 'profile', 'category', 'category_display',
+            'severity', 'occurred_at', 'duration_minutes',
+            'body_location', 'triggers', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class WeatherSnapshotSerializer(_ProfileOwnershipMixin, serializers.ModelSerializer):
+    """Weather data serializer for correlations analysis."""
+    profile = serializers.PrimaryKeyRelatedField(queryset=HealthProfile.objects.all())
+    condition_display = serializers.CharField(source='get_condition_display', read_only=True)
+
+    class Meta:
+        model = WeatherSnapshot
+        fields = [
+            'id', 'profile', 'date', 'location',
+            'temperature_celsius', 'temp_min', 'temp_max',
+            'humidity_percent', 'pressure_hpa', 'wind_speed_kmh',
+            'precipitation_mm', 'air_quality_index',
+            'condition', 'condition_display', 'condition_detail',
+            'data_source', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class CaregiverRelationshipSerializer(serializers.ModelSerializer):
+    """Caregiver relationship serializer for invite management."""
+    from accounts.serializers import UserSerializer
+
+    profile_name = serializers.CharField(source='profile.full_name', read_only=True)
+    caregiver_name = serializers.CharField(source='caregiver_user.get_full_name', read_only=True)
+    caregiver_email = serializers.CharField(source='caregiver_user.email', read_only=True)
+    caregiver_user_id = serializers.IntegerField(source='caregiver_user.id', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = CaregiverRelationship
+        fields = [
+            'id', 'profile', 'profile_name', 'caregiver_user', 'caregiver_user_id',
+            'caregiver_name', 'caregiver_email', 'permissions', 'status', 'status_display',
+            'relationship_note', 'created_at', 'accepted_at', 'revoked_at',
+        ]
+        read_only_fields = [
+            'id', 'caregiver_name', 'caregiver_email', 'caregiver_user_id',
+            'status_display', 'created_at', 'accepted_at', 'revoked_at'
+        ]
+
+    def validate_profile(self, value):
+        """Ensure profile belongs to the requesting user (primary)."""
+        if value.user_id != self.context['request'].user.id:
+            raise serializers.ValidationError('Profile not owned by user.')
+        return value
+
+    def validate_caregiver_user(self, value):
+        """Prevent inviting yourself."""
+        if value.id == self.context['request'].user.id:
+            raise serializers.ValidationError('Cannot invite yourself.')
+        return value
+
+
+class CaregiverInviteListSerializer(serializers.ModelSerializer):
+    """Simplified caregiver relationship list (for caregiver's pending/accepted list)."""
+    primary_name = serializers.CharField(source='user.get_full_name', read_only=True)
+    primary_email = serializers.CharField(source='user.email', read_only=True)
+    profile_name = serializers.CharField(source='profile.full_name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = CaregiverRelationship
+        fields = [
+            'id', 'profile', 'profile_name', 'primary_name', 'primary_email',
+            'permissions', 'status', 'status_display', 'relationship_note',
+            'created_at', 'accepted_at',
+        ]
+        read_only_fields = fields
+
+
+class ReminderLogSerializer(serializers.ModelSerializer):
+    """Adherence log for a medication reminder on a specific date."""
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    medication_name = serializers.CharField(source='reminder.medication_name', read_only=True)
+    reminder_time = serializers.TimeField(source='reminder.reminder_time', read_only=True)
+
+    class Meta:
+        model = ReminderLog
+        fields = [
+            'id', 'reminder', 'medication_name', 'reminder_time', 'date',
+            'status', 'status_display', 'taken_at', 'snoozed_until', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'medication_name', 'reminder_time']
+
+
+class MedicationReminderSerializer(_ProfileOwnershipMixin, serializers.ModelSerializer):
+    """Full CRUD serializer for medication reminders."""
+    profile = serializers.PrimaryKeyRelatedField(queryset=HealthProfile.objects.all())
+    frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    adherence_rate = serializers.SerializerMethodField(read_only=True)
+    supplement_name = serializers.CharField(source='supplement.name', read_only=True, allow_null=True)
+
+    class Meta:
+        model = MedicationReminder
+        fields = [
+            'id', 'profile', 'supplement', 'supplement_name', 'medication_name',
+            'reminder_time', 'frequency', 'frequency_display', 'custom_days',
+            'start_date', 'end_date', 'dosage', 'instructions', 'notes',
+            'status', 'status_display', 'last_taken_at', 'taken_count', 'skipped_count',
+            'adherence_rate', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'frequency_display', 'status_display', 'adherence_rate',
+            'supplement_name', 'last_taken_at', 'taken_count', 'skipped_count',
+            'created_at', 'updated_at'
+        ]
+
+    def get_adherence_rate(self, obj):
+        """Return adherence rate as percentage."""
+        return obj.adherence_rate
+
+
+class MedicationReminderListSerializer(serializers.ModelSerializer):
+    """Simplified list serializer (excludes logs)."""
+    frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    adherence_rate = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = MedicationReminder
+        fields = [
+            'id', 'profile', 'medication_name', 'reminder_time', 'frequency',
+            'frequency_display', 'status', 'status_display', 'dosage',
+            'taken_count', 'skipped_count', 'adherence_rate',
+        ]
+        read_only_fields = fields
+
+    def get_adherence_rate(self, obj):
+        return obj.adherence_rate
