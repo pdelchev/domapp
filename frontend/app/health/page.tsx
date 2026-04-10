@@ -4,7 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../context/LanguageContext';
 import { t, Locale } from '../lib/i18n';
-import { getHealthDashboard, createHealthProfile } from '../lib/api';
+import {
+  getHealthDashboard,
+  getUnifiedHealthSummary,
+  createHealthProfile,
+  logDose,
+  getLowStockSupplements,
+} from '../lib/api';
 import NavBar from '../components/NavBar';
 import { PageShell, PageContent, Card, Button, Badge, Alert, Spinner, Input, Select, EmptyState } from '../components/ui';
 
@@ -16,66 +22,92 @@ interface Profile {
   latest_report_date: string | null; latest_score: number | null;
 }
 
-interface BiomarkerDetail {
-  id: number; name: string; name_bg: string; abbreviation: string; unit: string;
-  body_system: string; category_name: string; category_name_bg: string; category_icon: string;
-  ref_min_male: number | null; ref_max_male: number | null;
-  ref_min_female: number | null; ref_max_female: number | null;
-  optimal_min: number | null; optimal_max: number | null;
-  description: string; description_bg: string;
-  high_meaning: string; high_meaning_bg: string;
-  low_meaning: string; low_meaning_bg: string;
-  improve_tips: string[]; improve_tips_bg: string[];
-}
-
-interface BloodResult {
-  id: number; value: number; unit: string; flag: string;
-  deviation_pct: number | null; biomarker: number;
-  biomarker_detail: BiomarkerDetail;
-}
-
-interface Recommendation {
-  id: number; category: string; priority: string;
-  title: string; title_bg: string;
-  description: string; description_bg: string;
-  related_biomarkers: number[];
-}
-
 interface Report {
   id: number; test_date: string; lab_name: string; lab_type: string;
   overall_score: number | null; system_scores: Record<string, number>;
-  results: BloodResult[]; recommendations: Recommendation[];
-  fasting_warnings: string[]; retest_suggestion: { months: number; urgency: string; note: string; note_bg: string };
-  parse_warnings: string[];
+  results: { id: number; flag: string }[];
+  recommendations: { id: number; category: string; priority: string; title: string; title_bg: string }[];
 }
 
 interface DashboardData {
   profiles: Profile[]; current_profile: Profile; has_data: boolean;
   latest_report?: Report; score_change?: number | null;
   previous_report_id?: number | null; report_count?: number;
-  top_recommendations?: Recommendation[];
+}
+
+interface ScheduleItem {
+  schedule_id: number;
+  supplement_id: number;
+  name: string;
+  name_bg: string;
+  dose_amount: number;
+  dose_unit: string;
+  split_count: number;
+  strength: string;
+  photo_closeup: string | null;
+  take_with_food: boolean;
+  take_on_empty_stomach: boolean;
+  is_optional: boolean;
+  taken: boolean;
+}
+
+interface ScheduleGroup {
+  time_slot: string;
+  items: ScheduleItem[];
+  taken: number;
+  total: number;
+}
+
+interface MetricEntry {
+  value: number;
+  unit: string;
+  date: string;
+  context: Record<string, unknown>;
+}
+
+interface TrendEntry {
+  direction: 'up' | 'down' | 'flat';
+  delta: number;
+  data_points: number;
+}
+
+interface SummaryData {
+  latest: Record<string, MetricEntry>;
+  today: {
+    doses_total: number;
+    doses_taken: number;
+    adherence_pct: number;
+    schedule: ScheduleGroup[];
+  };
+  streak: { current: number; longest: number; total_days: number };
+  trends: Record<string, TrendEntry>;
+}
+
+interface LowStockItem {
+  id: number;
+  name: string;
+  current_stock: number;
+  days_remaining: number;
+  threshold: number;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────
-
-const FLAG_META: Record<string, { bg: string; text: string; dot: string; label: string; badgeColor: string }> = {
-  optimal:        { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', label: 'health.optimal', badgeColor: 'green' },
-  normal:         { bg: 'bg-blue-50',    text: 'text-blue-700',    dot: 'bg-blue-500',    label: 'health.normal',  badgeColor: 'blue' },
-  borderline_low: { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'health.borderline', badgeColor: 'yellow' },
-  borderline_high:{ bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   label: 'health.borderline', badgeColor: 'yellow' },
-  low:            { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'health.abnormal', badgeColor: 'red' },
-  high:           { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     label: 'health.abnormal', badgeColor: 'red' },
-  critical_low:   { bg: 'bg-red-100',    text: 'text-red-900',     dot: 'bg-red-700',     label: 'health.critical', badgeColor: 'red' },
-  critical_high:  { bg: 'bg-red-100',    text: 'text-red-900',     dot: 'bg-red-700',     label: 'health.critical', badgeColor: 'red' },
-};
 
 const SYSTEM_ICONS: Record<string, string> = {
   blood: '🩸', heart: '❤️', metabolic: '⚡', liver: '🫁',
   kidney: '🫘', thyroid: '🦋', nutrition: '💊', immune: '🔥', hormonal: '⚖️',
 };
 
-const REC_ICONS: Record<string, string> = {
-  diet: '🥗', exercise: '🏃', supplement: '💊', medical: '🏥', lifestyle: '🌱',
+const SLOT_LABELS: Record<string, { en: string; bg: string; icon: string }> = {
+  morning:   { en: 'Morning',   bg: 'Сутрин',     icon: '🌅' },
+  fasted:    { en: 'Fasted',    bg: 'На гладно',  icon: '🥛' },
+  breakfast: { en: 'Breakfast', bg: 'Закуска',    icon: '🍳' },
+  midday:    { en: 'Midday',    bg: 'По обяд',    icon: '☀️' },
+  lunch:     { en: 'Lunch',     bg: 'Обяд',       icon: '🍽️' },
+  afternoon: { en: 'Afternoon', bg: 'Следобед',   icon: '🌤️' },
+  dinner:    { en: 'Dinner',    bg: 'Вечеря',     icon: '🍝' },
+  evening:   { en: 'Evening',   bg: 'Вечер',      icon: '🌆' },
+  bedtime:   { en: 'Bedtime',   bg: 'Преди сън',  icon: '🌙' },
 };
 
 function scoreColor(s: number | null) {
@@ -94,7 +126,7 @@ function scoreBgGradient(s: number | null) {
 
 // ── Score Ring ─────────────────────────────────────────────────────
 
-function ScoreRing({ score, size = 100, label }: { score: number | null; size?: number; label?: string }) {
+function ScoreRing({ score, size = 100 }: { score: number | null; size?: number }) {
   if (score === null) return <span className="text-4xl font-bold text-gray-300">—</span>;
   const r = (size - 10) / 2;
   const circumference = 2 * Math.PI * r;
@@ -102,327 +134,47 @@ function ScoreRing({ score, size = 100, label }: { score: number | null; size?: 
   const color = score >= 85 ? '#10b981' : score >= 70 ? '#f59e0b' : '#ef4444';
 
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7"
-            strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
-            style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
-        </svg>
-        <span className="absolute text-3xl font-bold" style={{ color }}>{score}</span>
-      </div>
-      {label && <span className="text-[10px] text-gray-400 mt-1">{label}</span>}
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f3f4f6" strokeWidth="7" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth="7"
+          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
+          style={{ transition: 'stroke-dashoffset 0.8s ease-out' }} />
+      </svg>
+      <span className="absolute text-3xl font-bold" style={{ color }}>{score}</span>
     </div>
   );
 }
 
-// ── Range Bar ──────────────────────────────────────────────────────
+// ── Metric Card ────────────────────────────────────────────────────
 
-function RangeBar({ value, refMin, refMax, optMin, optMax, flag }: {
-  value: number; refMin: number | null; refMax: number | null;
-  optMin: number | null; optMax: number | null; flag: string;
+function MetricCard({
+  icon, label, value, unit, trend, onClick,
+}: {
+  icon: string; label: string; value: string; unit?: string;
+  trend?: TrendEntry; onClick?: () => void;
 }) {
-  const rMin = refMin ?? 0;
-  const rMax = refMax ?? value * 2;
-  const range = rMax - rMin;
-  const padding = range * 0.25;
-  const vizMin = Math.min(rMin - padding, value - range * 0.1);
-  const vizMax = Math.max(rMax + padding, value + range * 0.1);
-  const vizRange = vizMax - vizMin;
-
-  const toPos = (v: number) => Math.max(0, Math.min(100, ((v - vizMin) / vizRange) * 100));
-
-  const refMinPos = toPos(rMin);
-  const refMaxPos = toPos(rMax);
-  const valuePos = toPos(value);
-  const hasOptimal = optMin !== null && optMax !== null;
-  const optMinPos = hasOptimal ? toPos(optMin!) : 0;
-  const optMaxPos = hasOptimal ? toPos(optMax!) : 0;
-
-  const fc = FLAG_META[flag] || FLAG_META.normal;
+  const arrow = trend?.direction === 'up' ? '↑' : trend?.direction === 'down' ? '↓' : trend?.direction === 'flat' ? '→' : '';
+  const trendColor = trend?.direction === 'up' ? 'text-emerald-600' : trend?.direction === 'down' ? 'text-red-600' : 'text-gray-400';
 
   return (
-    <div className="w-full">
-      <div className="relative h-2.5 rounded-full bg-gray-100 overflow-visible">
-        {/* Out-of-range zones */}
-        <div className="absolute top-0 h-full rounded-l-full bg-red-200/40" style={{ left: '0%', width: `${refMinPos}%` }} />
-        <div className="absolute top-0 h-full rounded-r-full bg-red-200/40" style={{ left: `${refMaxPos}%`, width: `${100 - refMaxPos}%` }} />
-        {/* Reference range */}
-        <div className="absolute top-0 h-full rounded-full bg-emerald-200/60" style={{ left: `${refMinPos}%`, width: `${refMaxPos - refMinPos}%` }} />
-        {/* Optimal range */}
-        {hasOptimal && (
-          <div className="absolute top-0 h-full rounded-full bg-emerald-300/60" style={{ left: `${optMinPos}%`, width: `${optMaxPos - optMinPos}%` }} />
-        )}
-        {/* Ref boundary ticks */}
-        <div className="absolute top-0 h-full w-px bg-gray-300/80" style={{ left: `${refMinPos}%` }} />
-        <div className="absolute top-0 h-full w-px bg-gray-300/80" style={{ left: `${refMaxPos}%` }} />
-        {/* Value marker */}
-        <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-10" style={{ left: `${valuePos}%` }}>
-          <div className={`w-3.5 h-3.5 rounded-full border-2 border-white shadow-md ${fc.dot}`} />
-        </div>
+    <button
+      onClick={onClick}
+      className="text-left rounded-xl border border-gray-200 bg-white p-3 hover:border-indigo-300 hover:shadow-sm transition-all"
+    >
+      <div className="flex items-center gap-2 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+        <span className="text-base">{icon}</span> {label}
       </div>
-      {/* Labels */}
-      <div className="relative h-4 mt-0.5 text-[9px] text-gray-400">
-        <span className="absolute -translate-x-1/2" style={{ left: `${refMinPos}%` }}>{rMin}</span>
-        <span className="absolute -translate-x-1/2" style={{ left: `${refMaxPos}%` }}>{rMax}</span>
+      <div className="mt-1.5 flex items-baseline gap-1">
+        <span className="text-2xl font-bold text-gray-900 tabular-nums">{value}</span>
+        {unit && <span className="text-xs text-gray-400">{unit}</span>}
       </div>
-    </div>
-  );
-}
-
-// ── Biomarker Row ──────────────────────────────────────────────────
-
-function BiomarkerRow({ result, sex, locale }: { result: BloodResult; sex: string; locale: Locale }) {
-  const [expanded, setExpanded] = useState(false);
-  const bm = result.biomarker_detail;
-  const fc = FLAG_META[result.flag] || FLAG_META.normal;
-  const isGood = result.flag === 'optimal' || result.flag === 'normal';
-  const refMin = sex === 'female' ? (bm.ref_min_female ?? bm.ref_min_male) : bm.ref_min_male;
-  const refMax = sex === 'female' ? (bm.ref_max_female ?? bm.ref_max_male) : bm.ref_max_male;
-
-  return (
-    <div className={`border-b border-gray-100 last:border-0 transition-colors ${expanded ? 'bg-gray-50/50' : 'hover:bg-gray-50/50'}`}>
-      <button className="w-full text-left px-4 py-3" onClick={() => setExpanded(v => !v)}>
-        <div className="flex items-center gap-3">
-          {/* Status dot */}
-          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${fc.dot}`} />
-
-          {/* Name + range bar */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-sm text-gray-900 truncate">
-                {locale === 'bg' && bm.name_bg ? bm.name_bg : bm.name}
-              </span>
-              <span className="text-[11px] text-gray-400 font-mono shrink-0">{bm.abbreviation}</span>
-            </div>
-            <div className="mt-1 max-w-[220px] sm:max-w-[300px]">
-              <RangeBar
-                value={result.value} refMin={refMin} refMax={refMax}
-                optMin={bm.optimal_min} optMax={bm.optimal_max} flag={result.flag}
-              />
-            </div>
-          </div>
-
-          {/* Value */}
-          <div className="text-right shrink-0 ml-2">
-            <div className={`text-lg font-bold tabular-nums ${isGood ? 'text-gray-900' : fc.text}`}>
-              {result.value}
-            </div>
-            <div className="text-[10px] text-gray-400 -mt-0.5">{result.unit}</div>
-          </div>
-
-          {/* Status badge */}
-          <Badge color={fc.badgeColor as 'green' | 'blue' | 'yellow' | 'red'}>
-            {t(fc.label, locale)}
-          </Badge>
-
-          {/* Chevron */}
-          <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
-      </button>
-
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="px-4 pb-4 space-y-3">
-          {/* Large value + range */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <div className="flex items-baseline justify-between mb-3">
-              <div>
-                <span className={`text-3xl font-bold ${isGood ? 'text-gray-900' : fc.text}`}>{result.value}</span>
-                <span className="text-sm text-gray-400 ml-1">{result.unit}</span>
-              </div>
-              <div className="text-right text-xs text-gray-500">
-                <div>{t('health.ref_range', locale)}: <span className="font-medium text-gray-700">{refMin} — {refMax}</span> {result.unit}</div>
-                {bm.optimal_min !== null && (
-                  <div>{t('health.optimal_range', locale)}: <span className="font-medium text-emerald-600">{bm.optimal_min} — {bm.optimal_max}</span></div>
-                )}
-                {result.deviation_pct !== null && result.deviation_pct !== 0 && (
-                  <div className={`font-medium ${fc.text}`}>{result.deviation_pct > 0 ? '+' : ''}{result.deviation_pct}% {t('health.deviation', locale)}</div>
-                )}
-              </div>
-            </div>
-            <RangeBar value={result.value} refMin={refMin} refMax={refMax} optMin={bm.optimal_min} optMax={bm.optimal_max} flag={result.flag} />
-          </div>
-
-          {/* Info grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{t('health.what_is_this', locale)}</h4>
-              <p className="text-sm text-gray-600 leading-relaxed">{locale === 'bg' && bm.description_bg ? bm.description_bg : bm.description}</p>
-            </div>
-            <div className={`rounded-lg border p-3 ${fc.bg}`} style={{ borderColor: 'rgba(0,0,0,0.08)' }}>
-              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1.5">{t('health.what_means', locale)}</h4>
-              <p className={`text-sm leading-relaxed ${fc.text}`}>
-                {result.flag.includes('high') || result.flag === 'critical_high'
-                  ? (locale === 'bg' && bm.high_meaning_bg ? bm.high_meaning_bg : bm.high_meaning)
-                  : (locale === 'bg' && bm.low_meaning_bg ? bm.low_meaning_bg : bm.low_meaning)
-                }
-              </p>
-            </div>
-          </div>
-
-          {/* Improvement tips */}
-          {!isGood && (
-            <div className="bg-white rounded-lg border border-gray-200 p-3">
-              <h4 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('health.how_to_improve', locale)}</h4>
-              <ul className="space-y-1.5">
-                {(locale === 'bg' && bm.improve_tips_bg?.length ? bm.improve_tips_bg : bm.improve_tips || []).map((tip, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                    <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+      {trend && (
+        <div className={`text-[11px] mt-0.5 font-medium ${trendColor}`}>
+          {arrow} {Math.abs(trend.delta)} <span className="text-gray-400">/30d</span>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Follow-Up Tests (printable for lab technicians) ───────────────
-
-interface TestRec {
-  name: string; name_bg: string; code: string;
-  reason: string; reason_bg: string;
-  priority: 'high' | 'medium' | 'low';
-  category: string;
-  triggerFlags: string[]; // biomarker abbreviations that trigger this
-}
-
-const FOLLOW_UP_CATALOG: TestRec[] = [
-  { name: 'HbA1c (Glycated Hemoglobin)', name_bg: 'HbA1c (Гликиран хемоглобин)', code: 'HBA1C', reason: 'Elevated fasting glucose warrants HbA1c to assess 3-month average blood sugar.', reason_bg: 'Повишената глюкоза на гладно изисква HbA1c за оценка на средната кръвна захар за 3 месеца.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
-  { name: 'Fasting Glucose (repeat)', name_bg: 'Глюкоза на гладно (повторен)', code: 'GLU', reason: 'Confirm whether lifestyle changes lowered glucose.', reason_bg: 'Потвърдете дали промените в начина на живот са намалили глюкозата.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
-  { name: 'Fasting Insulin', name_bg: 'Инсулин на гладно', code: 'INS', reason: 'Check insulin resistance (HOMA-IR) given elevated glucose.', reason_bg: 'Проверка за инсулинова резистентност (HOMA-IR) при повишена глюкоза.', priority: 'high', category: 'metabolic', triggerFlags: ['GLU'] },
-  { name: 'ALT (repeat)', name_bg: 'АЛТ (повторен)', code: 'ALT', reason: 'Verify liver enzyme recovery after lifestyle changes.', reason_bg: 'Проверете възстановяването на чернодробните ензими след промени в начина на живот.', priority: 'high', category: 'liver', triggerFlags: ['ALT'] },
-  { name: 'Full Liver Panel (ALT, AST, GGT, ALP, Bilirubin)', name_bg: 'Пълен чернодробен панел (АЛТ, АСТ, ГГТ, АФ, Билирубин)', code: 'LIVER', reason: 'Multiple elevated liver enzymes need full panel.', reason_bg: 'Множество повишени чернодробни ензими изискват пълен панел.', priority: 'high', category: 'liver', triggerFlags: ['ALT', 'AST', 'GGT'] },
-  { name: 'Uric Acid (repeat)', name_bg: 'Пикочна киселина (повторен)', code: 'URIC', reason: 'Track response to dietary changes.', reason_bg: 'Проследете отговора на диетичните промени.', priority: 'medium', category: 'kidney', triggerFlags: ['URIC'] },
-  { name: 'Lipid Panel (Total, LDL, HDL, Triglycerides)', name_bg: 'Липиден панел (Общ, LDL, HDL, Триглицериди)', code: 'LIPID', reason: 'Metabolic syndrome pattern usually comes with dyslipidemia.', reason_bg: 'Метаболитният синдром обикновено идва с дислипидемия.', priority: 'medium', category: 'metabolic', triggerFlags: ['GLU'] },
-  { name: 'CRP (C-Reactive Protein)', name_bg: 'CRP (С-реактивен протеин)', code: 'CRP', reason: 'Assess systemic inflammation with metabolic risk.', reason_bg: 'Оценка на системно възпаление при метаболитен риск.', priority: 'medium', category: 'metabolic', triggerFlags: ['GLU', 'ALT'] },
-  { name: 'Vitamin D', name_bg: 'Витамин D', code: 'VITD', reason: 'Affects insulin sensitivity, liver health, immunity.', reason_bg: 'Влияе на инсулиновата чувствителност, черния дроб и имунитета.', priority: 'low', category: 'vitamins', triggerFlags: ['GLU', 'ALT'] },
-  { name: 'Iron Panel (Fe, Ferritin, TIBC)', name_bg: 'Железен панел (Fe, Феритин, TIBC)', code: 'IRON', reason: 'Low MCV suggests possible iron deficiency.', reason_bg: 'Нисък MCV предполага възможен дефицит на желязо.', priority: 'low', category: 'blood', triggerFlags: ['MCV'] },
-  { name: 'TSH (Thyroid)', name_bg: 'ТСХ (Щитовидна жлеза)', code: 'TSH', reason: 'Thyroid dysfunction affects metabolism and liver enzymes.', reason_bg: 'Тиреоидната дисфункция засяга метаболизма и чернодробните ензими.', priority: 'low', category: 'hormones', triggerFlags: ['GLU', 'ALT'] },
-];
-
-const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
-const PRIORITY_BADGE: Record<string, 'red' | 'yellow' | 'blue'> = { high: 'red', medium: 'yellow', low: 'blue' };
-const CAT_ICON_TEST: Record<string, string> = { metabolic: '⚡', liver: '🫁', kidney: '🫘', vitamins: '💊', blood: '🩸', hormones: '🧬' };
-
-function FollowUpTests({ results, locale }: { results: BloodResult[]; locale: 'en' | 'bg' }) {
-  const [open, setOpen] = useState(false);
-
-  // Determine which biomarkers are abnormal
-  const abnormalAbbrs = new Set(
-    results
-      .filter(r => !['optimal', 'normal'].includes(r.flag))
-      .map(r => r.biomarker_detail.abbreviation)
-  );
-
-  // Filter catalog to only show relevant tests
-  const relevantTests = FOLLOW_UP_CATALOG
-    .filter(test => test.triggerFlags.some(f => abnormalAbbrs.has(f)))
-    .sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-
-  if (relevantTests.length === 0) return null;
-
-  const handlePrint = () => {
-    const printEl = document.getElementById('follow-up-tests-print');
-    if (!printEl) return;
-    const win = window.open('', '_blank');
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${locale === 'bg' ? 'Контролни изследвания' : 'Follow-up Tests'}</title>
-<style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 700px; margin: 40px auto; padding: 0 20px; color: #111; }
-  h1 { font-size: 20px; border-bottom: 2px solid #111; padding-bottom: 8px; }
-  h2 { font-size: 15px; margin-top: 24px; color: #444; }
-  .test { margin: 12px 0; padding: 8px 12px; border-left: 3px solid #999; }
-  .test.high { border-color: #dc2626; }
-  .test.medium { border-color: #f59e0b; }
-  .test.low { border-color: #3b82f6; }
-  .test-name { font-weight: 700; font-size: 14px; }
-  .test-code { color: #888; font-family: monospace; font-size: 12px; }
-  .test-reason { font-size: 13px; color: #444; margin-top: 4px; }
-  .priority { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 10px; }
-  .priority.high { background: #fee2e2; color: #dc2626; }
-  .priority.medium { background: #fef3c7; color: #d97706; }
-  .priority.low { background: #dbeafe; color: #2563eb; }
-  .date { color: #666; font-size: 12px; }
-  @media print { body { margin: 20px; } }
-</style></head><body>`);
-    win.document.write(`<h1>${locale === 'bg' ? 'Препоръчани контролни изследвания' : 'Recommended Follow-up Tests'}</h1>`);
-    win.document.write(`<p class="date">${locale === 'bg' ? 'Дата' : 'Date'}: ${new Date().toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US')}</p>`);
-
-    const groups = { high: relevantTests.filter(t => t.priority === 'high'), medium: relevantTests.filter(t => t.priority === 'medium'), low: relevantTests.filter(t => t.priority === 'low') };
-    const groupLabels = {
-      high: locale === 'bg' ? 'Висок приоритет' : 'High Priority',
-      medium: locale === 'bg' ? 'Среден приоритет' : 'Medium Priority',
-      low: locale === 'bg' ? 'Нисък приоритет' : 'Low Priority',
-    };
-
-    for (const [priority, tests] of Object.entries(groups)) {
-      if (tests.length === 0) continue;
-      win.document.write(`<h2>${groupLabels[priority as keyof typeof groupLabels]} (${tests.length})</h2>`);
-      for (const test of tests) {
-        win.document.write(`<div class="test ${priority}">
-          <div><span class="test-name">${locale === 'bg' ? test.name_bg : test.name}</span> <span class="test-code">${test.code}</span></div>
-          <div class="test-reason">${locale === 'bg' ? test.reason_bg : test.reason}</div>
-        </div>`);
-      }
-    }
-
-    win.document.write('</body></html>');
-    win.document.close();
-    win.print();
-  };
-
-  return (
-    <div className="mt-8 mb-6" id="follow-up-tests-print">
-      <div className="flex items-center justify-between mb-3">
-        <button onClick={() => setOpen(!open)} className="flex items-center gap-2 text-lg font-semibold text-gray-900 hover:text-indigo-600 transition-colors">
-          <svg className={`w-5 h-5 text-gray-400 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-          🧪 {locale === 'bg' ? 'Контролни изследвания' : 'Follow-up Tests'}
-          <Badge color="indigo">{relevantTests.length}</Badge>
-        </button>
-        {open && (
-          <Button size="sm" variant="secondary" onClick={handlePrint}>
-            🖨️ {locale === 'bg' ? 'Принтирай за лаборатория' : 'Print for Lab'}
-          </Button>
-        )}
-      </div>
-
-      {open && (
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500 mb-3">
-            {locale === 'bg'
-              ? 'Базирано на текущите ви резултати. Принтирайте и покажете на лаборанта.'
-              : 'Based on your current results. Print and show to the lab technician.'}
-          </p>
-          {relevantTests.map((test, i) => (
-            <div key={i} className={`flex items-start gap-3 p-3 rounded-xl border ${
-              test.priority === 'high' ? 'border-red-200 bg-red-50/50' :
-              test.priority === 'medium' ? 'border-amber-200 bg-amber-50/50' :
-              'border-blue-200 bg-blue-50/50'
-            }`}>
-              <span className="text-lg mt-0.5">{CAT_ICON_TEST[test.category] || '🧪'}</span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-gray-900">{locale === 'bg' ? test.name_bg : test.name}</span>
-                  <span className="text-xs font-mono text-gray-400">{test.code}</span>
-                  <Badge color={PRIORITY_BADGE[test.priority]}>{test.priority}</Badge>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">{locale === 'bg' ? test.reason_bg : test.reason}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </button>
   );
 }
 
@@ -434,6 +186,8 @@ export default function HealthPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [data, setData] = useState<DashboardData | null>(null);
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [lowStock, setLowStock] = useState<LowStockItem[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<number | null>(null);
 
   // Profile creation
@@ -441,23 +195,29 @@ export default function HealthPage() {
   const [profileForm, setProfileForm] = useState({ full_name: '', date_of_birth: '', sex: 'male' });
   const [profileError, setProfileError] = useState('');
 
-  // Category filter
-  const [categoryFilter, setCategoryFilter] = useState('');
-
-  const loadDashboard = useCallback((profileId?: number) => {
+  const loadAll = useCallback((profileId?: number) => {
     setLoading(true);
-    getHealthDashboard(profileId)
-      .then((d) => { setData(d); setError(''); })
-      .catch(() => router.push('/login'))
+    Promise.all([
+      getHealthDashboard(profileId).catch(() => null),
+      getUnifiedHealthSummary(profileId).catch(() => null),
+      getLowStockSupplements().catch(() => []),
+    ])
+      .then(([dash, sum, stock]) => {
+        if (!dash) { router.push('/login'); return; }
+        setData(dash);
+        setSummary(sum);
+        setLowStock(stock || []);
+        setError('');
+      })
       .finally(() => setLoading(false));
   }, [router]);
 
-  useEffect(() => { loadDashboard(); }, [loadDashboard]);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   const handleProfileChange = (id: string) => {
     const numId = Number(id);
     setSelectedProfile(numId);
-    loadDashboard(numId);
+    loadAll(numId);
   };
 
   const handleCreateProfile = async () => {
@@ -467,8 +227,43 @@ export default function HealthPage() {
       await createHealthProfile(profileForm);
       setShowCreateProfile(false);
       setProfileForm({ full_name: '', date_of_birth: '', sex: 'male' });
-      loadDashboard();
+      loadAll();
     } catch { setProfileError('Failed to create profile'); }
+  };
+
+  // Optimistic toggle of a single dose
+  const toggleDose = async (scheduleId: number, currentlyTaken: boolean) => {
+    if (!summary) return;
+    const next = !currentlyTaken;
+
+    setSummary(prev => {
+      if (!prev) return prev;
+      const schedule = prev.today.schedule.map(group => {
+        const items = group.items.map(item =>
+          item.schedule_id === scheduleId ? { ...item, taken: next } : item
+        );
+        const taken = items.filter(i => i.taken).length;
+        return { ...group, items, taken };
+      });
+      const totalTaken = schedule.reduce((acc, g) => acc + g.taken, 0);
+      const totalDoses = schedule.reduce((acc, g) => acc + g.total, 0);
+      return {
+        ...prev,
+        today: {
+          ...prev.today,
+          schedule,
+          doses_taken: totalTaken,
+          adherence_pct: totalDoses > 0 ? Math.round((totalTaken / totalDoses) * 100) : 100,
+        },
+      };
+    });
+
+    try {
+      await logDose({ schedule: scheduleId, taken: next });
+    } catch {
+      // Revert on failure
+      loadAll(selectedProfile || undefined);
+    }
   };
 
   if (loading) return (
@@ -477,32 +272,32 @@ export default function HealthPage() {
 
   const profiles = data?.profiles || [];
   const report = data?.latest_report;
-  const hasData = data?.has_data || false;
+  const hasBloodData = data?.has_data || false;
+  const today = summary?.today;
+  const streak = summary?.streak;
+  const latest = summary?.latest || {};
+  const trends = summary?.trends || {};
 
-  // Group results by category
-  const resultsByCategory: Record<string, BloodResult[]> = {};
-  if (report?.results) {
-    for (const r of report.results) {
-      const cat = r.biomarker_detail.category_name;
-      (resultsByCategory[cat] ??= []).push(r);
-    }
-  }
-  const categories = Object.keys(resultsByCategory);
-  const issueCount = report?.results.filter(r => !['optimal', 'normal'].includes(r.flag)).length || 0;
+  const fmtMetric = (key: string, fallback = '—') => {
+    const m = latest[key];
+    if (!m) return fallback;
+    return m.unit === 'kg' || m.unit === 'mmHg' ? Math.round(m.value).toString() : m.value.toString();
+  };
+  const metricUnit = (key: string) => latest[key]?.unit || '';
 
   return (
     <PageShell>
       <NavBar />
       <PageContent size="lg">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{t('health.title', locale)}</h1>
             {data?.current_profile && (
               <p className="text-sm text-gray-500 mt-1">{data.current_profile.full_name}</p>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {profiles.length > 1 && (
               <select
                 value={selectedProfile || data?.current_profile?.id || ''}
@@ -517,18 +312,15 @@ export default function HealthPage() {
             <Button size="sm" variant="secondary" onClick={() => setShowCreateProfile(true)}>
               + {t('health.add_profile', locale)}
             </Button>
-            <Button variant="secondary" onClick={() => router.push('/lifestyle/tests')}>
-              🧪 {locale === 'bg' ? 'Панел изследвания' : 'Test Panel'}
-            </Button>
-            <Button onClick={() => router.push('/health/upload')}>
-              + {t('health.upload_report', locale)}
+            <Button size="sm" variant="secondary" onClick={() => router.push('/health/upload')}>
+              + {locale === 'bg' ? 'Кръвно изследване' : 'Blood Test'}
             </Button>
           </div>
         </div>
 
         <Alert type="error" message={error} />
 
-        {/* Create Profile Modal */}
+        {/* Create Profile */}
         {showCreateProfile && (
           <Card className="mb-6">
             <h3 className="font-semibold text-gray-900 mb-4">{t('health.add_profile', locale)}</h3>
@@ -551,166 +343,360 @@ export default function HealthPage() {
           </Card>
         )}
 
-        {/* Empty states */}
-        {!hasData && profiles.length === 0 && (
+        {/* Empty: no profile at all */}
+        {!data && (
           <EmptyState icon="🩸" message={t('health.no_profiles', locale)} />
         )}
-        {!hasData && profiles.length > 0 && (
-          <EmptyState icon="📋" message={t('health.no_reports', locale)} />
-        )}
 
-        {/* Dashboard content */}
-        {hasData && report && (
-          <>
-            {/* Score header */}
-            <Card>
-              <div className="flex flex-col sm:flex-row items-center gap-6">
-                {/* Overall score ring */}
-                <div className="flex flex-col items-center">
-                  <ScoreRing score={report.overall_score} size={100} />
-                  <div className="text-[11px] text-gray-400 mt-1.5">{report.test_date} · {report.lab_name || report.lab_type}</div>
-                  {data.score_change !== null && data.score_change !== undefined && (
-                    <div className={`text-xs mt-1 font-medium ${data.score_change > 0 ? 'text-emerald-600' : data.score_change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
-                      {data.score_change > 0 ? '↑' : data.score_change < 0 ? '↓' : '→'} {Math.abs(data.score_change)} {t('health.score_change', locale)}
+        {data && (
+          <div className="space-y-5">
+            {/* ─── Daily Check-In Hero ─── */}
+            <Card className="bg-gradient-to-br from-indigo-50 via-white to-rose-50 border-indigo-100">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
+                    <span>📋</span> {locale === 'bg' ? 'Дневна проверка' : 'Daily Check-In'}
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 mt-1">
+                    {locale === 'bg' ? 'Как се чувстваш днес?' : 'How are you feeling today?'}
+                  </h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {locale === 'bg'
+                      ? 'Запиши настроение, тегло, кръвно и днешните хапчета за 60 секунди.'
+                      : 'Log mood, weight, BP, and today\'s pills in under a minute.'}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {streak && streak.current > 0 && (
+                    <div className="text-center">
+                      <div className="text-3xl font-bold text-amber-600">🔥{streak.current}</div>
+                      <div className="text-[10px] uppercase tracking-wider text-gray-500">
+                        {locale === 'bg' ? 'дни поред' : 'day streak'}
+                      </div>
                     </div>
                   )}
+                  <Button onClick={() => router.push('/health/checkin')}>
+                    {locale === 'bg' ? 'Започни →' : 'Start →'}
+                  </Button>
                 </div>
-
-                {/* System scores */}
-                <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 w-full">
-                  {Object.entries(report.system_scores).map(([sys, score]) => (
-                    <div
-                      key={sys}
-                      className={`rounded-xl p-2.5 text-center bg-gradient-to-b ${scoreBgGradient(score)} border border-gray-100`}
-                    >
-                      <div className="text-lg">{SYSTEM_ICONS[sys] || '📊'}</div>
-                      <div className={`text-xl font-bold ${scoreColor(score)}`}>{score}</div>
-                      <div className="text-[10px] text-gray-500 leading-tight">{t(`system.${sys}`, locale)}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Quick stats */}
-              <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
-                <span>{report.results.length} {t('health.results', locale).toLowerCase()}</span>
-                {issueCount > 0 && (
-                  <span className="text-amber-600 font-medium">{issueCount} {locale === 'bg' ? 'извън нормата' : 'out of range'}</span>
-                )}
-                {data.report_count && data.report_count > 1 && (
-                  <span>{data.report_count} {t('health.reports', locale).toLowerCase()}</span>
-                )}
               </div>
             </Card>
 
-            {/* Fasting warnings */}
-            {report.fasting_warnings?.length > 0 && (
-              <div className="mt-3">
-                {report.fasting_warnings.map((w, i) => (
-                  <Alert key={i} type="error" message={`⚠️ ${w}`} />
-                ))}
-              </div>
-            )}
-
-            {/* Retest suggestion */}
-            {report.retest_suggestion && (
-              <div className="mt-3 p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-sm text-indigo-800">
-                📅 {t('health.retest_in', locale)} <strong>{report.retest_suggestion.months} {t('health.months', locale)}</strong>
-                {' — '}{locale === 'bg' ? report.retest_suggestion.note_bg : report.retest_suggestion.note}
-              </div>
-            )}
-
-            {/* Category filter tabs */}
-            <div className="flex gap-1.5 mt-6 mb-4 overflow-x-auto pb-1">
-              <button
-                onClick={() => setCategoryFilter('')}
-                className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  !categoryFilter ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-                }`}
-              >
-                {t('health.all_categories', locale)} ({report.results.length})
-              </button>
-              {categories.map((cat) => {
-                const icon = resultsByCategory[cat][0]?.biomarker_detail.category_icon || '';
-                const catLabel = locale === 'bg' ? (resultsByCategory[cat][0]?.biomarker_detail.category_name_bg || cat) : cat;
-                return (
-                  <button
-                    key={cat}
-                    onClick={() => setCategoryFilter(cat === categoryFilter ? '' : cat)}
-                    className={`shrink-0 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                      categoryFilter === cat ? 'bg-gray-900 text-white' : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
-                    {icon} {catLabel} ({resultsByCategory[cat].length})
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Results by category */}
-            {(categoryFilter ? [categoryFilter] : categories).map((cat) => {
-              const results = resultsByCategory[cat];
-              const icon = results[0]?.biomarker_detail.category_icon || '';
-              const catLabel = locale === 'bg' ? (results[0]?.biomarker_detail.category_name_bg || cat) : cat;
-              return (
-                <div key={cat} className="mb-4">
-                  <h3 className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                    <span>{icon}</span> {catLabel}
-                  </h3>
-                  <Card padding={false}>
-                    {results.map((result) => (
-                      <BiomarkerRow key={result.id} result={result} sex={data.current_profile?.sex || 'male'} locale={locale as Locale} />
-                    ))}
-                  </Card>
+            {/* ─── Today's Schedule ─── */}
+            {today && today.schedule.length > 0 && (
+              <Card>
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      💊 {locale === 'bg' ? 'Днешни добавки' : 'Today\'s Schedule'}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {today.doses_taken} / {today.doses_total} {locale === 'bg' ? 'взети' : 'taken'} · {today.adherence_pct}%
+                    </p>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => router.push('/health/supplements')}>
+                    {locale === 'bg' ? 'Управление' : 'Manage'} →
+                  </Button>
                 </div>
-              );
-            })}
 
-            {/* Recommendations */}
-            {report.recommendations && report.recommendations.length > 0 && (
-              <div className="mb-6 mt-8">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">{t('health.recommendations', locale)}</h2>
-                <div className="space-y-3">
-                  {report.recommendations.map((rec) => {
-                    const priorityColor = rec.priority === 'high' ? 'red' : rec.priority === 'medium' ? 'yellow' : 'blue';
+                {/* Adherence bar */}
+                <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mb-4">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all"
+                    style={{ width: `${today.adherence_pct}%` }}
+                  />
+                </div>
+
+                <div className="space-y-4">
+                  {today.schedule.map(group => {
+                    const slot = SLOT_LABELS[group.time_slot] || { en: group.time_slot, bg: group.time_slot, icon: '⏰' };
                     return (
-                      <Card key={rec.id}>
-                        <div className="flex gap-3">
-                          <span className="text-2xl shrink-0">{REC_ICONS[rec.category] || '💡'}</span>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-sm text-gray-900">
-                                {locale === 'bg' && rec.title_bg ? rec.title_bg : rec.title}
-                              </span>
-                              <Badge color={priorityColor as 'red' | 'yellow' | 'blue'}>{rec.priority}</Badge>
-                            </div>
-                            <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">
-                              {locale === 'bg' && rec.description_bg ? rec.description_bg : rec.description}
-                            </p>
+                      <div key={group.time_slot}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                            <span className="text-base">{slot.icon}</span>
+                            {locale === 'bg' ? slot.bg : slot.en}
                           </div>
+                          <span className="text-[11px] text-gray-400">{group.taken}/{group.total}</span>
                         </div>
-                      </Card>
+                        <div className="space-y-1.5">
+                          {group.items.map(item => (
+                            <button
+                              key={item.schedule_id}
+                              onClick={() => toggleDose(item.schedule_id, item.taken)}
+                              className={`w-full flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
+                                item.taken
+                                  ? 'bg-emerald-50 border-emerald-200'
+                                  : 'bg-gray-50 border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex-shrink-0 overflow-hidden flex items-center justify-center">
+                                {item.photo_closeup ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={item.photo_closeup} alt={item.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  <span className="text-xl">💊</span>
+                                )}
+                              </div>
+                              <div className="flex-1 text-left min-w-0">
+                                <p className={`font-medium text-sm truncate ${item.taken ? 'text-emerald-800' : 'text-gray-900'}`}>
+                                  {locale === 'bg' && item.name_bg ? item.name_bg : item.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  {item.dose_amount}{item.split_count > 1 ? `/${item.split_count}` : ''} {item.dose_unit}
+                                  {item.strength && ` · ${item.strength}`}
+                                  {item.take_with_food && ` · 🍽️`}
+                                  {item.take_on_empty_stomach && ` · 🥛`}
+                                </p>
+                              </div>
+                              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                item.taken ? 'bg-emerald-500 text-white' : 'border-2 border-gray-300'
+                              }`}>
+                                {item.taken && (
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
+              </Card>
+            )}
+
+            {today && today.schedule.length === 0 && (
+              <Card>
+                <div className="text-center py-6">
+                  <div className="text-4xl mb-2">💊</div>
+                  <p className="text-gray-700 font-medium">
+                    {locale === 'bg' ? 'Няма планирани добавки' : 'No supplements scheduled'}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {locale === 'bg' ? 'Добави своите витамини и хапчета.' : 'Add your vitamins and pills to get started.'}
+                  </p>
+                  <Button size="sm" className="mt-3" onClick={() => router.push('/health/supplements')}>
+                    {locale === 'bg' ? 'Добавки →' : 'Supplements →'}
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {/* ─── Quick Metrics ─── */}
+            {Object.keys(latest).length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    {locale === 'bg' ? 'Текущи показатели' : 'Current Metrics'}
+                  </h3>
+                  <button
+                    onClick={() => router.push('/health/timeline')}
+                    className="text-xs text-indigo-600 font-medium hover:text-indigo-700"
+                  >
+                    {locale === 'bg' ? 'Хронология' : 'Timeline'} →
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                  {latest.weight && (
+                    <MetricCard
+                      icon="⚖️"
+                      label={locale === 'bg' ? 'Тегло' : 'Weight'}
+                      value={fmtMetric('weight')}
+                      unit={metricUnit('weight')}
+                      trend={trends.weight}
+                      onClick={() => router.push('/health/weight')}
+                    />
+                  )}
+                  {(latest.bp_systolic || latest.bp_diastolic) && (
+                    <MetricCard
+                      icon="❤️"
+                      label={locale === 'bg' ? 'Кръвно' : 'Blood Pressure'}
+                      value={`${fmtMetric('bp_systolic')}/${fmtMetric('bp_diastolic')}`}
+                      unit="mmHg"
+                      trend={trends.bp_systolic}
+                      onClick={() => router.push('/health/bp')}
+                    />
+                  )}
+                  {latest.mood && (
+                    <MetricCard
+                      icon="😊"
+                      label={locale === 'bg' ? 'Настроение' : 'Mood'}
+                      value={`${fmtMetric('mood')}/10`}
+                      trend={trends.mood}
+                    />
+                  )}
+                  {latest.energy && (
+                    <MetricCard
+                      icon="⚡"
+                      label={locale === 'bg' ? 'Енергия' : 'Energy'}
+                      value={`${fmtMetric('energy')}/10`}
+                      trend={trends.energy}
+                    />
+                  )}
+                  {latest.sleep_hours && (
+                    <MetricCard
+                      icon="😴"
+                      label={locale === 'bg' ? 'Сън' : 'Sleep'}
+                      value={fmtMetric('sleep_hours')}
+                      unit="h"
+                    />
+                  )}
+                  {latest.water_ml && (
+                    <MetricCard
+                      icon="💧"
+                      label={locale === 'bg' ? 'Вода' : 'Water'}
+                      value={String(Math.round(latest.water_ml.value / 250))}
+                      unit={locale === 'bg' ? 'чаши' : 'glasses'}
+                    />
+                  )}
+                  {latest.pain_level && (
+                    <MetricCard
+                      icon="🩹"
+                      label={locale === 'bg' ? 'Болка' : 'Pain'}
+                      value={`${fmtMetric('pain_level')}/10`}
+                    />
+                  )}
+                  {latest.stress_level && (
+                    <MetricCard
+                      icon="😰"
+                      label={locale === 'bg' ? 'Стрес' : 'Stress'}
+                      value={`${fmtMetric('stress_level')}/10`}
+                    />
+                  )}
+                </div>
               </div>
             )}
 
-            {/* ═══ Recommended Follow-Up Tests (printable) ═══ */}
-            <FollowUpTests results={report.results} locale={locale as 'en' | 'bg'} />
+            {/* ─── Low Stock Alert ─── */}
+            {lowStock.length > 0 && (
+              <Card className="border-amber-200 bg-amber-50/50">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">📦</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-amber-900 text-sm">
+                      {locale === 'bg' ? 'Свършват се' : 'Running Low'}
+                    </h3>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {lowStock.length} {locale === 'bg' ? 'добавки скоро ще свършат' : 'supplements need refilling soon'}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {lowStock.slice(0, 5).map(s => (
+                        <Badge key={s.id} color="yellow">
+                          {s.name} · {s.days_remaining}d
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <Button size="sm" variant="secondary" onClick={() => router.push('/health/supplements')}>
+                    {locale === 'bg' ? 'Виж' : 'View'}
+                  </Button>
+                </div>
+              </Card>
+            )}
 
-            {/* Report links */}
-            <div className="flex gap-3 mt-6">
-              <Button variant="secondary" onClick={() => router.push(`/health/report/${report.id}`)}>
-                {t('health.report', locale)} — {report.test_date}
-              </Button>
-              {data.report_count && data.report_count > 1 && data.previous_report_id && (
-                <Button variant="ghost" onClick={() => router.push(`/health/report/${data.previous_report_id}`)}>
-                  {t('health.history', locale)} ({data.report_count} {t('health.reports', locale)})
-                </Button>
-              )}
+            {/* ─── Recent Blood Work ─── */}
+            {hasBloodData && report ? (
+              <div>
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    {locale === 'bg' ? 'Кръвни изследвания' : 'Recent Blood Work'}
+                  </h3>
+                  <button
+                    onClick={() => router.push(`/health/report/${report.id}`)}
+                    className="text-xs text-indigo-600 font-medium hover:text-indigo-700"
+                  >
+                    {locale === 'bg' ? 'Пълен доклад' : 'Full report'} →
+                  </button>
+                </div>
+                <Card>
+                  <div className="flex flex-col sm:flex-row items-center gap-6">
+                    <div className="flex flex-col items-center">
+                      <ScoreRing score={report.overall_score} size={100} />
+                      <div className="text-[11px] text-gray-400 mt-1.5 text-center">
+                        {report.test_date}
+                        <br />
+                        {report.lab_name || report.lab_type}
+                      </div>
+                      {data?.score_change !== null && data?.score_change !== undefined && (
+                        <div className={`text-xs mt-1 font-medium ${data.score_change > 0 ? 'text-emerald-600' : data.score_change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                          {data.score_change > 0 ? '↑' : data.score_change < 0 ? '↓' : '→'} {Math.abs(data.score_change)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 w-full">
+                      {Object.entries(report.system_scores).map(([sys, score]) => (
+                        <div
+                          key={sys}
+                          className={`rounded-xl p-2.5 text-center bg-gradient-to-b ${scoreBgGradient(score)} border border-gray-100`}
+                        >
+                          <div className="text-lg">{SYSTEM_ICONS[sys] || '📊'}</div>
+                          <div className={`text-xl font-bold ${scoreColor(score)}`}>{score}</div>
+                          <div className="text-[10px] text-gray-500 leading-tight">{t(`system.${sys}`, locale as Locale)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                    <span>{report.results.length} {t('health.results', locale).toLowerCase()}</span>
+                    {data?.report_count && data.report_count > 1 && (
+                      <span>{data.report_count} {t('health.reports', locale).toLowerCase()}</span>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            ) : (
+              <Card>
+                <div className="flex items-center gap-4">
+                  <span className="text-3xl">🩸</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 text-sm">
+                      {locale === 'bg' ? 'Качи кръвно изследване' : 'Upload Blood Test'}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {locale === 'bg'
+                        ? 'PDF от Рамус, ЛИНА или ръчно въвеждане.'
+                        : 'PDF from Ramus, LINA or manual entry.'}
+                    </p>
+                  </div>
+                  <Button size="sm" onClick={() => router.push('/health/upload')}>
+                    {locale === 'bg' ? 'Качи' : 'Upload'}
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {/* ─── Quick Links Grid ─── */}
+            <div>
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">
+                {locale === 'bg' ? 'Още' : 'More'}
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                {[
+                  { icon: '💊', label: locale === 'bg' ? 'Добавки' : 'Supplements', href: '/health/supplements' },
+                  { icon: '📈', label: locale === 'bg' ? 'Хронология' : 'Timeline', href: '/health/timeline' },
+                  { icon: '🚨', label: locale === 'bg' ? 'Спешна карта' : 'Emergency Card', href: '/health/emergency' },
+                  { icon: '❤️', label: locale === 'bg' ? 'Кръвно' : 'Blood Pressure', href: '/health/bp' },
+                  { icon: '⚖️', label: locale === 'bg' ? 'Тегло' : 'Weight', href: '/health/weight' },
+                  { icon: '🏃', label: locale === 'bg' ? 'Възстановяване' : 'Recovery', href: '/health/recovery' },
+                  { icon: '🧪', label: locale === 'bg' ? 'Препоръчани тестове' : 'Test Panel', href: '/health/lifestyle/tests' },
+                  { icon: '🥗', label: locale === 'bg' ? 'Храна' : 'Meals', href: '/health/lifestyle/meals' },
+                  { icon: '💪', label: locale === 'bg' ? 'Тренировки' : 'Workouts', href: '/health/lifestyle/gym' },
+                ].map(link => (
+                  <button
+                    key={link.href}
+                    onClick={() => router.push(link.href)}
+                    className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl border border-gray-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
+                  >
+                    <span className="text-2xl">{link.icon}</span>
+                    <span className="text-xs font-medium text-gray-700 text-center">{link.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </>
+          </div>
         )}
       </PageContent>
     </PageShell>

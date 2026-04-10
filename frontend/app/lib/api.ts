@@ -1827,6 +1827,31 @@ export async function getLowStockSupplements() {
   return res.json();
 }
 
+export async function getSupplementCostReport() {
+  const res = await apiFetch('/api/health/supplements/cost-report/');
+  if (!res.ok) throw new Error('Failed to fetch cost report');
+  return res.json();
+}
+
+// §EMERGENCY: Offline-accessible medical card
+export async function getEmergencyCard(profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/emergency-card/${params}`);
+  if (!res.ok) throw new Error('Failed to fetch emergency card');
+  return res.json();
+}
+
+export async function updateEmergencyCard(data: Record<string, unknown>, profileId?: number) {
+  const params = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/emergency-card/${params}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to update emergency card');
+  return res.json();
+}
+
 export async function getSupplementInteractions() {
   const res = await apiFetch('/api/health/supplements/interactions/');
   if (!res.ok) throw new Error('Failed to fetch interactions');

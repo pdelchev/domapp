@@ -13,13 +13,14 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline
+from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard
 from .daily_serializers import (
     DailyLogSerializer, WizardSubmitSerializer,
     SupplementListSerializer, SupplementDetailSerializer, SupplementCreateSerializer,
     SupplementScheduleSerializer,
     DoseLogSerializer, BatchDoseSerializer,
     MetricTimelineSerializer, TimelineQuerySerializer,
+    EmergencyCardSerializer,
 )
 from .daily_services import (
     get_or_create_daily_log, submit_wizard,
@@ -174,6 +175,80 @@ class SupplementViewSet(viewsets.ModelViewSet):
             supplement.photo_closeup = closeup
         supplement.save(update_fields=['photo', 'photo_closeup', 'updated_at'])
         return Response({'status': 'ok'})
+
+    @action(detail=False, methods=['get'], url_path='cost-report')
+    def cost_report(self, request):
+        """
+        §API: GET /api/health/supplements/cost-report/
+        Aggregated supplement cost analytics for the authenticated user.
+
+        Returns monthly + annual totals (across all currencies present),
+        per-supplement breakdown, and per-category rollups for active items
+        that have both cost and pack_size set.
+        """
+        from collections import defaultdict
+
+        items = (
+            Supplement.objects
+            .filter(user=request.user, is_active=True)
+            .prefetch_related('schedules')
+        )
+
+        per_currency_monthly = defaultdict(float)
+        per_category = defaultdict(lambda: {'monthly': 0.0, 'count': 0})
+        per_supplement = []
+        missing_cost = []
+
+        for s in items:
+            monthly = s.monthly_cost
+            if monthly is None:
+                # Track items the user could fill in to improve coverage
+                if s.schedules.filter(is_active=True).exists():
+                    missing_cost.append({'id': s.id, 'name': s.name})
+                continue
+
+            per_currency_monthly[s.currency] += monthly
+            per_category[s.category]['monthly'] += monthly
+            per_category[s.category]['count'] += 1
+            per_supplement.append({
+                'id': s.id,
+                'name': s.name,
+                'category': s.category,
+                'cost_per_unit': round(s.cost_per_unit, 4) if s.cost_per_unit else None,
+                'monthly_cost': monthly,
+                'annual_cost': round(monthly * 12, 2),
+                'currency': s.currency,
+                'last_purchased': s.purchase_date.isoformat() if s.purchase_date else None,
+            })
+
+        per_supplement.sort(key=lambda x: x['monthly_cost'], reverse=True)
+
+        totals = [
+            {
+                'currency': cur,
+                'monthly': round(amt, 2),
+                'annual': round(amt * 12, 2),
+            }
+            for cur, amt in sorted(per_currency_monthly.items())
+        ]
+
+        categories = [
+            {
+                'category': cat,
+                'monthly': round(data['monthly'], 2),
+                'annual': round(data['monthly'] * 12, 2),
+                'count': data['count'],
+            }
+            for cat, data in sorted(per_category.items(), key=lambda x: -x[1]['monthly'])
+        ]
+
+        return Response({
+            'totals': totals,
+            'by_category': categories,
+            'by_supplement': per_supplement,
+            'missing_cost': missing_cost,
+            'tracked_count': len(per_supplement),
+        })
 
     @action(detail=True, methods=['get'], url_path='effectiveness')
     def effectiveness(self, request, pk=None):
@@ -363,3 +438,30 @@ def low_stock_view(request):
 def interactions_view(request):
     """§API: GET /api/health/supplements/interactions/"""
     return Response(check_interactions(request.user))
+
+
+# ──────────────────────────────────────────────────────────────
+# §VIEW: Emergency Card (offline-accessible medical info)
+# ──────────────────────────────────────────────────────────────
+
+class EmergencyCardView(generics.RetrieveUpdateAPIView):
+    """
+    §API: GET/PUT/PATCH /api/health/emergency-card/?profile=<id>
+    Returns or updates the EmergencyCard for the given (or primary) profile.
+    Auto-creates a blank card on first GET.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = EmergencyCardSerializer
+
+    def get_object(self):
+        profile_id = self.request.query_params.get('profile') or self.request.data.get('profile')
+        qs = HealthProfile.objects.filter(user=self.request.user)
+        profile = (
+            qs.filter(id=profile_id).first() if profile_id
+            else qs.filter(is_primary=True).first() or qs.first()
+        )
+        if not profile:
+            from rest_framework.exceptions import NotFound
+            raise NotFound('No health profile exists yet.')
+        card, _ = EmergencyCard.objects.get_or_create(profile=profile)
+        return card

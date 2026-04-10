@@ -58,7 +58,7 @@ def dose_reminders():
         slot_label = schedule.get_time_slot_display()
         notify(
             user=user,
-            notification_type='dose_reminder',
+            notification_type='health',
             title=f'{slot_label}: {schedule.supplement.name}',
             message=f'Time to take {schedule.dose_amount} {schedule.dose_unit} of {schedule.supplement.name}',
         )
@@ -70,7 +70,7 @@ def daily_wizard_reminder():
     §WHEN: Runs daily at 9pm.
     §LOGIC: Nudges users who haven't completed their daily check-in.
     """
-    from .daily_models import DailyLog
+    from .daily_models import DailyLog, SupplementSchedule
     from django.contrib.auth import get_user_model
     from notifications.services import notify
 
@@ -98,7 +98,7 @@ def daily_wizard_reminder():
             user = User.objects.get(id=user_id)
             notify(
                 user=user,
-                notification_type='wizard_reminder',
+                notification_type='health',
                 title='Daily check-in',
                 message="You haven't done your daily health check-in yet.",
             )
@@ -137,7 +137,7 @@ def stock_alerts():
         for item in low:
             notify(
                 user=user,
-                notification_type='stock_low',
+                notification_type='health',
                 title=f'{item["name"]} running low',
                 message=f'Only {item["days_remaining"]} days of {item["name"]} remaining. Time to reorder.',
             )

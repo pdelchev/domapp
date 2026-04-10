@@ -7,7 +7,7 @@ Serializers for the unified Health Hub daily tracking.
 """
 
 from rest_framework import serializers
-from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline
+from .daily_models import DailyLog, Supplement, SupplementSchedule, DoseLog, MetricTimeline, EmergencyCard
 from .models import HealthProfile
 
 
@@ -121,6 +121,7 @@ class SupplementListSerializer(serializers.ModelSerializer):
     """
     days_remaining = serializers.SerializerMethodField()
     active_schedules = serializers.SerializerMethodField()
+    monthly_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = Supplement
@@ -131,6 +132,7 @@ class SupplementListSerializer(serializers.ModelSerializer):
             'is_prescription', 'is_active',
             'current_stock', 'days_remaining', 'active_schedules',
             'started_at', 'linked_biomarkers',
+            'cost', 'currency', 'purchase_date', 'monthly_cost',
         ]
 
     def get_days_remaining(self, obj):
@@ -139,11 +141,16 @@ class SupplementListSerializer(serializers.ModelSerializer):
     def get_active_schedules(self, obj):
         return obj.schedules.filter(is_active=True).count()
 
+    def get_monthly_cost(self, obj):
+        return obj.monthly_cost
+
 
 class SupplementDetailSerializer(serializers.ModelSerializer):
     """§DETAIL: Full supplement with all fields."""
     days_remaining = serializers.SerializerMethodField()
     schedules = serializers.SerializerMethodField()
+    monthly_cost = serializers.SerializerMethodField()
+    cost_per_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = Supplement
@@ -152,6 +159,7 @@ class SupplementDetailSerializer(serializers.ModelSerializer):
             'color', 'shape', 'size', 'photo', 'photo_closeup',
             'manufacturer', 'strength', 'strength_unit', 'barcode',
             'pack_size', 'current_stock', 'low_stock_threshold', 'days_remaining',
+            'cost', 'currency', 'purchase_date', 'cost_per_unit', 'monthly_cost',
             'is_prescription', 'prescribing_doctor', 'prescription_note',
             'linked_biomarkers', 'interactions',
             'is_active', 'started_at', 'discontinued_at', 'discontinue_reason',
@@ -162,6 +170,12 @@ class SupplementDetailSerializer(serializers.ModelSerializer):
 
     def get_days_remaining(self, obj):
         return obj.days_of_stock_remaining
+
+    def get_monthly_cost(self, obj):
+        return obj.monthly_cost
+
+    def get_cost_per_unit(self, obj):
+        return obj.cost_per_unit
 
     def get_schedules(self, obj):
         schedules = obj.schedules.filter(is_active=True).select_related('profile')
@@ -178,6 +192,7 @@ class SupplementCreateSerializer(serializers.ModelSerializer):
             'color', 'shape', 'size',
             'manufacturer', 'strength', 'strength_unit', 'barcode',
             'pack_size', 'current_stock', 'low_stock_threshold',
+            'cost', 'currency', 'purchase_date',
             'is_prescription', 'prescribing_doctor', 'prescription_note',
             'linked_biomarkers', 'interactions',
             'started_at', 'notes',
@@ -262,3 +277,59 @@ class TimelineQuerySerializer(serializers.Serializer):
         required=False,
         help_text='Comma-separated metric types (e.g., "weight,bp_systolic,mood")'
     )
+
+
+# ──────────────────────────────────────────────────────────────
+# §SER: EmergencyCard
+# ──────────────────────────────────────────────────────────────
+
+class EmergencyCardSerializer(serializers.ModelSerializer):
+    """
+    §SER: EmergencyCard read/write.
+    profile_full_name and active_medications are read-only convenience fields
+    so the offline page can render everything from a single payload.
+    """
+    profile_full_name = serializers.CharField(source='profile.full_name', read_only=True)
+    profile_dob = serializers.DateField(source='profile.date_of_birth', read_only=True)
+    profile_sex = serializers.CharField(source='profile.sex', read_only=True)
+    active_medications = serializers.SerializerMethodField()
+
+    class Meta:
+        model = EmergencyCard
+        fields = [
+            'profile', 'profile_full_name', 'profile_dob', 'profile_sex',
+            'blood_type',
+            'allergies', 'chronic_conditions',
+            'current_medications_text', 'active_medications',
+            'recent_surgeries', 'implants',
+            'organ_donor', 'dnr', 'advance_directive_url',
+            'insurance_provider', 'insurance_number',
+            'emergency_contacts',
+            'primary_doctor_name', 'primary_doctor_phone',
+            'notes', 'updated_at',
+        ]
+        read_only_fields = ['profile', 'updated_at']
+
+    def get_active_medications(self, obj):
+        """
+        Pulls active prescription/medication supplements from the catalog so
+        the user doesn't have to maintain two lists.
+        """
+        meds = (
+            Supplement.objects
+            .filter(
+                user=obj.profile.user,
+                is_active=True,
+                category__in=['medication', 'otc', 'injection'],
+            )
+            .order_by('name')
+        )
+        return [
+            {
+                'name': m.name,
+                'strength': m.strength,
+                'form': m.form,
+                'is_prescription': m.is_prescription,
+            }
+            for m in meds
+        ]

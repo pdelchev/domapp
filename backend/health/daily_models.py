@@ -238,6 +238,20 @@ class Supplement(models.Model):
         help_text='Alert when stock drops below this many days of supply'
     )
 
+    # ── cost tracking ──
+    cost = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True,
+        help_text='Price paid for one pack (matching pack_size)'
+    )
+    currency = models.CharField(
+        max_length=3, default='EUR',
+        help_text='ISO 4217 currency code (EUR, BGN, USD, ...)'
+    )
+    purchase_date = models.DateField(
+        null=True, blank=True,
+        help_text='Date of last purchase'
+    )
+
     # ── medical context ──
     is_prescription = models.BooleanField(default=False)
     prescribing_doctor = models.CharField(max_length=200, blank=True, default='')
@@ -288,6 +302,24 @@ class Supplement(models.Model):
         if daily_dose_count == 0:
             return None
         return self.current_stock // daily_dose_count
+
+    @property
+    def cost_per_unit(self):
+        """Cost of a single pill/dose."""
+        if not self.cost or not self.pack_size:
+            return None
+        return float(self.cost) / self.pack_size
+
+    @property
+    def monthly_cost(self):
+        """Estimated 30-day cost based on active schedules."""
+        per_unit = self.cost_per_unit
+        if per_unit is None or not self.is_active:
+            return None
+        daily_doses = self.schedules.filter(is_active=True).count()
+        if daily_doses == 0:
+            return None
+        return round(per_unit * daily_doses * 30, 2)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -532,3 +564,83 @@ class MetricTimeline(models.Model):
 
     def __str__(self):
         return f'{self.metric_type}: {self.value} ({self.date})'
+
+
+# ──────────────────────────────────────────────────────────────
+# §MODEL: EmergencyCard — offline-accessible medical info for first responders
+# One per HealthProfile. Designed to render without network on /health/emergency.
+# ──────────────────────────────────────────────────────────────
+
+class EmergencyCard(models.Model):
+    """
+    Critical medical info for first responders / ER staff.
+    Cached client-side so it works offline on a locked PWA.
+
+    §SCOPE: One per HealthProfile (1:1).
+    §OFFLINE: Frontend writes a copy to localStorage on every load and renders
+              from cache when the API is unreachable.
+    """
+
+    BLOOD_TYPE_CHOICES = [
+        ('A+', 'A+'), ('A-', 'A-'),
+        ('B+', 'B+'), ('B-', 'B-'),
+        ('AB+', 'AB+'), ('AB-', 'AB-'),
+        ('O+', 'O+'), ('O-', 'O-'),
+        ('unknown', 'Unknown'),
+    ]
+
+    profile = models.OneToOneField(
+        'HealthProfile', on_delete=models.CASCADE, related_name='emergency_card'
+    )
+
+    # ── identification ──
+    blood_type = models.CharField(max_length=10, choices=BLOOD_TYPE_CHOICES, default='unknown')
+
+    # ── medical alerts (free text — doctors/paramedics need flexibility) ──
+    allergies = models.TextField(
+        blank=True, default='',
+        help_text='Drugs, foods, environmental — anything that could trigger anaphylaxis.'
+    )
+    chronic_conditions = models.TextField(
+        blank=True, default='',
+        help_text='Diabetes, epilepsy, heart disease, etc.'
+    )
+    current_medications_text = models.TextField(
+        blank=True, default='',
+        help_text='Manual override. If empty, the frontend lists active Supplement items with category=medication.'
+    )
+    recent_surgeries = models.TextField(blank=True, default='')
+    implants = models.TextField(
+        blank=True, default='',
+        help_text='Pacemaker, stents, prosthetics, metal screws (relevant for MRI).'
+    )
+
+    # ── directives ──
+    organ_donor = models.BooleanField(default=False)
+    dnr = models.BooleanField(
+        default=False,
+        help_text='Do Not Resuscitate'
+    )
+    advance_directive_url = models.URLField(blank=True, default='')
+
+    # ── insurance ──
+    insurance_provider = models.CharField(max_length=200, blank=True, default='')
+    insurance_number = models.CharField(max_length=100, blank=True, default='')
+
+    # ── ICE contacts: list of {name, relation, phone, primary?} ──
+    emergency_contacts = models.JSONField(
+        default=list, blank=True,
+        help_text='In Case of Emergency contacts.'
+    )
+
+    # ── doctor contact ──
+    primary_doctor_name = models.CharField(max_length=200, blank=True, default='')
+    primary_doctor_phone = models.CharField(max_length=50, blank=True, default='')
+
+    # ── free notes ──
+    notes = models.TextField(blank=True, default='')
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Emergency Card — {self.profile.full_name}'

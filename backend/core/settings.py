@@ -173,6 +173,21 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'health.whoop.daily_sync',
         'schedule': crontab(minute=0, hour='*/4'),
     },
+    # Health Hub: dose reminders fire at the start of each time-slot window
+    'health-dose-reminders': {
+        'task': 'health.dose_reminders',
+        'schedule': crontab(minute=0, hour='8,13,20,22'),
+    },
+    # Nudge users at 9pm if they haven't completed their daily check-in
+    'health-daily-wizard-reminder': {
+        'task': 'health.daily_wizard_reminder',
+        'schedule': crontab(hour=21, minute=0),
+    },
+    # Daily 10am sweep for low supplement stock
+    'health-stock-alerts': {
+        'task': 'health.stock_alerts',
+        'schedule': crontab(hour=10, minute=0),
+    },
 }
 
 # --- File Storage ---

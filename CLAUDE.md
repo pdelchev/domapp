@@ -259,6 +259,8 @@ All endpoints require JWT auth (`Authorization: Bearer <token>`) except login/re
 | `/api/health/supplements/<id>/effectiveness/` | GET | Before/after biomarker comparison (?profile=) |
 | `/api/health/supplements/low-stock/` | GET | Supplements running low on stock |
 | `/api/health/supplements/interactions/` | GET | Active supplement interaction warnings |
+| `/api/health/supplements/cost-report/` | GET | Monthly + annual cost analytics, per-category and per-supplement |
+| `/api/health/emergency-card/` | GET, PATCH, PUT | Emergency medical card (auto-creates) — `?profile=<id>` optional |
 | `/api/health/schedules/` | GET, POST | Schedule CRUD (when to take what) |
 | `/api/health/schedules/<id>/` | GET, PUT, DELETE | Schedule detail |
 | `/api/health/schedules/today/` | GET | Today's schedule with dose status (?profile=) |

@@ -13,6 +13,7 @@ from .daily_views import (
     TimelineView,
     health_summary_view, streak_view,
     low_stock_view, interactions_view,
+    EmergencyCardView,
 )
 
 router = DefaultRouter()
@@ -41,4 +42,7 @@ urlpatterns = [
     # Stock & interactions
     path('supplements/low-stock/', low_stock_view, name='low-stock'),
     path('supplements/interactions/', interactions_view, name='interactions'),
+
+    # Emergency Card (offline-accessible medical info)
+    path('emergency-card/', EmergencyCardView.as_view(), name='emergency-card'),
 ]
