@@ -177,7 +177,7 @@ export function PageContent({
 }) {
   const widths = { sm: 'max-w-2xl', md: 'max-w-4xl', lg: 'max-w-6xl' };
   return (
-    <main className={`${widths[size]} mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8`}>
+    <main className={`${widths[size]} mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8`}>
       {children}
     </main>
   );

@@ -396,9 +396,7 @@ export default function NavBar() {
                         onClick={() => navigate(item.href)}
                         className="flex flex-col items-center gap-1.5 py-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors"
                       >
-                        <span className={`w-12 h-12 ${item.color} rounded-2xl flex items-center justify-center text-xl shadow-sm`}>
-                          {item.icon}
-                        </span>
+                        <span className="text-3xl">{item.icon}</span>
                         <span className="text-[11px] font-medium text-gray-700 text-center leading-tight">{t(item.key, locale)}</span>
                       </button>
                     ))}

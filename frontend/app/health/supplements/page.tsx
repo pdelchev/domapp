@@ -12,7 +12,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary } from '../../lib/api';
+import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary, getBPMedications, getInterventions, createIntervention, createBPMedication } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -40,6 +40,10 @@ interface Supplement {
   started_at: string | null;
   linked_biomarkers: string[];
   _from_health_summary?: boolean; // Mark medicines from health summary
+  _from_bp?: boolean; // Mark BP medications
+  _from_intervention?: boolean; // Mark interventions (medicines)
+  dose?: string; // For BP meds & interventions
+  frequency?: string; // For BP meds & interventions
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -78,17 +82,84 @@ export default function SupplementsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('active');
   const [showAdd, setShowAdd] = useState(false);
   const [interactions, setInteractions] = useState<any[]>([]);
+  const [addType, setAddType] = useState<'intervention' | 'bp-med' | 'supplement'>('intervention');
+  const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '' });
+  const [addLoading, setAddLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
-      const [supps, warnings, healthSummary] = await Promise.all([
-        getSupplements(filter === 'all' ? undefined : { active: filter === 'active' }),
-        getSupplementInteractions(),
+      const [supps, bpMeds, interventions, warnings, healthSummary] = await Promise.all([
+        getSupplements(filter === 'all' ? undefined : { active: filter === 'active' }).catch(() => []),
+        getBPMedications().catch(() => []), // Get BP medications
+        getInterventions(filter === 'all' ? undefined : { active: filter === 'active' }).catch(() => []), // Get interventions (medicines)
+        getSupplementInteractions().catch(() => []),
         getUnifiedHealthSummary().catch(() => null), // Get active interventions/medicines
       ]);
 
-      // Combine supplements with active medicines/interventions from health summary
-      let combined = [...supps];
+      // Combine supplements + BP medications + interventions
+      let combined: Supplement[] = [...supps];
+
+      // Add Interventions (medicines) — convert to supplement format
+      if (interventions && Array.isArray(interventions)) {
+        const interventionMeds = interventions
+          .filter((iv: any) => filter === 'all' || (filter === 'active' ? iv.is_active : !iv.is_active))
+          .map((iv: any) => ({
+            id: iv.id,
+            name: iv.name,
+            name_bg: iv.name,
+            category: 'medication',
+            form: iv.form || 'tablet',
+            color: '',
+            shape: '',
+            photo: null,
+            photo_closeup: null,
+            strength: iv.dose || '',
+            strength_unit: '',
+            manufacturer: '',
+            is_prescription: true,
+            is_active: iv.is_active,
+            current_stock: 0,
+            days_remaining: null,
+            active_schedules: 0,
+            started_at: iv.started_on,
+            linked_biomarkers: iv.target_metrics || [],
+            _from_intervention: true, // Mark as intervention
+            dose: iv.dose,
+            frequency: iv.frequency,
+          }));
+        combined = [...interventionMeds, ...combined];
+      }
+
+      // Add BP medications (convert to supplement format)
+      if (bpMeds && Array.isArray(bpMeds)) {
+        const bpMedicines = bpMeds
+          .filter((med: any) => filter === 'all' || (filter === 'active' ? med.is_active : !med.is_active))
+          .map((med: any) => ({
+            id: med.id,
+            name: med.name,
+            name_bg: med.name,
+            category: 'medication',
+            form: 'tablet',
+            color: '',
+            shape: '',
+            photo: null,
+            photo_closeup: null,
+            strength: med.dose || '',
+            strength_unit: '',
+            manufacturer: '',
+            is_prescription: true,
+            is_active: med.is_active,
+            current_stock: 0,
+            days_remaining: null,
+            active_schedules: 0,
+            started_at: med.started_at,
+            linked_biomarkers: [],
+            _from_bp: true, // Mark as BP medication
+            dose: med.dose,
+            frequency: med.frequency,
+          }));
+        combined = [...bpMedicines, ...combined];
+      }
 
       if (healthSummary?.active_interventions) {
         // Add medicines from health summary (convert to supplement format)
@@ -127,6 +198,51 @@ export default function SupplementsPage() {
   }, [filter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  const handleAddMedicine = async () => {
+    if (!addForm.name.trim()) {
+      setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
+      return;
+    }
+
+    setAddLoading(true);
+    try {
+      if (addType === 'intervention') {
+        await createIntervention({
+          name: addForm.name,
+          dose: addForm.dose,
+          frequency: addForm.frequency,
+          category: addForm.category || 'medication',
+          hypothesis: addForm.notes,
+          is_active: true,
+        });
+      } else if (addType === 'bp-med') {
+        await createBPMedication({
+          name: addForm.name,
+          dose: addForm.dose,
+          frequency: addForm.frequency,
+          is_active: true,
+          notes: addForm.notes,
+        });
+      } else {
+        await createSupplement({
+          name: addForm.name,
+          strength: addForm.dose,
+          category: addForm.category || 'supplement',
+          is_active: true,
+        });
+      }
+
+      // Reset form and refresh data
+      setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '' });
+      setShowAdd(false);
+      await fetchData();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setAddLoading(false);
+    }
+  };
 
   return (
     <PageShell>
@@ -204,13 +320,28 @@ export default function SupplementsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-gray-900 truncate">{s.name}</h3>
-                      <Badge color={(CATEGORY_COLORS[s.category] || 'gray') as any}>
-                        {s.category}
-                      </Badge>
+                      <div className="flex gap-1 flex-shrink-0">
+                        {s._from_intervention && (
+                          <Badge color="red">
+                            {locale === 'bg' ? 'Терапия' : 'Treatment'}
+                          </Badge>
+                        )}
+                        {s._from_bp && (
+                          <Badge color="blue">
+                            {locale === 'bg' ? 'КН' : 'BP'}
+                          </Badge>
+                        )}
+                        <Badge color={(CATEGORY_COLORS[s.category] || 'gray') as any}>
+                          {s.category}
+                        </Badge>
+                      </div>
                     </div>
 
                     {s.strength && (
-                      <p className="text-sm text-gray-500 mt-0.5">{s.strength}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">
+                        {s.strength}
+                        {(s._from_bp || s._from_intervention) && s.frequency && ` • ${s.frequency}`}
+                      </p>
                     )}
 
                     {/* §VISUAL: Pill description for elderly */}
@@ -262,11 +393,18 @@ export default function SupplementsPage() {
           </div>
         )}
 
-        {/* §MODAL: Add supplement form (simplified — full version would be a separate page) */}
+        {/* §MODAL: Unified add form for interventions, BP meds, or supplements */}
         {showAdd && (
-          <AddSupplementModal
+          <AddMedicineModal
+            locale={locale}
+            type={addType}
+            onTypeChange={setAddType}
+            form={addForm}
+            onFormChange={setAddForm}
             onClose={() => setShowAdd(false)}
-            onSaved={() => { setShowAdd(false); fetchData(); }}
+            onSave={handleAddMedicine}
+            loading={addLoading}
+            error={error}
           />
         )}
       </PageContent>
@@ -275,227 +413,115 @@ export default function SupplementsPage() {
 }
 
 /**
- * §MODAL: Add supplement form.
+ * §MODAL: Unified add form for medicines, BP meds, or supplements.
  * Defined outside the page component to avoid focus-loss on re-render.
  */
-function AddSupplementModal({
+function AddMedicineModal({
+  locale,
+  type,
+  onTypeChange,
+  form,
+  onFormChange,
   onClose,
-  onSaved,
+  onSave,
+  loading,
+  error,
 }: {
+  locale: string;
+  type: 'intervention' | 'bp-med' | 'supplement';
+  onTypeChange: (t: 'intervention' | 'bp-med' | 'supplement') => void;
+  form: { name: string; dose: string; frequency: string; category: string; notes: string };
+  onFormChange: (f: typeof form) => void;
   onClose: () => void;
-  onSaved: () => void;
+  onSave: () => Promise<void>;
+  loading: boolean;
+  error: string;
 }) {
-  const { locale } = useLanguage();
-  const [form, setForm] = useState({
-    name: '', category: 'supplement', form: 'tablet',
-    strength: '', color: '', shape: '',
-    pack_size: '', current_stock: '', notes: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  // §CIRCADIAN: live timing suggestion as the user types
-  const [suggestion, setSuggestion] = useState<{
-    time_slot: string;
-    reason: string;
-    reason_bg: string;
-    confidence: 'high' | 'medium' | 'low';
-    take_with_food: boolean;
-    take_on_empty_stomach: boolean;
-    alternatives: string[];
-    avoid_with: string[];
-  } | null>(null);
-
-  useEffect(() => {
-    if (!form.name || form.name.trim().length < 3) { setSuggestion(null); return; }
-    const handle = setTimeout(() => {
-      suggestSupplementTiming({ name: form.name, category: form.category, form: form.form })
-        .then(setSuggestion)
-        .catch(() => setSuggestion(null));
-    }, 400);
-    return () => clearTimeout(handle);
-  }, [form.name, form.category, form.form]);
-
-  const SLOT_LABEL: Record<string, { en: string; bg: string; icon: string }> = {
-    morning:   { en: 'Morning',     bg: 'Сутрин',     icon: '🌅' },
-    fasted:    { en: 'Fasted',      bg: 'На гладно',  icon: '🥛' },
-    breakfast: { en: 'Breakfast',   bg: 'Закуска',    icon: '🍳' },
-    midday:    { en: 'Midday',      bg: 'По обяд',    icon: '☀️' },
-    lunch:     { en: 'Lunch',       bg: 'Обяд',       icon: '🍽️' },
-    afternoon: { en: 'Afternoon',   bg: 'Следобед',   icon: '🌤️' },
-    dinner:    { en: 'Dinner',      bg: 'Вечеря',     icon: '🍝' },
-    evening:   { en: 'Evening',     bg: 'Вечер',      icon: '🌆' },
-    bedtime:   { en: 'Bedtime',     bg: 'Преди сън',  icon: '🌙' },
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setError('');
-    try {
-      await createSupplement({
-        ...form,
-        pack_size: form.pack_size ? parseInt(form.pack_size) : null,
-        current_stock: form.current_stock ? parseInt(form.current_stock) : 0,
-      });
-      onSaved();
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
+  // Old code - to be replaced with simple unified form
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
-      <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6">
+      <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Add Supplement</h2>
+          <h2 className="text-xl font-bold">{locale === 'bg' ? 'Добави' : 'Add'}</h2>
           <button onClick={onClose} className="text-gray-400 text-2xl">&times;</button>
         </div>
 
         <Alert type="error" message={error} />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="space-y-4">
+          {/* Type selector */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <button
+              onClick={() => onTypeChange('intervention')}
+              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                type === 'intervention' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {locale === 'bg' ? 'Терапия' : 'Treatment'}
+            </button>
+            <button
+              onClick={() => onTypeChange('bp-med')}
+              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                type === 'bp-med' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {locale === 'bg' ? 'КН' : 'BP'}
+            </button>
+            <button
+              onClick={() => onTypeChange('supplement')}
+              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                type === 'supplement' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {locale === 'bg' ? 'Добавка' : 'Supplement'}
+            </button>
+          </div>
+
+          {/* Common fields */}
           <Input
-            label="Name"
+            label={locale === 'bg' ? 'Име' : 'Name'}
             required
             value={form.name}
-            onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
-            placeholder="e.g., Vitamin D3 2000IU"
+            onChange={e => onFormChange({ ...form, name: e.target.value })}
+            placeholder={locale === 'bg' ? 'Febuxostat' : 'e.g., Febuxostat'}
           />
-
-          {/* §CIRCADIAN: timing suggestion hint */}
-          {suggestion && (
-            <div className={`rounded-xl border p-3 ${
-              suggestion.confidence === 'high' ? 'bg-indigo-50 border-indigo-200' :
-              suggestion.confidence === 'medium' ? 'bg-blue-50 border-blue-200' :
-              'bg-gray-50 border-gray-200'
-            }`}>
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">{SLOT_LABEL[suggestion.time_slot]?.icon || '💡'}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-indigo-700">
-                      {locale === 'bg' ? 'Препоръка за време' : 'Suggested Timing'}
-                    </span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-                      suggestion.confidence === 'high' ? 'bg-emerald-100 text-emerald-700' :
-                      suggestion.confidence === 'medium' ? 'bg-amber-100 text-amber-700' :
-                      'bg-gray-200 text-gray-600'
-                    }`}>
-                      {suggestion.confidence}
-                    </span>
-                  </div>
-                  <div className="font-semibold text-sm text-gray-900 mt-0.5">
-                    {locale === 'bg' ? SLOT_LABEL[suggestion.time_slot]?.bg : SLOT_LABEL[suggestion.time_slot]?.en}
-                    {suggestion.take_on_empty_stomach && (
-                      <span className="ml-2 text-[11px] font-normal text-amber-700">
-                        · {locale === 'bg' ? 'на гладно' : 'empty stomach'}
-                      </span>
-                    )}
-                    {suggestion.take_with_food && !suggestion.take_on_empty_stomach && (
-                      <span className="ml-2 text-[11px] font-normal text-emerald-700">
-                        · {locale === 'bg' ? 'с храна' : 'with food'}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600 mt-1 leading-snug">
-                    {locale === 'bg' ? suggestion.reason_bg : suggestion.reason}
-                  </p>
-                  {suggestion.avoid_with && suggestion.avoid_with.length > 0 && (
-                    <p className="text-[11px] text-rose-600 mt-1.5">
-                      ⚠️ {locale === 'bg' ? 'Дистанция от' : 'Space away from'}: {suggestion.avoid_with.join(', ')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Category"
-              value={form.category}
-              onChange={e => setForm(prev => ({ ...prev, category: e.target.value }))}
-            >
-              <option value="supplement">Supplement</option>
-              <option value="vitamin">Vitamin</option>
-              <option value="mineral">Mineral</option>
-              <option value="medication">Prescription</option>
-              <option value="otc">OTC Drug</option>
-              <option value="injection">Injection</option>
-              <option value="herb">Herbal</option>
-              <option value="probiotic">Probiotic</option>
-              <option value="protein">Protein</option>
-            </Select>
-
-            <Select
-              label="Form"
-              value={form.form}
-              onChange={e => setForm(prev => ({ ...prev, form: e.target.value }))}
-            >
-              <option value="tablet">Tablet</option>
-              <option value="capsule">Capsule</option>
-              <option value="softgel">Softgel</option>
-              <option value="liquid">Liquid</option>
-              <option value="powder">Powder</option>
-              <option value="drops">Drops</option>
-              <option value="gummy">Gummy</option>
-            </Select>
-          </div>
 
           <Input
-            label="Strength (e.g., 2000IU, 500mg)"
-            value={form.strength}
-            onChange={e => setForm(prev => ({ ...prev, strength: e.target.value }))}
+            label={locale === 'bg' ? 'Доза' : 'Dose'}
+            value={form.dose}
+            onChange={e => onFormChange({ ...form, dose: e.target.value })}
+            placeholder={locale === 'bg' ? '120mg' : 'e.g., 120mg'}
           />
 
-          {/* §VISUAL: Pill appearance for elderly identification */}
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Pill Color"
-              value={form.color}
-              onChange={e => setForm(prev => ({ ...prev, color: e.target.value }))}
-              placeholder="e.g., white, yellow"
-            />
-            <Input
-              label="Pill Shape"
-              value={form.shape}
-              onChange={e => setForm(prev => ({ ...prev, shape: e.target.value }))}
-              placeholder="e.g., round, oval"
-            />
-          </div>
+          <Input
+            label={locale === 'bg' ? 'Честота' : 'Frequency'}
+            value={form.frequency}
+            onChange={e => onFormChange({ ...form, frequency: e.target.value })}
+            placeholder={locale === 'bg' ? 'Дневно' : 'e.g., Daily'}
+          />
 
-          {/* §STOCK: Pack size + current count */}
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              label="Pack Size"
-              type="number"
-              inputMode="numeric"
-              value={form.pack_size}
-              onChange={e => setForm(prev => ({ ...prev, pack_size: e.target.value }))}
-              placeholder="e.g., 60"
-            />
-            <Input
-              label="Current Stock"
-              type="number"
-              inputMode="numeric"
-              value={form.current_stock}
-              onChange={e => setForm(prev => ({ ...prev, current_stock: e.target.value }))}
-              placeholder="e.g., 45"
-            />
-          </div>
+          <Textarea
+            label={locale === 'bg' ? 'Бележки' : 'Notes'}
+            value={form.notes}
+            onChange={e => onFormChange({ ...form, notes: e.target.value })}
+            placeholder={locale === 'bg' ? 'За какво е' : 'Why prescribed'}
+          />
 
           <div className="flex gap-3 pt-2">
             <Button variant="secondary" onClick={onClose} className="flex-1">
-              Cancel
+              {locale === 'bg' ? 'Отмени' : 'Cancel'}
             </Button>
-            <Button type="submit" variant="primary" disabled={saving} className="flex-1">
-              {saving ? 'Saving...' : 'Add Supplement'}
+            <Button
+              type="button"
+              variant="primary"
+              disabled={loading}
+              onClick={onSave}
+              className="flex-1"
+            >
+              {loading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
             </Button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
