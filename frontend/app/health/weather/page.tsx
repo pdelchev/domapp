@@ -113,9 +113,14 @@ export default function WeatherPage() {
       const data = await getWeatherTimeline(selectedProfile, 90);
       setWeather(data.snapshots || []);
 
-      // Also load correlations
-      const corrData = await getSymptomCorrelations({ profile: selectedProfile, days: 90 });
-      setCorrelations(corrData);
+      // Also load correlations (optional - don't block if this fails)
+      try {
+        const corrData = await getSymptomCorrelations({ profile: selectedProfile, days: 90 });
+        setCorrelations(corrData);
+      } catch (e) {
+        // Silently fail if correlations unavailable
+        console.log('Correlations not available', e);
+      }
     } catch (e) {
       setError('Failed to load weather data');
     } finally {
@@ -166,17 +171,22 @@ export default function WeatherPage() {
         <PageHeader title="Weather Tracker" />
 
         {/* Profile selector */}
-        <Card className="mb-6">
-          <Select
-            label="Health Profile"
-            value={selectedProfile?.toString() || ''}
-            onChange={(e) => setSelectedProfile(parseInt(e.target.value, 10))}
-          >
-            {profiles.map(p => (
-              <option key={p.id} value={p.id}>{p.full_name}</option>
-            ))}
-          </Select>
-        </Card>
+        {profiles.length > 0 ? (
+          <Card className="mb-6">
+            <Select
+              label="Health Profile"
+              value={selectedProfile?.toString() || ''}
+              onChange={(e) => setSelectedProfile(parseInt(e.target.value, 10))}
+            >
+              <option value="">Select a profile</option>
+              {profiles.map(p => (
+                <option key={p.id} value={p.id}>{p.full_name}</option>
+              ))}
+            </Select>
+          </Card>
+        ) : (
+          <Alert type="error" message={locale === 'bg' ? 'Няма здравствени профили. Моля, създайте един от /health.' : 'No health profiles. Please create one in Health Hub.'} />
+        )}
 
         <Alert type="error" message={error} />
 
