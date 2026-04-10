@@ -324,7 +324,7 @@ export default function BpReadingsPage() {
                     {paginated.map(r => {
                       const stage = classifyBp(r.systolic, r.diastolic);
                       return (
-                        <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50 ${r.context.includes('medication') ? 'bg-pink-50' : ''}`}>
                           <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                             {formatDateTime(r.measured_at, locale)}
                             {r.session_id && <span className="ml-1 text-indigo-400" title={locale === 'bg' ? 'Сесия' : 'Session'}>S</span>}

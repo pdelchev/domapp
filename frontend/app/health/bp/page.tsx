@@ -188,10 +188,23 @@ function TrendChart({ readings, locale }: { readings: BpReading[]; locale: Local
         {sorted.map((r, i) => (
           <circle key={`d${i}`} cx={xScale(i)} cy={yScale(r.diastolic)} r="3.5" fill="#6366f1" stroke="white" strokeWidth="1.5" />
         ))}
+        {/* Medication markers */}
+        {sorted.map((r, i) => {
+          if (!r.is_after_medication) return null;
+          const topY = Math.min(yScale(r.systolic), yScale(r.diastolic)) - 18;
+          return (
+            <g key={`med${i}`}>
+              <rect x={xScale(i) - 6} y={topY} width="12" height="12" fill="#ec4899" opacity="0.15" rx="2" />
+              <text x={xScale(i)} y={topY + 9} fontSize="11" fontWeight="bold" textAnchor="middle" fill="#ec4899">💊</text>
+            </g>
+          );
+        })}
         <circle cx={PX + 10} cy={15} r="4" fill="#ef4444" />
         <text x={PX + 18} y={19} fontSize="10" fill="#6b7280">{locale === 'bg' ? 'Систолично' : 'Systolic'}</text>
         <circle cx={PX + 100} cy={15} r="3.5" fill="#6366f1" />
         <text x={PX + 108} y={19} fontSize="10" fill="#6b7280">{locale === 'bg' ? 'Диастолично' : 'Diastolic'}</text>
+        <text x={PX + 200} y={19} fontSize="10" fill="#ec4899">💊</text>
+        <text x={PX + 215} y={19} fontSize="10" fill="#6b7280">{locale === 'bg' ? 'След лекарство' : 'After medication'}</text>
       </svg>
     </div>
   );
@@ -967,7 +980,7 @@ export default function BpDashboardPage() {
                     {recent10.map(r => {
                       const stage = classifyBp(r.systolic, r.diastolic);
                       return (
-                        <tr key={r.id} className="border-b border-gray-50 hover:bg-gray-50">
+                        <tr key={r.id} className={`border-b border-gray-50 hover:bg-gray-50 ${r.is_after_medication ? 'bg-pink-50' : ''}`}>
                           <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(r.measured_at, locale)}</td>
                           <td className="px-4 py-3 text-center">
                             <span className={`text-lg font-bold ${STAGE_META[stage].color}`}>{r.systolic}/{r.diastolic}</span>
