@@ -188,12 +188,12 @@ export default function NavBar() {
                     <a
                       href={mod.href}
                       className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
-                        isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                        isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-100'
                       }`}
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d={mod.svgPath} />
-                      </svg>
+                      <span className={`w-8 h-8 ${mod.color} rounded-lg flex items-center justify-center text-base`}>
+                        {mod.icon}
+                      </span>
                       {t(mod.key, locale)}
                       <svg className="w-3 h-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -222,12 +222,12 @@ export default function NavBar() {
                     key={mod.href}
                     href={mod.href}
                     className={`px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5 ${
-                      isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      isActive(mod.href) ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-100'
                     }`}
                   >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d={mod.svgPath} />
-                    </svg>
+                    <span className={`w-8 h-8 ${mod.color} rounded-lg flex items-center justify-center text-base`}>
+                      {mod.icon}
+                    </span>
                     {t(mod.key, locale)}
                   </a>
                 )

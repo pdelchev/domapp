@@ -1,247 +1,166 @@
 'use client';
 
 /**
- * §PAGE: Medicines & Supplements Cabinet
+ * §PAGE: Complete Supplement System (Unified)
  * §ROUTE: /health/supplements
- * §PURPOSE: Unified view of all medicines (from health hub) + supplements/vitamins
- *   with photos, schedules, stock levels, interaction warnings, and tracking.
- * §UX: Card grid with pill photos — optimized for visual identification.
- * §NAV: Linked from Health Hub dashboard. Also shows active medicines from main hub.
+ * §PURPOSE: Master page combining:
+ *   - Daily Schedule (what/when to take)
+ *   - My Cabinet (all supplements with photos)
+ *   - Cycling Status (Ginseng 6/2, Boron 8/2)
+ *   - Add/Edit forms
+ * §TABS: Schedule | Cabinet | Cycles | Add
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
-import { getSupplements, getSupplementInteractions, createSupplement, suggestSupplementTiming, getUnifiedHealthSummary, getBPMedications, getInterventions, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement } from '../../lib/api';
+import { t } from '../../lib/i18n';
+import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
 } from '../../components/ui';
 import NavBar from '../../components/NavBar';
 
+type TabType = 'schedule' | 'cabinet' | 'cycles' | 'add';
+
 interface Supplement {
   id: number;
   name: string;
-  name_bg: string;
+  dose?: string;
+  frequency?: string;
   category: string;
-  form: string;
-  color: string;
-  shape: string;
-  photo: string | null;
-  photo_closeup: string | null;
-  strength: string;
-  strength_unit: string;
-  manufacturer: string;
-  is_prescription: boolean;
   is_active: boolean;
-  current_stock: number;
-  days_remaining: number | null;
-  active_schedules: number;
-  started_at: string | null;
-  linked_biomarkers: string[];
-  _from_health_summary?: boolean; // Mark medicines from health summary
-  _from_bp?: boolean; // Mark BP medications
-  _from_intervention?: boolean; // Mark interventions (medicines)
-  dose?: string; // For BP meds & interventions
-  frequency?: string; // For BP meds & interventions
+  photo?: string;
+  _from_intervention?: boolean;
+  _from_bp?: boolean;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  supplement: 'indigo',
-  vitamin: 'yellow',
-  mineral: 'gray',
-  medication: 'red',
-  otc: 'blue',
-  injection: 'purple',
-  herb: 'green',
-  probiotic: 'green',
-  protein: 'blue',
-  other: 'gray',
-};
+// Master protocol data
+const SCHEDULE_DATA = [
+  {
+    time: '09:00',
+    icon: '🌅',
+    title: 'MORNING - FASTED',
+    items: [
+      { name: 'Saxenda Injection', dose: 'As prescribed', notes: ['Water allowed', 'No food'] },
+      { name: 'NMN', dose: '500 mg', notes: ['With water', 'Mitochondrial support'] },
+      { name: 'Panax Ginseng', dose: '1 capsule', notes: ['Fasted OK', '🔄 Cycle: 6/2'], cycling: 'ginseng' },
+    ],
+  },
+  {
+    time: '13:00',
+    icon: '🍽️',
+    title: 'FIRST MEAL - WITH FAT',
+    items: [
+      { name: 'Vitamin D3+K2', dose: '1 tablet', notes: ['With fat', 'Gout-safe 5000 IU'] },
+      { name: 'Zinc Bisglycinate', dose: '25 mg', notes: ['Testosterone support'] },
+      { name: 'Boron', dose: '3 mg', notes: ['Free testosterone', '🔄 Cycle: 8/2'], cycling: 'boron' },
+      { name: 'CoQ10', dose: '200 mg', notes: ['Endothelial function'] },
+      { name: 'Omega-3', dose: '2 caps', notes: ['Anti-inflammatory'] },
+    ],
+  },
+  {
+    time: '18:00',
+    icon: '🍽️',
+    title: 'LAST MEAL',
+    items: [
+      { name: 'Magnesium Taurate', dose: '1 capsule', notes: ['BP support'] },
+    ],
+  },
+  {
+    time: '21:30',
+    icon: '🌙',
+    title: 'BEFORE SLEEP',
+    items: [
+      { name: 'Magnesium Taurate', dose: '1 capsule', notes: ['Sleep quality'] },
+    ],
+  },
+  {
+    time: 'PRE-GYM/SEX',
+    icon: '⚡',
+    title: 'OPTIONAL',
+    items: [
+      { name: 'L-Citrulline', dose: '6g powder', notes: ['45-60 min before', 'Do NOT use daily'] },
+    ],
+  },
+];
 
-const CATEGORY_ICONS: Record<string, string> = {
-  supplement: '🧬',
-  vitamin: '☀️',
-  mineral: '⚙️',
-  medication: '💊',
-  otc: '🏪',
-  injection: '💉',
-  herb: '🌿',
-  probiotic: '🦠',
-  protein: '💪',
-  other: '📦',
-};
+function getCycleStatus(cycleType: 'ginseng' | 'boron') {
+  const startDate = new Date('2026-04-10');
+  const today = new Date();
+  const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (cycleType === 'ginseng') {
+    const cycleLength = 56; // 6 + 2 weeks
+    const dayInCycle = daysSinceStart % cycleLength;
+    const isOn = dayInCycle < 42;
+    const week = Math.floor(dayInCycle / 7) + 1;
+    const daysLeft = isOn ? 42 - dayInCycle : 56 - dayInCycle;
+    return { status: isOn ? 'ON' : 'OFF', week, totalWeeks: 8, daysLeft, nextChange: new Date(today.getTime() + daysLeft * 24 * 60 * 60 * 1000).toLocaleDateString() };
+  }
+
+  if (cycleType === 'boron') {
+    const cycleLength = 70; // 8 + 2 weeks
+    const dayInCycle = daysSinceStart % cycleLength;
+    const isOn = dayInCycle < 56;
+    const week = Math.floor(dayInCycle / 7) + 1;
+    const daysLeft = isOn ? 56 - dayInCycle : 70 - dayInCycle;
+    return { status: isOn ? 'ON' : 'OFF', week, totalWeeks: 10, daysLeft, nextChange: new Date(today.getTime() + daysLeft * 24 * 60 * 60 * 1000).toLocaleDateString() };
+  }
+
+  return { status: 'N/A', week: 0, totalWeeks: 0, daysLeft: 0, nextChange: '' };
+}
 
 export default function SupplementsPage() {
   const { locale } = useLanguage();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<TabType>('schedule');
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('active');
-  const [showAdd, setShowAdd] = useState(false);
-  const [interactions, setInteractions] = useState<any[]>([]);
   const [addType, setAddType] = useState<'intervention' | 'bp-med' | 'supplement'>('intervention');
   const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '' });
   const [addPhotos, setAddPhotos] = useState<{ pill?: File; prescription?: File }>({});
   const [addLoading, setAddLoading] = useState(false);
 
-  const fetchData = useCallback(async () => {
+  const fetchSupplements = useCallback(async () => {
     try {
-      const [supps, bpMeds, interventions, warnings, healthSummary] = await Promise.all([
-        getSupplements(filter === 'all' ? undefined : { active: filter === 'active' }).catch(() => []),
-        getBPMedications().catch(() => []), // Get BP medications
-        getInterventions(filter === 'all' ? undefined : { active: filter === 'active' }).catch(() => []), // Get interventions (medicines)
-        getSupplementInteractions().catch(() => []),
-        getUnifiedHealthSummary().catch(() => null), // Get active interventions/medicines
+      setLoading(true);
+      const [supps, bpMeds, interventions] = await Promise.all([
+        getSupplements({ active: true }).catch(() => []),
+        getBPMedications().catch(() => []),
+        getInterventions({ active: true }).catch(() => []),
       ]);
 
-      // Combine supplements + BP medications + interventions
-      let combined: Supplement[] = [...supps];
-
-      // Add Interventions (medicines) — convert to supplement format
-      if (interventions && Array.isArray(interventions)) {
-        const interventionMeds = interventions
-          .filter((iv: any) => filter === 'all' || (filter === 'active' ? iv.is_active : !iv.is_active))
-          .map((iv: any) => ({
-            id: iv.id,
-            name: iv.name,
-            name_bg: iv.name,
-            category: 'medication',
-            form: iv.form || 'tablet',
-            color: '',
-            shape: '',
-            photo: null,
-            photo_closeup: null,
-            strength: iv.dose || '',
-            strength_unit: '',
-            manufacturer: '',
-            is_prescription: true,
-            is_active: iv.is_active,
-            current_stock: 0,
-            days_remaining: null,
-            active_schedules: 0,
-            started_at: iv.started_on,
-            linked_biomarkers: iv.target_metrics || [],
-            _from_intervention: true, // Mark as intervention
-            dose: iv.dose,
-            frequency: iv.frequency,
-          }));
-        combined = [...interventionMeds, ...combined];
-      }
-
-      // Add BP medications (convert to supplement format)
-      if (bpMeds && Array.isArray(bpMeds)) {
-        const bpMedicines = bpMeds
-          .filter((med: any) => filter === 'all' || (filter === 'active' ? med.is_active : !med.is_active))
-          .map((med: any) => ({
-            id: med.id,
-            name: med.name,
-            name_bg: med.name,
-            category: 'medication',
-            form: 'tablet',
-            color: '',
-            shape: '',
-            photo: null,
-            photo_closeup: null,
-            strength: med.dose || '',
-            strength_unit: '',
-            manufacturer: '',
-            is_prescription: true,
-            is_active: med.is_active,
-            current_stock: 0,
-            days_remaining: null,
-            active_schedules: 0,
-            started_at: med.started_at,
-            linked_biomarkers: [],
-            _from_bp: true, // Mark as BP medication
-            dose: med.dose,
-            frequency: med.frequency,
-          }));
-        combined = [...bpMedicines, ...combined];
-      }
-
-      if (healthSummary?.active_interventions) {
-        // Add medicines from health summary (convert to supplement format)
-        const medicines = healthSummary.active_interventions.map((med: any) => ({
-          id: med.id,
-          name: med.name,
-          name_bg: med.name,
-          category: 'medication',
-          form: med.frequency ? `${med.frequency}` : 'tablet',
-          color: '',
-          shape: '',
-          photo: null,
-          photo_closeup: null,
-          strength: med.dose || '',
-          strength_unit: '',
-          manufacturer: '',
-          is_prescription: true,
-          is_active: true,
-          current_stock: 0,
-          days_remaining: null,
-          active_schedules: 0,
-          started_at: med.started_on,
-          linked_biomarkers: [],
-          _from_health_summary: true, // Mark as from health summary
-        }));
-        combined = [...medicines, ...combined];
-      }
+      const combined = [
+        ...supps,
+        ...bpMeds.map((m: any) => ({ ...m, _from_bp: true, category: 'medication' })),
+        ...interventions.map((i: any) => ({ ...i, _from_intervention: true, category: 'medication' })),
+      ];
 
       setSupplements(combined);
-      setInteractions(warnings);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchSupplements();
+  }, [fetchSupplements]);
 
-  const handleEditMedicine = (s: Supplement) => {
-    // For now, just populate the form with the medicine data
-    // Could also open an edit modal
-    setAddForm({
-      name: s.name,
-      dose: s.dose || s.strength || '',
-      frequency: s.frequency || '',
-      category: s.category,
-      notes: '',
-    });
-    setShowAdd(true);
-  };
-
-  const handleDeleteMedicine = async (id: number, type: 'intervention' | 'bp-med' | 'supplement') => {
-    if (!confirm(locale === 'bg' ? 'Сигурни ли сте? Това действие не може да бъде отменено.' : 'Are you sure? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      if (type === 'intervention') {
-        await deleteIntervention(id);
-      } else if (type === 'bp-med') {
-        await deleteBPMedication(id);
-      } else {
-        await deleteSupplement(id);
-      }
-      await fetchData();
-    } catch (e: any) {
-      setError(e.message);
-    }
-  };
-
-  const handleAddMedicine = async () => {
+  const handleAddSupplement = async () => {
     if (!addForm.name.trim()) {
-      setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
+      setError(locale === 'bg' ? 'Име е задължително' : 'Name required');
       return;
     }
 
     setAddLoading(true);
     try {
       if (addType === 'intervention') {
-        // Create FormData for file upload
         const formData = new FormData();
         formData.append('name', addForm.name);
         formData.append('dose', addForm.dose);
@@ -251,7 +170,7 @@ export default function SupplementsPage() {
         formData.append('is_active', 'true');
         if (addPhotos.pill) formData.append('photo', addPhotos.pill);
         if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
-        // HACK: createIntervention doesn't support FormData, so we need to use fetch directly
+
         const response = await fetch('/api/health/interventions/', {
           method: 'POST',
           body: formData,
@@ -265,10 +184,11 @@ export default function SupplementsPage() {
         formData.append('frequency', addForm.frequency);
         formData.append('is_active', 'true');
         formData.append('notes', addForm.notes);
-        formData.append('profile', '1'); // TODO: select profile dynamically
+        formData.append('profile', '1');
         formData.append('started_at', new Date().toISOString().split('T')[0]);
         if (addPhotos.pill) formData.append('photo', addPhotos.pill);
         if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
+
         const response = await fetch('/api/health/bp/medications/', {
           method: 'POST',
           body: formData,
@@ -284,11 +204,10 @@ export default function SupplementsPage() {
         });
       }
 
-      // Reset form and refresh data
       setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '' });
       setAddPhotos({});
-      setShowAdd(false);
-      await fetchData();
+      setError('');
+      await fetchSupplements();
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -296,307 +215,330 @@ export default function SupplementsPage() {
     }
   };
 
+  const handleDeleteSupplement = async (id: number, type: string) => {
+    if (!confirm(locale === 'bg' ? 'Сигурни ли сте?' : 'Are you sure?')) return;
+
+    try {
+      if (type === 'intervention') await deleteIntervention(id);
+      else if (type === 'bp-med') await deleteBPMedication(id);
+      else await deleteSupplement(id);
+      await fetchSupplements();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const ginsengCycle = getCycleStatus('ginseng');
+  const boronCycle = getCycleStatus('boron');
+
   return (
     <PageShell>
       <NavBar />
       <PageContent size="lg">
         <PageHeader
-          title={locale === 'bg' ? 'Лекарства и добавки' : 'Medicines & Supplements'}
+          title={locale === 'bg' ? 'Моя система за добавки' : 'My Supplement System'}
           onBack={() => router.push('/health')}
-          action={
-            <Button variant="primary" onClick={() => setShowAdd(true)}>
-              {locale === 'bg' ? '+ Добави' : '+ Add'}
-            </Button>
-          }
         />
 
         <Alert type="error" message={error} />
 
-        {/* §WARN: Interaction warnings */}
-        {interactions.length > 0 && (
-          <Card className="mb-4 border-yellow-300 bg-yellow-50">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">⚠️</span>
-              <div>
-                <h3 className="font-semibold text-yellow-800">Interaction Warnings</h3>
-                {interactions.map((w, i) => (
-                  <p key={i} className="text-sm text-yellow-700 mt-1">
-                    <strong>{w.supplement_a}</strong> + <strong>{w.supplement_b}</strong>: {w.note}
-                  </p>
-                ))}
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* §FILTER: Active/Inactive toggle */}
-        <div className="flex gap-2 mb-4">
-          {(['active', 'inactive', 'all'] as const).map(f => (
+        {/* TAB NAVIGATION */}
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          {(['schedule', 'cabinet', 'cycles', 'add'] as const).map((tab) => (
             <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filter === f
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                activeTab === tab
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
+              {tab === 'schedule' && '📋 Today'}
+              {tab === 'cabinet' && '💊 Cabinet'}
+              {tab === 'cycles' && '🔄 Cycles'}
+              {tab === 'add' && '➕ Add'}
             </button>
           ))}
         </div>
 
-        {loading ? (
-          <Spinner message={locale === 'bg' ? 'Зарежда лекарства...' : 'Loading medicines...'} />
-        ) : supplements.length === 0 ? (
-          <EmptyState
-            icon="💊"
-            message={locale === 'bg' ? 'Няма лекарства или добавки. Добавете първото си лекарство или витамин.' : 'No medicines or supplements. Add your first pill or vitamin.'}
-          />
-        ) : (
-          <Card padding={false}>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Име' : 'Name'}</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Тип' : 'Type'}</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Доза' : 'Dose'}</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Честота' : 'Frequency'}</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-900">{locale === 'bg' ? 'Действия' : 'Actions'}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {supplements.map((s) => (
-                  <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl">{CATEGORY_ICONS[s.category] || '💊'}</span>
-                        <div>
-                          <div className="font-medium text-gray-900">{s.name}</div>
-                          {s.is_prescription && <span className="text-xs text-red-500 font-medium">Rx</span>}
+        {/* TAB 1: TODAY'S SCHEDULE */}
+        {activeTab === 'schedule' && (
+          <div className="space-y-4">
+            <Card className="bg-indigo-50 border-indigo-200 mb-4">
+              <div className="text-sm">
+                <span className="font-semibold text-gray-900">Saxenda + {supplements.length} active supplements</span>
+                <div className="text-xs text-gray-600 mt-1">Total daily pills: 8-9 | Fasting: ~18 hours</div>
+              </div>
+            </Card>
+
+            {SCHEDULE_DATA.map((slot, i) => (
+              <Card key={i}>
+                <div className="flex items-center gap-3 mb-4">
+                  <span className="text-2xl">{slot.icon}</span>
+                  <div>
+                    <div className="text-sm font-medium text-gray-700">{slot.time}</div>
+                    <div className="font-semibold text-gray-900">{slot.title}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {slot.items.map((item, j) => (
+                    <div key={j} className="p-3 bg-gray-50 rounded border border-gray-200">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-medium text-gray-900">{item.name}</h4>
+                        <Badge color="indigo">{item.dose}</Badge>
+                      </div>
+                      {item.cycling && (
+                        <div className="mb-2 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded w-fit">
+                          {item.cycling === 'ginseng' ? `🔄 Week ${ginsengCycle.week}/6 ${ginsengCycle.status}` : `🔄 Week ${boronCycle.week}/8 ${boronCycle.status}`}
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-1">
-                        {s._from_intervention && (
-                          <Badge color="red">
-                            {locale === 'bg' ? 'Терапия' : 'Treatment'}
-                          </Badge>
-                        )}
-                        {s._from_bp && (
-                          <Badge color="blue">
-                            {locale === 'bg' ? 'КН' : 'BP'}
-                          </Badge>
-                        )}
-                        <Badge color={(CATEGORY_COLORS[s.category] || 'gray') as any}>
-                          {s.category}
-                        </Badge>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{s.strength || '—'}</td>
-                    <td className="py-3 px-4 text-sm text-gray-600">{s.frequency || '—'}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditMedicine(s)}
-                        >
-                          {locale === 'bg' ? 'Редактирай' : 'Edit'}
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => handleDeleteMedicine(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
-                        >
-                          {locale === 'bg' ? 'Изтрий' : 'Delete'}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
+                      )}
+                      <ul className="text-xs text-gray-600 space-y-0.5">
+                        {item.notes.map((note, k) => (
+                          <li key={k}>• {note}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
         )}
 
-        {/* §MODAL: Unified add form for interventions, BP meds, or supplements */}
-        {showAdd && (
-          <AddMedicineModal
-            locale={locale}
-            type={addType}
-            onTypeChange={setAddType}
-            form={addForm}
-            onFormChange={setAddForm}
-            photos={addPhotos}
-            onPhotosChange={setAddPhotos}
-            onClose={() => setShowAdd(false)}
-            onSave={handleAddMedicine}
-            loading={addLoading}
-            error={error}
-          />
+        {/* TAB 2: MY CABINET */}
+        {activeTab === 'cabinet' && (
+          <>
+            {loading ? (
+              <Spinner />
+            ) : supplements.length === 0 ? (
+              <EmptyState icon="💊" message={locale === 'bg' ? 'Няма добавки' : 'No supplements'} />
+            ) : (
+              <div className="space-y-3">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-gray-300">
+                      <th className="text-left py-2 px-2">Name</th>
+                      <th className="text-left py-2 px-2">Dose</th>
+                      <th className="text-left py-2 px-2">Time</th>
+                      <th className="text-left py-2 px-2">Status</th>
+                      <th className="text-center py-2 px-2">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {supplements.map((s) => (
+                      <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
+                        <td className="py-3 px-2">
+                          <div className="font-medium text-gray-900">{s.name}</div>
+                        </td>
+                        <td className="py-3 px-2 text-sm text-gray-600">{s.dose || '—'}</td>
+                        <td className="py-3 px-2 text-sm text-gray-600">{s.frequency || '—'}</td>
+                        <td className="py-3 px-2">
+                          {s._from_intervention && <Badge color="red">Therapy</Badge>}
+                          {s._from_bp && <Badge color="blue">BP Med</Badge>}
+                          {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
+                          >
+                            ✕
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* TAB 3: CYCLING STATUS */}
+        {activeTab === 'cycles' && (
+          <div className="space-y-4">
+            {/* Ginseng */}
+            <Card className={ginsengCycle.status === 'ON' ? 'bg-green-50 border-green-200 border-2' : 'bg-red-50 border-red-200 border-2'}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🌿</span>
+                  <div>
+                    <h3 className="text-lg font-bold">Panax Ginseng</h3>
+                    <p className="text-sm text-gray-600">Libido & energy optimization</p>
+                  </div>
+                </div>
+                <Badge color={ginsengCycle.status === 'ON' ? 'green' : 'red'}>
+                  {ginsengCycle.status}
+                </Badge>
+              </div>
+
+              <div className="mb-3">
+                <div className="flex justify-between text-sm font-medium mb-2">
+                  <span>Week {ginsengCycle.week}/6</span>
+                  <span>{ginsengCycle.daysLeft} days left</span>
+                </div>
+                <div className="w-full bg-gray-300 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${ginsengCycle.status === 'ON' ? 'bg-green-500' : 'bg-red-500'}`}
+                    style={{ width: `${(ginsengCycle.week / 6) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600">ON weeks</div>
+                  <div className="text-xl font-bold">6</div>
+                </div>
+                <div>
+                  <div className="text-gray-600">Next change</div>
+                  <div className="text-lg font-bold">{ginsengCycle.nextChange}</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Boron */}
+            <Card className={boronCycle.status === 'ON' ? 'bg-green-50 border-green-200 border-2' : 'bg-red-50 border-red-200 border-2'}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">🧬</span>
+                  <div>
+                    <h3 className="text-lg font-bold">Boron</h3>
+                    <p className="text-sm text-gray-600">Free testosterone optimization</p>
+                  </div>
+                </div>
+                <Badge color={boronCycle.status === 'ON' ? 'green' : 'red'}>
+                  {boronCycle.status}
+                </Badge>
+              </div>
+
+              <div className="mb-3">
+                <div className="flex justify-between text-sm font-medium mb-2">
+                  <span>Week {boronCycle.week}/8</span>
+                  <span>{boronCycle.daysLeft} days left</span>
+                </div>
+                <div className="w-full bg-gray-300 rounded-full h-2">
+                  <div
+                    className={`h-2 rounded-full ${boronCycle.status === 'ON' ? 'bg-green-500' : 'bg-red-500'}`}
+                    style={{ width: `${(boronCycle.week / 8) * 100}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-600">ON weeks</div>
+                  <div className="text-xl font-bold">8</div>
+                </div>
+                <div>
+                  <div className="text-gray-600">Next change</div>
+                  <div className="text-lg font-bold">{boronCycle.nextChange}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-blue-50 border-blue-200">
+              <h4 className="font-semibold mb-2">Why Cycle?</h4>
+              <ul className="text-sm text-gray-700 space-y-1">
+                <li>✓ Prevents tolerance buildup</li>
+                <li>✓ Maintains effectiveness</li>
+                <li>✓ Allows hormone receptor reset</li>
+                <li>✓ Preserves libido response</li>
+              </ul>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 4: ADD SUPPLEMENT */}
+        {activeTab === 'add' && (
+          <Card>
+            <h3 className="font-semibold text-lg mb-4">{locale === 'bg' ? 'Добави' : 'Add Supplement'}</h3>
+
+            <div className="space-y-4">
+              <Select
+                label={locale === 'bg' ? 'Тип' : 'Type'}
+                value={addType}
+                onChange={(e) => setAddType(e.target.value as any)}
+              >
+                <option value="intervention">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                <option value="bp-med">{locale === 'bg' ? 'КН лекарство' : 'BP Medicine'}</option>
+                <option value="supplement">{locale === 'bg' ? 'Добавка' : 'Supplement'}</option>
+              </Select>
+
+              <Input
+                label={locale === 'bg' ? 'Име' : 'Name'}
+                required
+                value={addForm.name}
+                onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+              />
+
+              <Input
+                label={locale === 'bg' ? 'Доза' : 'Dose'}
+                value={addForm.dose}
+                onChange={(e) => setAddForm({ ...addForm, dose: e.target.value })}
+              />
+
+              <Input
+                label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                value={addForm.frequency}
+                onChange={(e) => setAddForm({ ...addForm, frequency: e.target.value })}
+              />
+
+              <Textarea
+                label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                value={addForm.notes}
+                onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+              />
+
+              {(addType === 'intervention' || addType === 'bp-med') && (
+                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">📦 {locale === 'bg' ? 'Снимка' : 'Pill Photo'}</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setAddPhotos({ ...addPhotos, pill: file });
+                      }}
+                      className="block w-full text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">📄 {locale === 'bg' ? 'Рецепта' : 'Prescription'}</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) setAddPhotos({ ...addPhotos, prescription: file });
+                      }}
+                      className="block w-full text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">
+                  {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={addLoading}
+                  onClick={handleAddSupplement}
+                  className="flex-1"
+                >
+                  {addLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
+                </Button>
+              </div>
+            </div>
+          </Card>
         )}
       </PageContent>
     </PageShell>
-  );
-}
-
-/**
- * §MODAL: Unified add form for medicines, BP meds, or supplements.
- * Defined outside the page component to avoid focus-loss on re-render.
- */
-function AddMedicineModal({
-  locale,
-  type,
-  onTypeChange,
-  form,
-  onFormChange,
-  photos,
-  onPhotosChange,
-  onClose,
-  onSave,
-  loading,
-  error,
-}: {
-  locale: string;
-  type: 'intervention' | 'bp-med' | 'supplement';
-  onTypeChange: (t: 'intervention' | 'bp-med' | 'supplement') => void;
-  form: { name: string; dose: string; frequency: string; category: string; notes: string };
-  onFormChange: (f: typeof form) => void;
-  photos: { pill?: File; prescription?: File };
-  onPhotosChange: (p: { pill?: File; prescription?: File }) => void;
-  onClose: () => void;
-  onSave: () => Promise<void>;
-  loading: boolean;
-  error: string;
-}) {
-  // Old code - to be replaced with simple unified form
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
-      <div className="bg-white rounded-t-2xl md:rounded-2xl w-full max-w-lg p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">{locale === 'bg' ? 'Добави' : 'Add'}</h2>
-          <button onClick={onClose} className="text-gray-400 text-2xl">&times;</button>
-        </div>
-
-        <Alert type="error" message={error} />
-
-        <div className="space-y-4">
-          {/* Type selector */}
-          <Select
-            label={locale === 'bg' ? 'Тип' : 'Type'}
-            value={type}
-            onChange={e => onTypeChange(e.target.value as 'intervention' | 'bp-med' | 'supplement')}
-          >
-            <option value="intervention">
-              {locale === 'bg' ? 'Лечебна терапия' : 'Treatment / Therapy'}
-            </option>
-            <option value="bp-med">
-              {locale === 'bg' ? 'Лекарство за кръвното налягане' : 'Blood Pressure Medicine'}
-            </option>
-            <option value="supplement">
-              {locale === 'bg' ? 'Витамин или добавка' : 'Vitamin or Supplement'}
-            </option>
-          </Select>
-
-          {/* Common fields */}
-          <Input
-            label={locale === 'bg' ? 'Име' : 'Name'}
-            required
-            value={form.name}
-            onChange={e => onFormChange({ ...form, name: e.target.value })}
-            placeholder={locale === 'bg' ? 'Febuxostat' : 'e.g., Febuxostat'}
-          />
-
-          <Input
-            label={locale === 'bg' ? 'Доза' : 'Dose'}
-            value={form.dose}
-            onChange={e => onFormChange({ ...form, dose: e.target.value })}
-            placeholder={locale === 'bg' ? '120mg' : 'e.g., 120mg'}
-          />
-
-          <Input
-            label={locale === 'bg' ? 'Честота' : 'Frequency'}
-            value={form.frequency}
-            onChange={e => onFormChange({ ...form, frequency: e.target.value })}
-            placeholder={locale === 'bg' ? 'Дневно' : 'e.g., Daily'}
-          />
-
-          <Textarea
-            label={locale === 'bg' ? 'Бележки' : 'Notes'}
-            value={form.notes}
-            onChange={e => onFormChange({ ...form, notes: e.target.value })}
-            placeholder={locale === 'bg' ? 'За какво е' : 'Why prescribed'}
-          />
-
-          {/* Photo uploads for interventions and BP meds */}
-          {(type === 'intervention' || type === 'bp-med') && (
-            <>
-              <div className="border-t pt-4 mt-4">
-                <p className="text-sm font-medium text-gray-900 mb-3">
-                  {locale === 'bg' ? 'Снимки (опционално)' : 'Photos (optional)'}
-                </p>
-
-                <div className="space-y-3">
-                  {/* Pill/Package photo */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      {locale === 'bg' ? '📦 Снимка на опаковката' : '📦 Package/Pill Photo'}
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) onPhotosChange({ ...photos, pill: file });
-                      }}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-sm file:font-medium"
-                    />
-                    {photos.pill && (
-                      <p className="text-xs text-gray-500 mt-1">✓ {photos.pill.name}</p>
-                    )}
-                  </div>
-
-                  {/* Prescription/Doctor document photo */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      {locale === 'bg' ? '📄 Снимка на рецепта' : '📄 Prescription/Doctor Note'}
-                    </label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) onPhotosChange({ ...photos, prescription: file });
-                      }}
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-3 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-sm file:font-medium"
-                    />
-                    {photos.prescription && (
-                      <p className="text-xs text-gray-500 mt-1">✓ {photos.prescription.name}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
-          <div className="flex gap-3 pt-2">
-            <Button variant="secondary" onClick={onClose} className="flex-1">
-              {locale === 'bg' ? 'Отмени' : 'Cancel'}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={loading}
-              onClick={onSave}
-              className="flex-1"
-            >
-              {loading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
