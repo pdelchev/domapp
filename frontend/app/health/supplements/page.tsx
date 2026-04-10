@@ -458,32 +458,21 @@ function AddMedicineModal({
 
         <div className="space-y-4">
           {/* Type selector */}
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <button
-              onClick={() => onTypeChange('intervention')}
-              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                type === 'intervention' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {locale === 'bg' ? 'Терапия' : 'Treatment'}
-            </button>
-            <button
-              onClick={() => onTypeChange('bp-med')}
-              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                type === 'bp-med' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {locale === 'bg' ? 'КН' : 'BP'}
-            </button>
-            <button
-              onClick={() => onTypeChange('supplement')}
-              className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
-                type === 'supplement' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {locale === 'bg' ? 'Добавка' : 'Supplement'}
-            </button>
-          </div>
+          <Select
+            label={locale === 'bg' ? 'Тип' : 'Type'}
+            value={type}
+            onChange={e => onTypeChange(e.target.value as 'intervention' | 'bp-med' | 'supplement')}
+          >
+            <option value="intervention">
+              {locale === 'bg' ? 'Лечебна терапия' : 'Treatment / Therapy'}
+            </option>
+            <option value="bp-med">
+              {locale === 'bg' ? 'Лекарство за кръвното налягане' : 'Blood Pressure Medicine'}
+            </option>
+            <option value="supplement">
+              {locale === 'bg' ? 'Витамин или добавка' : 'Vitamin or Supplement'}
+            </option>
+          </Select>
 
           {/* Common fields */}
           <Input
