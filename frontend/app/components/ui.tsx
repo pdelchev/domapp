@@ -252,14 +252,17 @@ export function Badge({
 export function EmptyState({
   icon,
   message,
+  subtext,
 }: {
   icon: string;
   message: string;
+  subtext?: string;
 }) {
   return (
     <Card className="!py-16 text-center">
       <span className="text-4xl block mb-3">{icon}</span>
       <p className="text-sm text-gray-500">{message}</p>
+      {subtext && <p className="text-xs text-gray-400 mt-2">{subtext}</p>}
     </Card>
   );
 }

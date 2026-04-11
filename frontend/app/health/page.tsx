@@ -497,101 +497,117 @@ export default function LifePage() {
           </button>
         )}
 
-        {/* DAILY CHECKLIST */}
-        <>
-          <div className="mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-            {locale === 'bg' ? 'Дневен контролен списък' : 'Daily Checklist'}
-          </div>
-
-          {todaySchedules.length === 0 ? (
-            <Card className="mb-4 text-center py-6">
-              <div className="text-sm text-gray-600">
-                {locale === 'bg'
-                  ? '💊 Няма планирани добавки за днес'
-                  : '💊 No supplements scheduled for today'}
+        {/* ═══ DAILY CHECKLIST (unified with medications & supplements) ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Дневен контролен списък' : 'Daily Checklist'}
+        </div>
+        {todaySchedules.length === 0 ? (
+          <Card>
+            <EmptyState
+              icon="💊"
+              message={locale === 'bg'
+                ? 'Няма планирани добавки за днес'
+                : 'No supplements scheduled for today'}
+              subtext={locale === 'bg'
+                ? 'Отидете на "Моя система за добавки" за управление на вашия протокол'
+                : 'Go to "My Supplement System" to manage your protocol'}
+            />
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {/* Progress Summary */}
+            <Card className="mb-2">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-medium text-gray-600">
+                  {takenCount}/{todaySchedules.length} {locale === 'bg' ? 'завършено' : 'completed'}
+                </div>
+                <div className="flex gap-1">
+                  {takenCount > 0 && <Badge color="green">✓ {takenCount}</Badge>}
+                  {skippedCount > 0 && <Badge color="red">✗ {skippedCount}</Badge>}
+                  {pendingCount > 0 && <Badge color="gray">{pendingCount}</Badge>}
+                </div>
               </div>
-              <div className="text-xs text-gray-400 mt-2">
-                {locale === 'bg'
-                  ? 'Отидете на страницата "Моя система за добавки" за управление на вашия протокол'
-                  : 'Go to "My Supplement System" to manage your protocol'}
+              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                <div
+                  className="bg-green-500 h-1.5 rounded-full transition-all"
+                  style={{ width: `${(takenCount / todaySchedules.length) * 100}%` }}
+                />
               </div>
             </Card>
-          ) : (
-            <div className="space-y-2 mb-4">
-              {/* Progress */}
-              <Card className="mb-3">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-medium text-gray-600">
-                    {takenCount}/{todaySchedules.length} {locale === 'bg' ? 'завършено' : 'completed'}
-                  </div>
-                  <div className="flex gap-1">
-                    {takenCount > 0 && <Badge color="green">✓ {takenCount}</Badge>}
-                    {skippedCount > 0 && <Badge color="red">✗ {skippedCount}</Badge>}
-                    {pendingCount > 0 && <Badge color="gray">{pendingCount}</Badge>}
-                  </div>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-1.5">
-                  <div
-                    className="bg-green-500 h-1.5 rounded-full transition-all"
-                    style={{ width: `${(takenCount / todaySchedules.length) * 100}%` }}
-                  />
-                </div>
-              </Card>
 
-              {/* Items by time */}
-              {Object.entries(groupedByTime).map(([timeSlot, items]) => (
-                <div key={timeSlot} className="space-y-1.5">
-                  <div className="text-xs font-semibold text-gray-600 px-2 py-1">
-                    {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
-                  </div>
+            {/* Items organized by time slot */}
+            {Object.entries(groupedByTime).map(([timeSlot, items]) => (
+              <div key={timeSlot}>
+                <div className="text-xs font-semibold text-gray-600 px-2 py-2 mb-2">
+                  {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
+                </div>
+                <div className="space-y-2">
                   {items.map((schedule) => {
                     const log = doseLogs[schedule.id];
                     const taken = log?.taken;
                     return (
-                      <button
-                        key={schedule.id}
-                        onClick={() => handleToggleDose(schedule.id, taken)}
-                        disabled={savingDose === schedule.id}
-                        className={`w-full text-left px-3 py-2 rounded border transition-all ${
-                          taken === true
-                            ? 'border-green-300 bg-green-50'
-                            : taken === false
-                              ? 'border-red-300 bg-red-50'
-                              : 'border-gray-200 bg-white hover:border-indigo-200'
-                        } ${savingDose === schedule.id ? 'opacity-50' : ''}`}
-                      >
-                        <div className="flex items-center gap-2.5 text-sm">
-                          {/* Checkbox */}
-                          <div className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                            taken === true
-                              ? 'bg-green-500 border border-green-500 text-white'
+                      <Card key={schedule.id} className="!p-0 overflow-hidden">
+                        <div className="flex">
+                          {/* Take button — left strip */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDose(schedule.id, taken)}
+                            disabled={savingDose === schedule.id}
+                            className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                              taken === true
+                                ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                : taken === false
+                                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                                  : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                            } ${savingDose === schedule.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                            title={taken === true
+                              ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
                               : taken === false
-                                ? 'bg-red-100 border border-red-400 text-red-600'
-                                : 'border border-gray-300 bg-white'
-                          }`}>
-                            {taken === true ? '✓' : taken === false ? '✗' : ''}
-                          </div>
+                                ? (locale === 'bg' ? 'Маркирай като взето' : 'Mark as taken')
+                                : (locale === 'bg' ? 'Маркирай като взето' : 'Mark as taken')}
+                          >
+                            <span className="text-xl">
+                              {taken === true ? '✓' : taken === false ? '✗' : '○'}
+                            </span>
+                            <span className="text-[9px] font-medium leading-tight">
+                              {taken === true
+                                ? (locale === 'bg' ? 'Взето' : 'Taken')
+                                : taken === false
+                                  ? (locale === 'bg' ? 'Пропуск' : 'Skip')
+                                  : (locale === 'bg' ? 'Вземи' : 'Take')}
+                            </span>
+                          </button>
 
                           {/* Content */}
-                          <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900">{schedule.supplement_name}</div>
-                            <div className="text-xs text-gray-600">
-                              {schedule.dose_amount} {schedule.dose_unit} · {schedule.time_slot}
+                          <div className="flex-1 min-w-0 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-lg flex-shrink-0">💊</span>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-sm text-gray-900 truncate">{schedule.supplement_name}</div>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {schedule.dose_amount && (
+                                      <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                        {schedule.dose_amount} {schedule.dose_unit}
+                                      </span>
+                                    )}
+                                    {schedule.time_slot && (
+                                      <span className="text-xs text-gray-500">⏰ {schedule.time_slot}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
-
-                          {/* Status */}
-                          {taken === true && <span className="text-xs font-medium text-green-700 flex-shrink-0">Taken</span>}
-                          {taken === false && <span className="text-xs font-medium text-red-700 flex-shrink-0">Skipped</span>}
                         </div>
-                      </button>
+                      </Card>
                     );
                   })}
                 </div>
-              ))}
-            </div>
-          )}
-        </>
+              </div>
+            ))}
+          </div>
+        )}
 
 
         {/* MORNING BRIEFING */}

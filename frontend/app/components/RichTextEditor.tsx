@@ -25,8 +25,14 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start typing.
   };
 
   const applyFormat = (command: string, value?: string) => {
-    document.execCommand(command, false, value);
-    editorRef.current?.focus();
+    // Focus FIRST to ensure editor has focus before executing command
+    if (editorRef.current) {
+      editorRef.current.focus();
+      // Small delay to ensure focus is applied
+      setTimeout(() => {
+        document.execCommand(command, false, value);
+      }, 0);
+    }
   };
 
   const ToolbarButton = ({
@@ -42,13 +48,18 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start typing.
   }) => (
     <button
       type="button"
+      onMouseDown={(e) => {
+        // Use onMouseDown to prevent focus loss
+        e.preventDefault();
+        e.stopPropagation();
+      }}
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onClick();
       }}
       title={title}
-      className="h-9 px-3 hover:bg-indigo-100 active:bg-indigo-200 rounded transition-colors text-gray-700 font-medium text-sm flex items-center gap-1"
+      className="h-9 px-3 hover:bg-indigo-100 active:bg-indigo-200 rounded transition-colors text-gray-700 font-medium text-sm flex items-center gap-1 whitespace-nowrap"
     >
       {children || label}
     </button>
@@ -80,6 +91,7 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start typing.
         {/* Headings & format */}
         <div className="flex gap-1 border-r border-gray-200 pr-2 mr-2">
           <select
+            onMouseDown={(e) => e.preventDefault()}
             onChange={(e) => {
               if (e.target.value) {
                 applyFormat('formatBlock', `<${e.target.value}>`);
@@ -107,6 +119,29 @@ export function RichTextEditor({ content, onChange, placeholder = 'Start typing.
             onClick={() => applyFormat('insertOrderedList')}
             title="Numbered list"
             label="1. List"
+          />
+          <ToolbarButton
+            onClick={() => {
+              // Create a simple checkbox list item
+              if (editorRef.current) {
+                editorRef.current.focus();
+                setTimeout(() => {
+                  const selection = window.getSelection();
+                  if (selection && selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    const checkboxItem = document.createElement('div');
+                    checkboxItem.innerHTML = '<input type="checkbox" style="margin-right: 8px;"> ';
+                    range.insertNode(checkboxItem);
+                    range.setStartAfter(checkboxItem);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                  }
+                }, 0);
+              }
+            }}
+            title="Checklist"
+            label="☑ Check"
           />
         </div>
 
