@@ -30,7 +30,6 @@ const MODULES: ModuleItem[] = [
       { href: '/health/supplements', key: 'nav.supplements' },
       { href: '/health/symptoms', key: 'nav.symptoms' },
       { href: '/health/weather', key: 'nav.weather' },
-      { href: '/health/emergency', key: 'nav.emergency_card' },
       { href: '/health/caregivers', key: 'nav.caregivers' },
       { href: '/health/timeline', key: 'nav.timeline' },
       { href: '/health/bp', key: 'nav.blood_pressure' },

@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import NavBar from '../components/NavBar';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
@@ -15,7 +16,7 @@ import { t } from '../lib/i18n';
 import {
   getLifeSummary, deleteIntervention,
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
-  getStageRegressionForecast, saveInterventionLogs,
+  getStageRegressionForecast, saveInterventionLogs, getEmergencyCard,
 } from '../lib/api';
 // RitualModal removed — replaced by /health/checkin wizard
 
@@ -224,6 +225,7 @@ function SubScoreCard({
 }
 
 export default function LifePage() {
+  const router = useRouter();
   const { locale } = useLanguage();
   const [data, setData] = useState<LifeSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -235,6 +237,7 @@ export default function LifePage() {
   const [ritualOpen, setRitualOpen] = useState(false);
   const [bloodOpen, setBloodOpen] = useState(false);
   const [recsOpen, setRecsOpen] = useState(false);
+  const [emergencyCard, setEmergencyCard] = useState<any | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -249,8 +252,9 @@ export default function LifePage() {
           getCardiometabolicAge(pid).catch(() => null),
           getBPPerKgSlope(pid).catch(() => null),
           getStageRegressionForecast(pid).catch(() => null),
-        ]).then(([d, a, s, f]) => {
-          setVitals(d); setCmAge(a); setSlope(s); setForecast(f);
+          getEmergencyCard().catch(() => null),
+        ]).then(([d, a, s, f, card]) => {
+          setVitals(d); setCmAge(a); setSlope(s); setForecast(f); setEmergencyCard(card);
         });
       }
     } catch (e) {
@@ -355,6 +359,66 @@ export default function LifePage() {
         />
 
         {error && <Alert type="error" message={error} />}
+
+        {/* EMERGENCY CARD PREVIEW */}
+        {emergencyCard && (
+          <button
+            onClick={() => router.push('/health/emergency')}
+            className="w-full text-left mb-4 hover:opacity-90 transition-opacity"
+          >
+            <div className="rounded-2xl bg-gradient-to-br from-red-600 to-red-700 text-white p-4 shadow-lg hover:shadow-xl transition-shadow">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-widest opacity-90">
+                    {locale === 'bg' ? '🚨 Спешна карта' : '🚨 Emergency Card'}
+                  </div>
+                  <h2 className="text-xl font-bold mt-1">{emergencyCard.profile_full_name}</h2>
+                  <div className="text-xs opacity-90 mt-1">
+                    {emergencyCard.profile_dob && (
+                      <>
+                        <span>{Math.floor((Date.now() - new Date(emergencyCard.profile_dob).getTime()) / 31557600000)} {locale === 'bg' ? 'г.' : 'yrs'} · </span>
+                      </>
+                    )}
+                    {emergencyCard.profile_sex === 'female' ? (locale === 'bg' ? 'Жена' : 'Female') : (locale === 'bg' ? 'Мъж' : 'Male')}
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <div className="text-xs font-semibold uppercase tracking-widest opacity-90">
+                    {locale === 'bg' ? 'Кръвна' : 'Blood'}
+                  </div>
+                  <div className="text-4xl font-black mt-1">{emergencyCard.blood_type}</div>
+                </div>
+              </div>
+
+              {/* Key info in a row */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-white/20 text-xs">
+                {emergencyCard.chronic_conditions && (
+                  <div>
+                    <span className="opacity-75">{locale === 'bg' ? 'Условия' : 'Conditions'}</span>
+                    <div className="font-medium">{emergencyCard.chronic_conditions.split('\n')[0]}</div>
+                  </div>
+                )}
+                {emergencyCard.emergency_contacts.length > 0 && (
+                  <div>
+                    <span className="opacity-75">{locale === 'bg' ? 'Контакт' : 'Contact'}</span>
+                    <div className="font-medium">{emergencyCard.emergency_contacts[0].name}</div>
+                  </div>
+                )}
+                {emergencyCard.primary_doctor_name && (
+                  <div>
+                    <span className="opacity-75">{locale === 'bg' ? 'Лекар' : 'Doctor'}</span>
+                    <div className="font-medium">{emergencyCard.primary_doctor_name}</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-right mt-2 text-xs opacity-75">
+                {locale === 'bg' ? 'Кликнете за редактиране →' : 'Click to edit →'}
+              </div>
+            </div>
+          </button>
+        )}
 
         {/* MORNING BRIEFING */}
         {data?.briefing && (
