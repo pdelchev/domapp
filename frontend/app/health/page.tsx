@@ -385,7 +385,7 @@ export default function LifePage() {
     );
   }
 
-  const today = data?.today;
+  const snapshot = data?.today;
   const d7 = data?.deltas?.['7'] ?? data?.deltas?.[7 as unknown as string];
   const d30 = data?.deltas?.['30'] ?? data?.deltas?.[30 as unknown as string];
   const historyComposite = (data?.history ?? []).map((s) => s.composite_score);
@@ -615,18 +615,18 @@ export default function LifePage() {
                 {t('life.health_score', locale)} · {data?.profile.full_name}
               </div>
               <div className="text-[11px] text-gray-400 mb-1">{t('life.health_score_hint', locale)}</div>
-              <div className={`text-7xl font-bold ${scoreColor(today?.composite_score ?? null)}`}>
-                {today?.composite_score ?? '—'}
+              <div className={`text-7xl font-bold ${scoreColor(snapshot?.composite_score ?? null)}`}>
+                {snapshot?.composite_score ?? '—'}
               </div>
               <div className="flex gap-4 mt-2 text-sm text-gray-600">
                 <div>7d <DeltaArrow value={d7?.composite_score ?? null} /></div>
                 <div>30d <DeltaArrow value={d30?.composite_score ?? null} /></div>
                 <div className="text-xs text-gray-400">
-                  {t('life.confidence', locale)}: {Math.round((today?.confidence ?? 0) * 100)}%
+                  {t('life.confidence', locale)}: {Math.round((snapshot?.confidence ?? 0) * 100)}%
                 </div>
               </div>
             </div>
-            <div className={`flex-1 md:max-w-sm ${scoreBg(today?.composite_score ?? null)} rounded-lg p-4`}>
+            <div className={`flex-1 md:max-w-sm ${scoreBg(snapshot?.composite_score ?? null)} rounded-lg p-4`}>
               <div className="text-[13px] font-medium text-gray-700 mb-2">{t('life.trend_30d', locale)}</div>
               <Sparkline values={historyComposite} width={320} height={56} />
             </div>
@@ -638,7 +638,7 @@ export default function LifePage() {
           <SubScoreCard
             label={t('life.sub.blood', locale)}
             hint={t('life.sub.blood_hint', locale)}
-            score={today?.blood_score ?? null}
+            score={snapshot?.blood_score ?? null}
             delta7={d7?.blood_score ?? null}
             delta30={d30?.blood_score ?? null}
             href="/health"
@@ -646,7 +646,7 @@ export default function LifePage() {
           <SubScoreCard
             label={t('life.sub.bp', locale)}
             hint={t('life.sub.bp_hint', locale)}
-            score={today?.bp_score ?? null}
+            score={snapshot?.bp_score ?? null}
             delta7={d7?.bp_score ?? null}
             delta30={d30?.bp_score ?? null}
             href="/health/bp"
@@ -654,7 +654,7 @@ export default function LifePage() {
           <SubScoreCard
             label={t('life.sub.recovery', locale)}
             hint={t('life.sub.recovery_hint', locale)}
-            score={today?.recovery_score ?? null}
+            score={snapshot?.recovery_score ?? null}
             delta7={d7?.recovery_score ?? null}
             delta30={d30?.recovery_score ?? null}
             href="/health/recovery"
@@ -662,7 +662,7 @@ export default function LifePage() {
           <SubScoreCard
             label={t('life.sub.lifestyle', locale)}
             hint={t('life.sub.lifestyle_hint', locale)}
-            score={today?.lifestyle_score ?? null}
+            score={snapshot?.lifestyle_score ?? null}
             delta7={null}
             delta30={null}
           />
