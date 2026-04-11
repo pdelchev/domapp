@@ -61,9 +61,13 @@ export default function NotesPage() {
     const loadNotes = async () => {
       try {
         const response = await getNotes();
-        setNotes(response || []);
         if (response?.length > 0) {
-          setSelectedNote(response[0]);
+          const parsedNotes = response.map((note: any) => ({
+            ...note,
+            blocks: typeof note.content === 'string' ? JSON.parse(note.content) : note.blocks || []
+          }));
+          setNotes(parsedNotes);
+          setSelectedNote(parsedNotes[0]);
         }
       } catch (err) {
         console.error('Failed to load notes:', err);
