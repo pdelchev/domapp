@@ -13,6 +13,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useLanguage } from '@/app/context/LanguageContext';
 import {
   PageShell, PageContent, PageHeader, Card, Button, Input, Select,
@@ -265,9 +266,11 @@ export default function ProtocolCheckin() {
               message="No active protocols yet."
               subtext="Go to Health Hub to create personalized protocols."
             />
-            <Button variant="primary" href="/health" className="mt-6">
-              Go to Health Hub
-            </Button>
+            <Link href="/health">
+              <Button variant="primary" className="mt-6">
+                Go to Health Hub
+              </Button>
+            </Link>
           </div>
         </PageContent>
       </PageShell>
