@@ -52,7 +52,7 @@ export default function NotesPage() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const saveTimeoutRef = useRef<NodeJS.Timeout>();
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandPaletteBlockIndex, setCommandPaletteBlockIndex] = useState(-1);
 
