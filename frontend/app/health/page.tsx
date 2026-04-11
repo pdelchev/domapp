@@ -238,6 +238,10 @@ export default function LifePage() {
   const [bloodOpen, setBloodOpen] = useState(false);
   const [recsOpen, setRecsOpen] = useState(false);
   const [emergencyCard, setEmergencyCard] = useState<any | null>(null);
+  const [todaySchedules, setTodaySchedules] = useState<any[]>([]);
+  const [doseLogs, setDoseLogs] = useState<Record<number, any>>({});
+  const [today] = useState(() => new Date().toISOString().split('T')[0]);
+  const [savingDose, setSavingDose] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -256,6 +260,32 @@ export default function LifePage() {
         ]).then(([d, a, s, f, card]) => {
           setVitals(d); setCmAge(a); setSlope(s); setForecast(f); setEmergencyCard(card);
         });
+
+        // Load today's schedule
+        try {
+          const schedRes = await fetch(`/api/health/schedules/today/?profile=${pid}`, {
+            headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
+          });
+          if (schedRes.ok) {
+            const scheds = await schedRes.json();
+            setTodaySchedules(scheds);
+
+            // Load dose logs for today
+            const logsRes = await fetch(`/api/health/doses/?date=${today}`, {
+              headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
+            });
+            if (logsRes.ok) {
+              const logs = await logsRes.json();
+              const logsMap = logs.reduce((acc: any, log: any) => {
+                acc[log.schedule_id] = log;
+                return acc;
+              }, {});
+              setDoseLogs(logsMap);
+            }
+          }
+        } catch (e) {
+          console.error('Failed to load schedules:', e);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
@@ -294,8 +324,38 @@ export default function LifePage() {
     }
   };
 
+  const handleToggleDose = async (scheduleId: number, currentTaken: boolean | null) => {
+    const newTaken = currentTaken === true ? false : currentTaken === false ? null : true;
+    setSavingDose(scheduleId);
+
+    try {
+      const response = await fetch('/api/health/doses/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: JSON.stringify({
+          schedule_id: scheduleId,
+          date: today,
+          taken: newTaken !== null ? newTaken : undefined,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update dose log');
+      const updatedLog = await response.json();
+      setDoseLogs((prev) => ({
+        ...prev,
+        [scheduleId]: updatedLog,
+      }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update');
+    } finally {
+      setSavingDose(null);
+    }
+  };
+
   const handleMarkTaken = async (iv: Intervention) => {
-    const today = new Date().toISOString().slice(0, 10);
     const newTaken = !iv.taken_today;
     // Optimistic update
     if (data) {
@@ -408,6 +468,119 @@ export default function LifePage() {
               </div>
             </Card>
           </button>
+        )}
+
+        {/* DAILY CHECKLIST */}
+        {todaySchedules.length > 0 && (
+          <>
+            <div className="mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+              {locale === 'bg' ? 'Дневен контролен списък' : 'Daily Checklist'}
+            </div>
+
+            {(() => {
+              const TIME_SLOTS: Record<string, string> = {
+                morning: '🌅',
+                breakfast: '🍳',
+                lunch: '🍽️',
+                afternoon: '☕',
+                dinner: '🍷',
+                evening: '🌙',
+                bedtime: '😴',
+                as_needed: '⏰',
+              };
+
+              const timeOrder = ['morning', 'breakfast', 'lunch', 'afternoon', 'dinner', 'evening', 'bedtime', 'as_needed'];
+              const sortedSchedules = [...todaySchedules].sort((a, b) =>
+                timeOrder.indexOf(a.time_slot) - timeOrder.indexOf(b.time_slot)
+              );
+
+              const groupedByTime: Record<string, any[]> = {};
+              sortedSchedules.forEach(s => {
+                if (!groupedByTime[s.time_slot]) groupedByTime[s.time_slot] = [];
+                groupedByTime[s.time_slot].push(s);
+              });
+
+              const takenCount = Object.values(doseLogs).filter((log) => log.taken === true).length;
+              const skippedCount = Object.values(doseLogs).filter((log) => log.taken === false).length;
+              const pendingCount = todaySchedules.length - takenCount - skippedCount;
+
+              return (
+                <div className="space-y-2 mb-4">
+                  {/* Progress */}
+                  <Card className="mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-medium text-gray-600">
+                        {takenCount}/{todaySchedules.length} {locale === 'bg' ? 'завършено' : 'completed'}
+                      </div>
+                      <div className="flex gap-1">
+                        {takenCount > 0 && <Badge color="green">✓ {takenCount}</Badge>}
+                        {skippedCount > 0 && <Badge color="red">✗ {skippedCount}</Badge>}
+                        {pendingCount > 0 && <Badge color="gray">{pendingCount}</Badge>}
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div
+                        className="bg-green-500 h-1.5 rounded-full transition-all"
+                        style={{ width: `${(takenCount / todaySchedules.length) * 100}%` }}
+                      />
+                    </div>
+                  </Card>
+
+                  {/* Items by time */}
+                  {Object.entries(groupedByTime).map(([timeSlot, items]) => (
+                    <div key={timeSlot} className="space-y-1.5">
+                      <div className="text-xs font-semibold text-gray-600 px-2 py-1">
+                        {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
+                      </div>
+                      {items.map((schedule) => {
+                        const log = doseLogs[schedule.id];
+                        const taken = log?.taken;
+                        return (
+                          <button
+                            key={schedule.id}
+                            onClick={() => handleToggleDose(schedule.id, taken)}
+                            disabled={savingDose === schedule.id}
+                            className={`w-full text-left px-3 py-2 rounded border transition-all ${
+                              taken === true
+                                ? 'border-green-300 bg-green-50'
+                                : taken === false
+                                  ? 'border-red-300 bg-red-50'
+                                  : 'border-gray-200 bg-white hover:border-indigo-200'
+                            } ${savingDose === schedule.id ? 'opacity-50' : ''}`}
+                          >
+                            <div className="flex items-center gap-2.5 text-sm">
+                              {/* Checkbox */}
+                              <div className={`w-5 h-5 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                taken === true
+                                  ? 'bg-green-500 border border-green-500 text-white'
+                                  : taken === false
+                                    ? 'bg-red-100 border border-red-400 text-red-600'
+                                    : 'border border-gray-300 bg-white'
+                              }`}>
+                                {taken === true ? '✓' : taken === false ? '✗' : ''}
+                              </div>
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-gray-900">{schedule.supplement_name}</div>
+                                <div className="text-xs text-gray-600">
+                                  {schedule.dose_amount} {schedule.dose_unit} · {schedule.time_slot}
+                                </div>
+                              </div>
+
+                              {/* Status */}
+                              {taken === true && <span className="text-xs font-medium text-green-700 flex-shrink-0">Taken</span>}
+                              {taken === false && <span className="text-xs font-medium text-red-700 flex-shrink-0">Skipped</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </>
         )}
 
         {/* MORNING BRIEFING */}
