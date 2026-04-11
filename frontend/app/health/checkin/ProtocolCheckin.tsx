@@ -85,6 +85,7 @@ export default function ProtocolCheckin() {
 
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
+  const [aiInsights, setAiInsights] = useState<any[]>([]);
 
   // Load protocols
   useEffect(() => {
@@ -189,6 +190,7 @@ export default function ProtocolCheckin() {
     try {
       setSaving(true);
       setError('');
+      setAiInsights([]);
 
       const response = await apiFetch('/api/health/protocol/daily-log/', {
         method: 'POST',
@@ -199,9 +201,31 @@ export default function ProtocolCheckin() {
       });
 
       if (response.ok) {
-        setSuccess('✅ Daily log saved! Great work!');
-        setTimeout(() => setSuccess(''), 3000);
+        const savedLog = await response.json();
 
+        // Show success
+        setSuccess('✅ Daily log saved! Generating AI insights...');
+
+        // Fetch insights (they're generated async, so check after 2 seconds)
+        setTimeout(async () => {
+          try {
+            const insightsResponse = await apiFetch(
+              `/api/health/protocol/daily-log/${savedLog.id}/`
+            );
+            if (insightsResponse.ok) {
+              const logData = await insightsResponse.json();
+              if (logData.ai_insights && logData.ai_insights.insights) {
+                setAiInsights(logData.ai_insights.insights);
+                setSuccess('✅ Log saved! Insights generated below.');
+                setTimeout(() => setSuccess(''), 5000);
+              }
+            }
+          } catch (err) {
+            console.error('Failed to fetch insights:', err);
+          }
+        }, 2000);
+
+        // Reset form
         setFormData(prev => ({
           ...prev,
           date: new Date().toISOString().split('T')[0],
@@ -493,6 +517,63 @@ export default function ProtocolCheckin() {
             </div>
           )}
         </Card>
+
+        {/* AI Insights Section (shows after save) */}
+        {aiInsights && aiInsights.length > 0 && (
+          <Card className="mt-6 bg-gradient-to-br from-purple-50 to-blue-50 border-l-4 border-purple-500">
+            <h3 className="text-sm font-semibold text-purple-900 mb-4">
+              🤖 AI Insights for You
+            </h3>
+            <div className="space-y-3">
+              {aiInsights.map((insight: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="bg-white rounded-lg p-3 border-l-2 border-purple-400"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="text-lg mt-0.5">
+                      {insight.priority === 'critical' ? '⚠️' :
+                       insight.priority === 'high' ? '🔴' :
+                       insight.priority === 'medium' ? '🟡' : '🟢'}
+                    </span>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-sm text-gray-900">
+                        {insight.title}
+                      </h4>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {insight.description}
+                      </p>
+                      {insight.actionable_steps && insight.actionable_steps.length > 0 && (
+                        <div className="mt-2 text-xs text-gray-700">
+                          <strong>Next steps:</strong>
+                          <ul className="list-disc list-inside mt-1">
+                            {insight.actionable_steps.slice(0, 2).map((step: any, sIdx: number) => (
+                              <li key={sIdx}>
+                                {typeof step === 'string' ? step : step.step}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      <Badge
+                        color={
+                          insight.priority === 'critical' ? 'red' :
+                          insight.priority === 'high' ? 'red' :
+                          insight.priority === 'medium' ? 'yellow' : 'green'
+                        }
+                        text={insight.priority.toUpperCase()}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-purple-600 mt-4 italic">
+              💡 These insights are based on your actual data. Check your recommendations dashboard for more.
+            </p>
+          </Card>
+        )}
 
         {/* Action buttons */}
         <div className="mt-6 flex gap-3">
