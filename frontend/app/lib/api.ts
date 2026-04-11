@@ -22,7 +22,7 @@ export function clearTokens() {
 }
 
 // --- Core fetch wrapper with auto-refresh ---
-async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const { access, refresh } = getTokens();
 
   const headers: Record<string, string> = {
