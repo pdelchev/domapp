@@ -251,7 +251,7 @@ export default function SupplementsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [addType, setAddType] = useState<'intervention' | 'bp-med' | 'supplement'>('intervention');
-  const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '' });
+  const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '', time_slot: '' });
   const [addLoading, setAddLoading] = useState(false);
   const [primaryProfileId, setPrimaryProfileId] = useState<number | null>(null);
   const [expandedSupplement, setExpandedSupplement] = useState<string | null>(null);
@@ -320,6 +320,10 @@ export default function SupplementsPage() {
       setError(locale === 'bg' ? 'Име е задължително' : 'Name required');
       return;
     }
+    if (!addForm.time_slot) {
+      setError(locale === 'bg' ? 'Време на ден е задължително' : 'Time of day is required');
+      return;
+    }
 
     setAddLoading(true);
     try {
@@ -364,9 +368,56 @@ export default function SupplementsPage() {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.detail || errorData.profile?.[0] || 'Failed to create BP medication');
         }
+      } else if (addType === 'supplement') {
+        // Create supplement + schedule for Daily Checklist
+        if (!primaryProfileId) {
+          throw new Error(locale === 'bg' ? 'Няма здравен профил' : 'No health profile found');
+        }
+
+        // Create the supplement
+        const suppRes = await fetch('/api/health/supplements/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          },
+          body: JSON.stringify({
+            name: addForm.name,
+            category: addForm.category || 'other',
+            is_active: true,
+          }),
+        });
+        if (!suppRes.ok) {
+          const errorData = await suppRes.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to create supplement');
+        }
+        const supplement = await suppRes.json();
+
+        // Create a schedule for today
+        const schedRes = await fetch('/api/health/schedules/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          },
+          body: JSON.stringify({
+            supplement: supplement.id,
+            profile: primaryProfileId,
+            time_slot: addForm.time_slot,
+            dose_amount: addForm.dose || '1',
+            dose_unit: addForm.category === 'injection' ? 'injection' : 'dose',
+            take_with_food: false,
+            is_active: true,
+            days_of_week: [0, 1, 2, 3, 4, 5, 6], // Every day
+          }),
+        });
+        if (!schedRes.ok) {
+          const errorData = await schedRes.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to create schedule');
+        }
       }
 
-      setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '' });
+      setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '', time_slot: '' });
       setError('');
       await fetchSupplements();
     } catch (e: any) {
@@ -1025,6 +1076,24 @@ export default function SupplementsPage() {
                 <option value="weekdays">Weekdays only</option>
                 <option value="weekends">Weekends only</option>
                 <option value="every other day">Every other day</option>
+              </Select>
+
+              {/* Time Slot — REQUIRED for Daily Checklist */}
+              <Select
+                label={locale === 'bg' ? 'Време на ден *' : 'Time of Day *'}
+                required
+                value={addForm.time_slot || ''}
+                onChange={(e) => setAddForm({ ...addForm, time_slot: e.target.value })}
+              >
+                <option value="">Select when to take...</option>
+                <option value="morning">🌅 Morning (6-8am)</option>
+                <option value="breakfast">🍳 Breakfast (8-10am)</option>
+                <option value="lunch">🍽️ Lunch (12-1pm)</option>
+                <option value="afternoon">☕ Afternoon (3-4pm)</option>
+                <option value="dinner">🍷 Dinner (6-7pm)</option>
+                <option value="evening">🌙 Evening (8-9pm)</option>
+                <option value="bedtime">😴 Bedtime (9-10pm)</option>
+                <option value="as_needed">⏰ As needed</option>
               </Select>
 
               {/* Notes */}
