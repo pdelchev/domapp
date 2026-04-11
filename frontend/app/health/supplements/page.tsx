@@ -950,159 +950,136 @@ export default function SupplementsPage() {
           </div>
         )}
 
-        {/* TAB 6: ADD SUPPLEMENT & REMINDER */}
+        {/* TAB 6: ADD SUPPLEMENT - CONSOLIDATED & SMART FORM */}
         {activeTab === 'add' && (
-          <div className="space-y-6">
-            {/* Add Supplement */}
-            <Card>
-              <h3 className="font-semibold text-lg mb-4">{locale === 'bg' ? 'Добави добавка' : 'Add Supplement'}</h3>
+          <Card>
+            <h3 className="font-semibold text-lg mb-4">➕ {locale === 'bg' ? 'Добави добавка / лекарство' : 'Add Supplement or Medication'}</h3>
 
-              <div className="space-y-4">
+            <div className="space-y-4">
+              {/* Type */}
+              <Select
+                label={locale === 'bg' ? 'Тип' : 'Type'}
+                value={addType}
+                onChange={(e) => setAddType(e.target.value as any)}
+              >
+                <option value="supplement">{locale === 'bg' ? 'Добавка' : 'Supplement'}</option>
+                <option value="intervention">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                <option value="bp-med">{locale === 'bg' ? 'КН лекарство' : 'BP Medicine'}</option>
+              </Select>
+
+              {/* Name */}
+              <Input
+                label={locale === 'bg' ? 'Име *' : 'Name *'}
+                required
+                placeholder={locale === 'bg' ? 'например: Витамин D3' : 'e.g., Vitamin D3'}
+                value={addForm.name}
+                onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+              />
+
+              {/* Dose with dropdown options */}
+              <div className="grid grid-cols-2 gap-4">
                 <Select
-                  label={locale === 'bg' ? 'Тип' : 'Type'}
-                  value={addType}
-                  onChange={(e) => setAddType(e.target.value as any)}
-                >
-                  <option value="intervention">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
-                  <option value="bp-med">{locale === 'bg' ? 'КН лекарство' : 'BP Medicine'}</option>
-                  <option value="supplement">{locale === 'bg' ? 'Добавка' : 'Supplement'}</option>
-                </Select>
-
-                <Input
-                  label={locale === 'bg' ? 'Име' : 'Name'}
-                  required
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                />
-
-                <Input
                   label={locale === 'bg' ? 'Доза' : 'Dose'}
                   value={addForm.dose}
                   onChange={(e) => setAddForm({ ...addForm, dose: e.target.value })}
-                />
+                >
+                  <option value="">Select or type...</option>
+                  <option value="250mg">250mg</option>
+                  <option value="500mg">500mg</option>
+                  <option value="1000mg">1000mg</option>
+                  <option value="2000mg">2000mg</option>
+                  <option value="5000mg">5000mg</option>
+                  <option value="1 tablet">1 tablet</option>
+                  <option value="2 tablets">2 tablets</option>
+                  <option value="1 capsule">1 capsule</option>
+                  <option value="5ml">5ml</option>
+                  <option value="10ml">10ml</option>
+                </Select>
 
-                <Input
-                  label={locale === 'bg' ? 'Честота' : 'Frequency'}
-                  value={addForm.frequency}
-                  onChange={(e) => setAddForm({ ...addForm, frequency: e.target.value })}
-                />
-
-                <Textarea
-                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
-                  value={addForm.notes}
-                  onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
-                />
-
-                <div className="flex gap-3 pt-4">
-                  <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">
-                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
-                  </Button>
-                  <Button
-                    variant="primary"
-                    disabled={addLoading}
-                    onClick={handleAddSupplement}
-                    className="flex-1"
-                  >
-                    {addLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
-                  </Button>
-                </div>
+                {/* Size/Form */}
+                <Select
+                  label={locale === 'bg' ? 'Размер' : 'Form'}
+                  value={addForm.category || ''}
+                  onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
+                >
+                  <option value="">Select form...</option>
+                  <option value="tablet">Tablet</option>
+                  <option value="capsule">Capsule</option>
+                  <option value="liquid">Liquid</option>
+                  <option value="powder">Powder</option>
+                  <option value="injection">Injection</option>
+                </Select>
               </div>
-            </Card>
 
-            {/* Add Reminder */}
-            {showReminderForm ? (
-              <Card>
-                <h3 className="font-semibold text-lg mb-4">🔔 {locale === 'bg' ? 'Добави напомняне' : 'Add Medication Reminder'}</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  {locale === 'bg'
-                    ? 'Настройте ежедневно напомняне за приемането на вашето лекарство.'
-                    : 'Set up a daily reminder to take your medication.'}
-                </p>
+              {/* Frequency with dropdown options */}
+              <Select
+                label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                value={addForm.frequency}
+                onChange={(e) => setAddForm({ ...addForm, frequency: e.target.value })}
+              >
+                <option value="">Select frequency...</option>
+                <option value="daily">Once daily</option>
+                <option value="twice daily">Twice daily</option>
+                <option value="three times daily">Three times daily</option>
+                <option value="as needed">As needed</option>
+                <option value="weekdays">Weekdays only</option>
+                <option value="weekends">Weekends only</option>
+                <option value="every other day">Every other day</option>
+              </Select>
 
-                <div className="space-y-4">
-                  <Input
-                    label={locale === 'bg' ? 'Лекарство' : 'Medication Name'}
-                    placeholder={locale === 'bg' ? 'Например: Лизиноприл 10mg' : 'e.g., Lisinopril 10mg'}
-                    value={reminderForm.medication_name}
-                    onChange={(e) => setReminderForm({ ...reminderForm, medication_name: e.target.value })}
-                    required
-                  />
+              {/* Notes */}
+              <Textarea
+                label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                placeholder={locale === 'bg' ? 'например: Приемете с храна' : 'e.g., Take with food'}
+                value={addForm.notes}
+                onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+              />
+
+              {/* Reminder section for medications */}
+              {(addType === 'bp-med' || addType === 'intervention') && (
+                <div className="border-t pt-4 mt-4">
+                  <h4 className="font-medium text-gray-900 mb-3">🔔 {locale === 'bg' ? 'Напомняне (опционално)' : 'Set Reminder (Optional)'}</h4>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
-                      label={locale === 'bg' ? 'Време на напомняне' : 'Reminder Time'}
+                      label={locale === 'bg' ? 'Време' : 'Reminder Time'}
                       type="time"
                       value={reminderForm.reminder_time}
                       onChange={(e) => setReminderForm({ ...reminderForm, reminder_time: e.target.value })}
-                      required
                     />
 
                     <Select
-                      label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                      label={locale === 'bg' ? 'Честота напомняне' : 'Reminder Frequency'}
                       value={reminderForm.frequency}
                       onChange={(e) => setReminderForm({ ...reminderForm, frequency: e.target.value })}
                     >
-                      <option value="once">{locale === 'bg' ? 'Веднъж' : 'Once'}</option>
-                      <option value="daily">{locale === 'bg' ? 'Всеки ден' : 'Every day'}</option>
-                      <option value="weekdays">{locale === 'bg' ? 'Работни дни' : 'Weekdays only'}</option>
-                      <option value="weekends">{locale === 'bg' ? 'Уикенди' : 'Weekends only'}</option>
-                      <option value="custom">{locale === 'bg' ? 'Избор' : 'Custom days'}</option>
+                      <option value="daily">Every day</option>
+                      <option value="weekdays">Weekdays only</option>
+                      <option value="weekends">Weekends only</option>
+                      <option value="custom">Custom days</option>
                     </Select>
                   </div>
-
-                  <Input
-                    label={locale === 'bg' ? 'Доза' : 'Dosage'}
-                    placeholder={locale === 'bg' ? 'Например: 1 таблетка, 5ml' : 'e.g., 1 tablet, 5ml'}
-                    value={reminderForm.dosage}
-                    onChange={(e) => setReminderForm({ ...reminderForm, dosage: e.target.value })}
-                  />
-
-                  <Input
-                    label={locale === 'bg' ? 'Инструкции' : 'Instructions'}
-                    placeholder={locale === 'bg' ? 'Например: Приемете с храна, Преди легене' : 'e.g., Take with food, Before bed'}
-                    value={reminderForm.instructions}
-                    onChange={(e) => setReminderForm({ ...reminderForm, instructions: e.target.value })}
-                  />
-
-                  <Textarea
-                    label={locale === 'bg' ? 'Бележки' : 'Notes'}
-                    placeholder={locale === 'bg' ? 'Допълнителни бележки...' : 'Additional notes...'}
-                    value={reminderForm.notes}
-                    onChange={(e) => setReminderForm({ ...reminderForm, notes: e.target.value })}
-                  />
-
-                  <div className="flex gap-3 pt-4">
-                    <Button
-                      variant="secondary"
-                      onClick={() => setShowReminderForm(false)}
-                      className="flex-1"
-                    >
-                      {locale === 'bg' ? 'Отмени' : 'Cancel'}
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={handleCreateReminder}
-                      className="flex-1"
-                    >
-                      {locale === 'bg' ? 'Създай напомняне' : 'Create Reminder'}
-                    </Button>
-                  </div>
                 </div>
-              </Card>
-            ) : (
-              <Card>
-                <h3 className="font-semibold text-lg mb-4">🔔 {locale === 'bg' ? 'Напомняния за лекарства' : 'Medication Reminders'}</h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  {locale === 'bg'
-                    ? 'Получавайте напомняния за приемането на вашите добавки и лекарства.'
-                    : 'Get reminded to take your supplements and medications on time.'}
-                </p>
-                <Button onClick={() => setShowReminderForm(true)} variant="primary">
-                  + {locale === 'bg' ? 'Добави напомняне' : 'Add Reminder'}
+              )}
+
+              {error && <Alert type="error" message={error} />}
+
+              {/* Action buttons */}
+              <div className="flex gap-3 pt-4">
+                <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">
+                  {locale === 'bg' ? 'Отмени' : 'Cancel'}
                 </Button>
-              </Card>
-            )}
-          </div>
+                <Button
+                  variant="primary"
+                  disabled={addLoading}
+                  onClick={handleAddSupplement}
+                  className="flex-1"
+                >
+                  {addLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
+                </Button>
+              </div>
+            </div>
+          </Card>
         )}
       </PageContent>
     </PageShell>
