@@ -10,8 +10,8 @@ interface NoteTypeSelectorProps {
 
 export function NoteTypeSelector({ onSelect, onCancel, locale }: NoteTypeSelectorProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={(e) => e.stopPropagation()}>
-      <div className="bg-white rounded-lg p-6 max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl p-8 max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-xl font-bold mb-4 text-gray-900">
           {locale === 'bg' ? 'Какъв тип бележка?' : 'What type of note?'}
         </h2>
@@ -25,7 +25,7 @@ export function NoteTypeSelector({ onSelect, onCancel, locale }: NoteTypeSelecto
               e.stopPropagation();
               onSelect('richtext');
             }}
-            className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 active:bg-indigo-100 transition-all text-left cursor-pointer"
+            className="w-full p-4 border-2 border-indigo-200 rounded-xl hover:border-indigo-400 hover:bg-indigo-50 active:bg-indigo-100 transition-all text-left cursor-pointer bg-gradient-to-br from-indigo-50 to-white"
           >
             <div className="font-semibold text-gray-900">
               {locale === 'bg' ? 'Rich Text (препоръчано)' : 'Rich Text (Recommended)'}
@@ -54,7 +54,7 @@ export function NoteTypeSelector({ onSelect, onCancel, locale }: NoteTypeSelecto
               e.stopPropagation();
               onSelect('plaintext');
             }}
-            className="w-full p-4 border-2 border-gray-200 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 active:bg-indigo-100 transition-all text-left cursor-pointer"
+            className="w-full p-4 border-2 border-gray-200 rounded-xl hover:border-gray-400 hover:bg-gray-50 active:bg-gray-100 transition-all text-left cursor-pointer bg-gradient-to-br from-gray-50 to-white"
           >
             <div className="font-semibold text-gray-900">
               {locale === 'bg' ? 'Обичайни текст' : 'Plain Text'}
@@ -70,7 +70,7 @@ export function NoteTypeSelector({ onSelect, onCancel, locale }: NoteTypeSelecto
           </button>
         </div>
 
-        <div className="flex gap-3 justify-end">
+        <div className="flex gap-3 justify-end pt-4">
           <button
             type="button"
             onClick={(e) => {
@@ -78,7 +78,7 @@ export function NoteTypeSelector({ onSelect, onCancel, locale }: NoteTypeSelecto
               e.stopPropagation();
               onCancel();
             }}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded font-medium cursor-pointer"
+            className="px-4 py-2 text-gray-700 hover:bg-gray-100 active:bg-gray-200 rounded-lg font-medium cursor-pointer transition-colors"
           >
             {locale === 'bg' ? 'Отмени' : 'Cancel'}
           </button>
