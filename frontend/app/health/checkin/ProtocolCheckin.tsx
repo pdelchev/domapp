@@ -609,13 +609,14 @@ export default function ProtocolCheckin() {
           >
             {saving ? 'Saving...' : '✅ Save Log'}
           </Button>
-          <Button
-            variant="secondary"
-            href="/health"
-            className="flex-1"
-          >
-            Back
-          </Button>
+          <Link href="/health" className="flex-1">
+            <Button
+              variant="secondary"
+              className="w-full"
+            >
+              Back
+            </Button>
+          </Link>
         </div>
       </PageContent>
     </PageShell>
