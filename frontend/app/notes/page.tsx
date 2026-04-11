@@ -45,6 +45,8 @@ import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import { PageShell, Button, Badge, Spinner, Input } from '../components/ui';
 import NavBar from '../components/NavBar';
+import { RichTextEditor } from '../components/RichTextEditor';
+import { NoteTypeSelector } from '../components/NoteTypeSelector';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 // §T — type definitions block
@@ -91,6 +93,7 @@ interface NoteListItem {
   id: number;
   title: string;
   color: string;
+  content_type: 'blocks' | 'richtext' | 'plaintext';
   folder: number | null;
   folder_name: string | null;
   tag_ids: number[];
@@ -111,7 +114,7 @@ interface NoteListItem {
 }
 
 interface NoteDetail extends NoteListItem {
-  content: ContentBlock[];
+  content: ContentBlock[] | string;  // Can be blocks (array), richtext (string), or plaintext (string)
   linked_lease: number | null;
   linked_problem: number | null;
   trashed_at: string | null;
@@ -212,6 +215,9 @@ export default function NotesPage() {
   const [blockMenuIdx, setBlockMenuIdx] = useState(-1);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showNoteMenu, setShowNoteMenu] = useState(false);
+  const [showNoteTypeSelector, setShowNoteTypeSelector] = useState(false);
+  const [editContentType, setEditContentType] = useState<'blocks' | 'richtext' | 'plaintext'>('blocks');
+  const [editRichTextContent, setEditRichTextContent] = useState('');
 
   // Entity linking
   const [properties, setProperties] = useState<{ id: number; name: string }[]>([]);
@@ -289,7 +295,16 @@ export default function NotesPage() {
       const note = await getNote(id);
       setSelectedNote(note);
       setEditTitle(note.title);
-      setEditContent(note.content || []);
+      setEditContentType(note.content_type);
+
+      // Set content based on type
+      if (note.content_type === 'blocks') {
+        setEditContent(Array.isArray(note.content) ? note.content : []);
+      } else if (note.content_type === 'richtext' || note.content_type === 'plaintext') {
+        setEditRichTextContent(typeof note.content === 'string' ? note.content : '');
+        setEditContent([]);
+      }
+
       setEditColor(note.color);
       lastSavedRef.current = JSON.stringify({ title: note.title, content: note.content, color: note.color });
       setMobilePanel('editor');
@@ -303,14 +318,16 @@ export default function NotesPage() {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
     saveTimerRef.current = setTimeout(async () => {
-      const current = JSON.stringify({ title: editTitle, content: editContent, color: editColor });
+      // Determine content based on type
+      const contentToSave = editContentType === 'blocks' ? editContent : editRichTextContent;
+      const current = JSON.stringify({ title: editTitle, content: contentToSave, color: editColor });
       if (current === lastSavedRef.current) return; // No changes
 
       setSaving(true);
       try {
         await updateNote(selectedNote.id, {
           title: editTitle,
-          content: editContent,
+          content: contentToSave,
           color: editColor,
         });
         lastSavedRef.current = current;
@@ -321,13 +338,13 @@ export default function NotesPage() {
       } catch { /* ignore */ }
       setSaving(false);
     }, 800);
-  }, [selectedNote, editTitle, editContent, editColor]);
+  }, [selectedNote, editTitle, editContent, editRichTextContent, editColor, editContentType]);
 
   // Trigger auto-save on content changes
   useEffect(() => {
     scheduleSave();
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
-  }, [editTitle, editContent, editColor, scheduleSave]);
+  }, [editTitle, editContent, editRichTextContent, editColor, editContentType, scheduleSave]);
 
   const flushSave = async () => {
     if (saveTimerRef.current) {
@@ -347,16 +364,34 @@ export default function NotesPage() {
   // §A — create/update/delete actions
 
   const handleNewNote = async () => {
+    // Show type selector instead of creating immediately
+    setShowNoteTypeSelector(true);
+  };
+
+  const handleCreateNoteWithType = async (contentType: 'richtext' | 'plaintext') => {
     try {
       const folder = activeView.startsWith('folder:') ? parseInt(activeView.split(':')[1]) : undefined;
+      let content: any;
+
+      if (contentType === 'richtext') {
+        content = '<p></p>';
+      } else if (contentType === 'plaintext') {
+        content = '';
+      } else {
+        // blocks
+        content = [emptyBlock('text')];
+      }
+
       const note = await createNote({
         title: '',
-        content: [emptyBlock('text')],
+        content: content,
+        content_type: contentType,
         color: 'white',
         folder: folder || null,
       });
       await loadNotes();
       await selectNote(note.id);
+      setShowNoteTypeSelector(false);
     } catch { /* ignore */ }
   };
 
@@ -989,39 +1024,42 @@ export default function NotesPage() {
                     className="w-full text-xl md:text-2xl font-bold text-gray-900 placeholder:text-gray-300 bg-transparent border-none outline-none mb-4 py-1"
                   />
 
-                  {/* Blocks */}
-                  <div className="space-y-0.5">
-                    {editContent.map((block, idx) => (
-                      <BlockRenderer
-                        key={block.id}
-                        block={block}
-                        onUpdate={(updates) => updateBlock(block.id, updates)}
-                        onRemove={() => removeBlock(block.id)}
-                        onInsertAfter={(type) => insertBlockAfter(block.id, type)}
-                        onMoveUp={() => moveBlock(block.id, 'up')}
-                        onMoveDown={() => moveBlock(block.id, 'down')}
-                        onToggleCheck={(itemId) => toggleCheckItem(block.id, itemId)}
-                        onUpdateItemText={(itemId, text) => updateCheckItemText(block.id, itemId, text)}
-                        onAddItem={() => addCheckItem(block.id)}
-                        onRemoveItem={(itemId) => removeCheckItem(block.id, itemId)}
-                        onUpdateTableCell={(row, col, val) => updateTableCell(block.id, row, col, val)}
-                        onUpdateTableHeader={(col, val) => updateTableHeader(block.id, col, val)}
-                        onAddTableRow={() => addTableRow(block.id)}
-                        onAddTableCol={() => addTableCol(block.id)}
-                        showBlockMenu={showBlockMenu && blockMenuIdx === idx}
-                        onShowBlockMenu={() => { setShowBlockMenu(true); setBlockMenuIdx(idx); }}
-                        onHideBlockMenu={() => setShowBlockMenu(false)}
-                        locale={locale}
-                        isFirst={idx === 0}
-                        isLast={idx === editContent.length - 1}
-                      />
-                    ))}
-                  </div>
+                  {/* Content editors — conditional based on type */}
+                  {editContentType === 'blocks' ? (
+                    <>
+                      {/* Block-based editor (legacy) */}
+                      <div className="space-y-0.5">
+                        {editContent.map((block, idx) => (
+                          <BlockRenderer
+                            key={block.id}
+                            block={block}
+                            onUpdate={(updates) => updateBlock(block.id, updates)}
+                            onRemove={() => removeBlock(block.id)}
+                            onInsertAfter={(type) => insertBlockAfter(block.id, type)}
+                            onMoveUp={() => moveBlock(block.id, 'up')}
+                            onMoveDown={() => moveBlock(block.id, 'down')}
+                            onToggleCheck={(itemId) => toggleCheckItem(block.id, itemId)}
+                            onUpdateItemText={(itemId, text) => updateCheckItemText(block.id, itemId, text)}
+                            onAddItem={() => addCheckItem(block.id)}
+                            onRemoveItem={(itemId) => removeCheckItem(block.id, itemId)}
+                            onUpdateTableCell={(row, col, val) => updateTableCell(block.id, row, col, val)}
+                            onUpdateTableHeader={(col, val) => updateTableHeader(block.id, col, val)}
+                            onAddTableRow={() => addTableRow(block.id)}
+                            onAddTableCol={() => addTableCol(block.id)}
+                            showBlockMenu={showBlockMenu && blockMenuIdx === idx}
+                            onShowBlockMenu={() => { setShowBlockMenu(true); setBlockMenuIdx(idx); }}
+                            onHideBlockMenu={() => setShowBlockMenu(false)}
+                            locale={locale}
+                            isFirst={idx === 0}
+                            isLast={idx === editContent.length - 1}
+                          />
+                        ))}
+                      </div>
 
-                  {/* Add block button at bottom */}
-                  <div className="mt-4 flex items-center gap-2">
-                    <button
-                      onClick={() => {
+                      {/* Add block button at bottom */}
+                      <div className="mt-4 flex items-center gap-2">
+                        <button
+                          onClick={() => {
                         const lastBlock = editContent[editContent.length - 1];
                         if (lastBlock) insertBlockAfter(lastBlock.id, 'text');
                         else setEditContent([emptyBlock('text')]);
@@ -1032,8 +1070,30 @@ export default function NotesPage() {
                       {t('notes.type_slash', locale)}
                     </button>
                   </div>
+                    </>
+                  ) : editContentType === 'richtext' ? (
+                    <>
+                      {/* Rich text editor with formatting toolbar */}
+                      <RichTextEditor
+                        content={editRichTextContent}
+                        onChange={(newContent) => setEditRichTextContent(newContent)}
+                        placeholder={t('notes.start_typing', locale) || 'Start typing...'}
+                      />
+                      <div className="h-16 md:h-8" />
+                    </>
+                  ) : (
+                    <>
+                      {/* Plain text editor */}
+                      <textarea
+                        value={editRichTextContent}
+                        onChange={(e) => setEditRichTextContent(e.target.value)}
+                        placeholder={t('notes.start_typing', locale) || 'Start typing...'}
+                        className="w-full min-h-96 p-4 border border-gray-300 rounded resize-none text-gray-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <div className="h-16 md:h-8" />
+                    </>
+                  )}
                   {/* Extra bottom padding for mobile scroll comfort */}
-                  <div className="h-16 md:h-8" />
                 </div>
               </div>
             </>
@@ -1061,6 +1121,15 @@ export default function NotesPage() {
       {/* Click-away to close menus */}
       {(showColorPicker || showNoteMenu) && (
         <div className="fixed inset-0 z-10" onClick={() => { setShowColorPicker(false); setShowNoteMenu(false); }} />
+      )}
+
+      {/* Note type selector modal */}
+      {showNoteTypeSelector && (
+        <NoteTypeSelector
+          onSelect={handleCreateNoteWithType}
+          onCancel={() => setShowNoteTypeSelector(false)}
+          locale={locale}
+        />
       )}
     </PageShell>
   );
