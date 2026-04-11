@@ -1074,22 +1074,27 @@ export default function NotesPage() {
                   ) : editContentType === 'richtext' ? (
                     <>
                       {/* Rich text editor with formatting toolbar */}
-                      <RichTextEditor
-                        content={editRichTextContent}
-                        onChange={(newContent) => setEditRichTextContent(newContent)}
-                        placeholder={t('notes.start_typing', locale) || 'Start typing...'}
-                      />
+                      <div className="flex-1 flex flex-col min-h-96">
+                        <RichTextEditor
+                          content={editRichTextContent}
+                          onChange={(newContent) => setEditRichTextContent(newContent)}
+                          placeholder={t('notes.start_typing', locale) || 'Start typing...'}
+                        />
+                      </div>
                       <div className="h-16 md:h-8" />
                     </>
                   ) : (
                     <>
                       {/* Plain text editor */}
-                      <textarea
-                        value={editRichTextContent}
-                        onChange={(e) => setEditRichTextContent(e.target.value)}
-                        placeholder={t('notes.start_typing', locale) || 'Start typing...'}
-                        className="w-full min-h-96 p-4 border border-gray-300 rounded resize-none text-gray-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
+                      <div className="flex-1 flex flex-col">
+                        <textarea
+                          value={editRichTextContent}
+                          onChange={(e) => setEditRichTextContent(e.target.value)}
+                          placeholder={t('notes.start_typing', locale) || 'Start typing...'}
+                          className="flex-1 w-full p-6 border border-gray-300 rounded-xl resize-none text-gray-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-500 font-sans"
+                          style={{ lineHeight: '1.75', fontSize: '16px', minHeight: '300px' }}
+                        />
+                      </div>
                       <div className="h-16 md:h-8" />
                     </>
                   )}
