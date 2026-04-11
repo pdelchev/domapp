@@ -352,10 +352,11 @@ export default function NotesPage() {
       saveTimerRef.current = null;
     }
     if (!selectedNote) return;
-    const current = JSON.stringify({ title: editTitle, content: editContent, color: editColor });
+    const contentToSave = editContentType === 'blocks' ? editContent : editRichTextContent;
+    const current = JSON.stringify({ title: editTitle, content: contentToSave, color: editColor });
     if (current === lastSavedRef.current) return;
     try {
-      await updateNote(selectedNote.id, { title: editTitle, content: editContent, color: editColor });
+      await updateNote(selectedNote.id, { title: editTitle, content: contentToSave, color: editColor });
       lastSavedRef.current = current;
     } catch { /* ignore */ }
   };

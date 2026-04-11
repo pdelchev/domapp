@@ -10,13 +10,22 @@ interface RichTextEditorProps {
 
 export function RichTextEditor({ content, onChange, placeholder = 'Start typing...' }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
+  const lastContentRef = useRef<string>(content);
 
-  // Initialize content
+  // Initialize and update content when it changes externally
   useEffect(() => {
-    if (editorRef.current && !editorRef.current.innerHTML && content) {
-      editorRef.current.innerHTML = content;
+    if (editorRef.current) {
+      // Only update if content changed from outside (different note, etc)
+      if (content !== lastContentRef.current) {
+        editorRef.current.innerHTML = content || '';
+        lastContentRef.current = content;
+      } else if (!editorRef.current.innerHTML && content) {
+        // Initial load
+        editorRef.current.innerHTML = content;
+        lastContentRef.current = content;
+      }
     }
-  }, []);
+  }, [content]);
 
   const handleInput = () => {
     if (editorRef.current) {
