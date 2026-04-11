@@ -1012,7 +1012,9 @@ export default function LifePage() {
               <span className="text-xs text-gray-400">→</span>
             </div>
             <div className="inline-block">
-              <Badge color="indigo" text={locale === 'bg' ? 'Започни' : 'Start'} />
+              <Badge color="indigo">
+                {locale === 'bg' ? 'Започни' : 'Start'}
+              </Badge>
             </div>
           </Card>
         </Link>
