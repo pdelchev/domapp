@@ -145,47 +145,63 @@ export default function NotesPage() {
                             type="checkbox"
                             checked={block.checked || false}
                             onChange={(e) => updateBlock(block.id, { checked: e.target.checked })}
+                            className="mt-1"
                           />
-                          <input
-                            type="text"
+                          <textarea
                             value={block.content}
                             onChange={(e) => updateBlock(block.id, { content: e.target.value })}
                             onKeyDown={(e) => {
-                              if (e.key === 'Enter') addBlock('checklist');
+                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault();
+                                addBlock('checklist');
+                              }
                             }}
-                            placeholder="Checklist..."
-                            className="flex-1 outline-none text-sm"
+                            placeholder="Checklist... (Ctrl+Enter for new item)"
+                            className="flex-1 outline-none text-sm resize-none"
+                            rows={2}
                           />
                         </div>
                       ) : block.type === 'heading' ? (
-                        <input
-                          type="text"
+                        <textarea
                           value={block.content}
                           onChange={(e) => updateBlock(block.id, { content: e.target.value })}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') addBlock();
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault();
+                              addBlock();
+                            }
                           }}
-                          placeholder="Heading..."
-                          className="w-full outline-none text-lg font-semibold border-b border-gray-300"
+                          placeholder="Heading... (Ctrl+Enter for new block)"
+                          className="w-full outline-none text-lg font-semibold border-b border-gray-300 resize-none"
+                          rows={2}
                         />
                       ) : block.type === 'code' ? (
                         <textarea
                           value={block.content}
                           onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                          placeholder="Code..."
-                          className="w-full font-mono text-sm p-2 border border-gray-300 rounded bg-gray-50 outline-none"
-                          rows={3}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault();
+                              addBlock();
+                            }
+                          }}
+                          placeholder="Code... (Ctrl+Enter for new block)"
+                          className="w-full font-mono text-sm p-2 border border-gray-300 rounded bg-gray-50 outline-none resize-none"
+                          rows={4}
                         />
                       ) : (
-                        <input
-                          type="text"
+                        <textarea
                           value={block.content}
                           onChange={(e) => updateBlock(block.id, { content: e.target.value })}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter') addBlock();
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                              e.preventDefault();
+                              addBlock();
+                            }
                           }}
-                          placeholder={block.type === 'bullet' ? '• Item...' : 'Type...'}
-                          className="w-full outline-none text-sm"
+                          placeholder={block.type === 'bullet' ? '• Item... (Ctrl+Enter for new block)' : 'Type... (Ctrl+Enter for new block)'}
+                          className="w-full outline-none text-sm resize-none"
+                          rows={2}
                         />
                       )}
                     </div>
