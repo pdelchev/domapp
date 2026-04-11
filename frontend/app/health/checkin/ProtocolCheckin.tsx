@@ -92,9 +92,7 @@ export default function ProtocolCheckin() {
     const loadProtocols = async () => {
       try {
         setLoading(true);
-        const response = await apiFetch('/api/health/protocol/protocols/', {
-          params: { status: 'active' }
-        });
+        const response = await apiFetch('/api/health/protocol/protocols/?status=active');
 
         if (response.ok) {
           const data = await response.json();
