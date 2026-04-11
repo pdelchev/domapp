@@ -1,21 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { PageShell, PageContent, PageHeader, Button } from '../components/ui';
+import { useState, useRef, useEffect } from 'react';
+import { PageShell, PageContent, Button } from '../components/ui';
 import NavBar from '../components/NavBar';
 import { useLanguage } from '../context/LanguageContext';
-
-interface Block {
-  id: string;
-  type: 'text' | 'heading' | 'checklist' | 'bullet' | 'code';
-  content: string;
-  checked?: boolean;
-}
 
 interface Note {
   id: string;
   title: string;
-  blocks: Block[];
+  content: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function NotesPage() {
@@ -24,195 +19,239 @@ export default function NotesPage() {
     {
       id: '1',
       title: locale === 'bg' ? 'Добре дошли' : 'Welcome',
-      blocks: [
-        { id: '1', type: 'text', content: locale === 'bg' ? 'Това е твоята нова система за бележки' : 'This is your new notes system' }
-      ]
+      content: locale === 'bg' ? 'Това е твоята нова система за бележки' : 'This is your new notes system',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
   ]);
   const [selectedNote, setSelectedNote] = useState<Note | null>(notes[0]);
+  const [search, setSearch] = useState('');
+  const editorRef = useRef<HTMLDivElement>(null);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const updateBlock = (blockId: string, updates: Partial<Block>) => {
-    if (!selectedNote) return;
-    const updatedBlocks = selectedNote.blocks.map(b =>
-      b.id === blockId ? { ...b, ...updates } : b
-    );
-    const updatedNote = { ...selectedNote, blocks: updatedBlocks };
-    setSelectedNote(updatedNote);
-    setNotes(notes.map(n => n.id === selectedNote.id ? updatedNote : n));
-  };
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(search.toLowerCase()) ||
+    note.content.toLowerCase().includes(search.toLowerCase())
+  );
 
-  const addBlock = (type: Block['type'] = 'text') => {
+  const updateNote = (updates: Partial<Note>) => {
     if (!selectedNote) return;
-    const newBlock: Block = {
-      id: Math.random().toString(36).substr(2, 9),
-      type,
-      content: '',
-      checked: type === 'checklist' ? false : undefined,
+    const updated = {
+      ...selectedNote,
+      ...updates,
+      updatedAt: new Date().toISOString(),
     };
-    const updatedNote = { ...selectedNote, blocks: [...selectedNote.blocks, newBlock] };
-    setSelectedNote(updatedNote);
-    setNotes(notes.map(n => n.id === selectedNote.id ? updatedNote : n));
-  };
+    setSelectedNote(updated);
+    setNotes(notes.map(n => n.id === selectedNote.id ? updated : n));
 
-  const deleteBlock = (blockId: string) => {
-    if (!selectedNote || selectedNote.blocks.length === 1) return;
-    const updatedBlocks = selectedNote.blocks.filter(b => b.id !== blockId);
-    const updatedNote = { ...selectedNote, blocks: updatedBlocks };
-    setSelectedNote(updatedNote);
-    setNotes(notes.map(n => n.id === selectedNote.id ? updatedNote : n));
+    // Auto-save
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      console.log('Note saved:', updated.title);
+    }, 1000);
   };
 
   const createNewNote = () => {
     const newNote: Note = {
       id: Math.random().toString(36).substr(2, 9),
       title: locale === 'bg' ? 'Нова бележка' : 'New Note',
-      blocks: [{ id: '1', type: 'text', content: '' }]
+      content: '',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
     setNotes([newNote, ...notes]);
     setSelectedNote(newNote);
   };
 
+  const deleteNote = (noteId: string) => {
+    const newNotes = notes.filter(n => n.id !== noteId);
+    setNotes(newNotes);
+    if (selectedNote?.id === noteId) {
+      setSelectedNote(newNotes[0] || null);
+    }
+  };
+
+  const applyFormat = (command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  };
+
+  const formatAsList = (ordered: boolean) => {
+    document.execCommand(ordered ? 'insertOrderedList' : 'insertUnorderedList', false);
+    editorRef.current?.focus();
+  };
+
+  const formatAsCheckbox = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString()) {
+      const text = selection.toString();
+      document.execCommand('insertHTML', false, `☐ ${text}`);
+    } else {
+      document.execCommand('insertHTML', false, '☐ ');
+    }
+    editorRef.current?.focus();
+  };
+
   return (
     <PageShell>
       <NavBar />
-      <PageContent>
-        <PageHeader title="📝 Notes" />
+      <PageContent size="lg">
+        <div className="flex h-[calc(100vh-60px)]">
+          {/* Left Sidebar */}
+          <div className="w-64 border-r border-gray-200 bg-gray-50 flex flex-col">
+            <div className="p-4 border-b border-gray-200">
+              <Button variant="primary" onClick={createNewNote} className="w-full">
+                ✎ {locale === 'bg' ? 'Нова' : 'New'}
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* List */}
-          <div className="space-y-2">
-            <Button variant="primary" onClick={createNewNote} className="w-full">
-              + {locale === 'bg' ? 'Нова' : 'New'}
-            </Button>
+            <div className="p-4 flex-1 overflow-y-auto space-y-2">
+              <input
+                type="text"
+                placeholder={locale === 'bg' ? 'Търси...' : 'Search...'}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+              />
 
-            {notes.map(note => (
-              <div
-                key={note.id}
-                onClick={() => setSelectedNote(note)}
-                className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                  selectedNote?.id === note.id ? 'bg-indigo-100 border-l-4 border-indigo-600' : 'hover:bg-gray-50'
-                }`}
-              >
-                <div className="font-semibold text-sm">{note.title}</div>
-                <div className="text-xs text-gray-500">{note.blocks.length} blocks</div>
+              <div className="space-y-1 mt-4">
+                {filteredNotes.map(note => (
+                  <div
+                    key={note.id}
+                    onClick={() => setSelectedNote(note)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (confirm(locale === 'bg' ? 'Изтриване?' : 'Delete?')) {
+                        deleteNote(note.id);
+                      }
+                    }}
+                    className={`p-3 rounded-lg cursor-pointer transition-all ${
+                      selectedNote?.id === note.id
+                        ? 'bg-white border-l-4 border-blue-500 shadow-sm'
+                        : 'hover:bg-white'
+                    }`}
+                  >
+                    <div className="font-semibold text-sm text-gray-900 truncate">
+                      {note.title || locale === 'bg' ? 'Без заглавие' : 'Untitled'}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 truncate line-clamp-2">
+                      {note.content || locale === 'bg' ? 'Няма съдържание' : 'No content'}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
-          {/* Editor */}
-          <div className="md:col-span-2 space-y-4">
+          {/* Main Editor */}
+          <div className="flex-1 flex flex-col bg-white">
             {selectedNote ? (
               <>
-                <input
-                  value={selectedNote.title}
-                  onChange={(e) => {
-                    const updated = { ...selectedNote, title: e.target.value };
-                    setSelectedNote(updated);
-                    setNotes(notes.map(n => n.id === selectedNote.id ? updated : n));
-                  }}
-                  className="w-full text-2xl font-bold outline-none border-b-2 border-gray-300 pb-2"
-                />
+                {/* Top Bar */}
+                <div className="border-b border-gray-200 p-4 space-y-4">
+                  <input
+                    value={selectedNote.title}
+                    onChange={(e) => updateNote({ title: e.target.value })}
+                    placeholder={locale === 'bg' ? 'Заглавие' : 'Title'}
+                    className="w-full text-3xl font-bold outline-none"
+                  />
 
-                <div className="space-y-3">
-                  {selectedNote.blocks.map((block, idx) => (
-                    <div key={block.id} className="group relative p-2 rounded hover:bg-gray-50">
-                      <div className="flex gap-2 mb-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <select
-                          value={block.type}
-                          onChange={(e) => updateBlock(block.id, { type: e.target.value as any })}
-                          className="text-xs px-2 py-1 border border-gray-300 rounded"
-                        >
-                          <option value="text">Text</option>
-                          <option value="heading">Heading</option>
-                          <option value="checklist">Checklist</option>
-                          <option value="bullet">Bullet</option>
-                          <option value="code">Code</option>
-                        </select>
+                  {/* Formatting Toolbar */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => applyFormat('bold')}
+                      title="Bold"
+                      className="px-3 py-2 text-sm font-bold border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      B
+                    </button>
+                    <button
+                      onClick={() => applyFormat('italic')}
+                      title="Italic"
+                      className="px-3 py-2 text-sm italic border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      I
+                    </button>
+                    <button
+                      onClick={() => applyFormat('underline')}
+                      title="Underline"
+                      className="px-3 py-2 text-sm underline border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      U
+                    </button>
 
-                        <div className="flex gap-1 ml-auto">
-                          <button
-                            onClick={() => deleteBlock(block.id)}
-                            className="px-2 py-1 text-xs text-red-600 border border-red-300 rounded hover:bg-red-50"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
+                    <div className="w-px h-6 bg-gray-300" />
 
-                      {block.type === 'checklist' ? (
-                        <div className="flex gap-2">
-                          <input
-                            type="checkbox"
-                            checked={block.checked || false}
-                            onChange={(e) => updateBlock(block.id, { checked: e.target.checked })}
-                            className="mt-1"
-                          />
-                          <textarea
-                            value={block.content}
-                            onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                                e.preventDefault();
-                                addBlock('checklist');
-                              }
-                            }}
-                            placeholder="Checklist... (Ctrl+Enter for new item)"
-                            className="flex-1 outline-none text-sm resize-none"
-                            rows={2}
-                          />
-                        </div>
-                      ) : block.type === 'heading' ? (
-                        <textarea
-                          value={block.content}
-                          onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                              e.preventDefault();
-                              addBlock();
-                            }
-                          }}
-                          placeholder="Heading... (Ctrl+Enter for new block)"
-                          className="w-full outline-none text-lg font-semibold border-b border-gray-300 resize-none"
-                          rows={2}
-                        />
-                      ) : block.type === 'code' ? (
-                        <textarea
-                          value={block.content}
-                          onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                              e.preventDefault();
-                              addBlock();
-                            }
-                          }}
-                          placeholder="Code... (Ctrl+Enter for new block)"
-                          className="w-full font-mono text-sm p-2 border border-gray-300 rounded bg-gray-50 outline-none resize-none"
-                          rows={4}
-                        />
-                      ) : (
-                        <textarea
-                          value={block.content}
-                          onChange={(e) => updateBlock(block.id, { content: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                              e.preventDefault();
-                              addBlock();
-                            }
-                          }}
-                          placeholder={block.type === 'bullet' ? '• Item... (Ctrl+Enter for new block)' : 'Type... (Ctrl+Enter for new block)'}
-                          className="w-full outline-none text-sm resize-none"
-                          rows={2}
-                        />
-                      )}
-                    </div>
-                  ))}
+                    <button
+                      onClick={() => formatAsList(false)}
+                      title="Bullet List"
+                      className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      •
+                    </button>
+                    <button
+                      onClick={() => formatAsList(true)}
+                      title="Numbered List"
+                      className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      1.
+                    </button>
+                    <button
+                      onClick={formatAsCheckbox}
+                      title="Checklist"
+                      className="px-3 py-2 text-sm border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                    >
+                      ☐
+                    </button>
+
+                    <div className="w-px h-6 bg-gray-300" />
+
+                    <select
+                      onChange={(e) => applyFormat('formatBlock', e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded outline-none"
+                      defaultValue="p"
+                    >
+                      <option value="p">{locale === 'bg' ? 'Текст' : 'Text'}</option>
+                      <option value="h1">{locale === 'bg' ? 'Заглавие 1' : 'Heading 1'}</option>
+                      <option value="h2">{locale === 'bg' ? 'Заглавие 2' : 'Heading 2'}</option>
+                      <option value="h3">{locale === 'bg' ? 'Заглавие 3' : 'Heading 3'}</option>
+                    </select>
+
+                    <div className="flex-1" />
+
+                    <button
+                      onClick={() => {
+                        if (confirm(locale === 'bg' ? 'Изтриване на тази бележка?' : 'Delete this note?')) {
+                          deleteNote(selectedNote.id);
+                        }
+                      }}
+                      className="px-3 py-2 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                    >
+                      🗑 {locale === 'bg' ? 'Изтрий' : 'Delete'}
+                    </button>
+                  </div>
                 </div>
 
-                <Button variant="secondary" onClick={() => addBlock()} className="w-full">
-                  + {locale === 'bg' ? 'Добави блок' : 'Add block'}
-                </Button>
+                {/* Editor Area */}
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  onBlur={() => {
+                    const content = editorRef.current?.innerText || '';
+                    updateNote({ content });
+                  }}
+                  className="flex-1 p-6 outline-none text-base leading-relaxed overflow-y-auto max-w-4xl mx-auto w-full"
+                  style={{ minHeight: '100px' }}
+                >
+                  {selectedNote.content}
+                </div>
               </>
-            ) : null}
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                {locale === 'bg' ? 'Няма избрана бележка' : 'No note selected'}
+              </div>
+            )}
           </div>
         </div>
       </PageContent>
