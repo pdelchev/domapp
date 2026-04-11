@@ -51,10 +51,10 @@ def on_protocol_created(sender, instance, created, **kwargs):
     if created:
         from .models import BloodReport, BloodResult
 
-        # Get latest blood report
-        latest_report = BloodReport.objects.filter(user=instance.user).latest('test_date')
+        try:
+            # Get latest blood report
+            latest_report = BloodReport.objects.filter(user=instance.user).latest('test_date')
 
-        if latest_report:
             # Populate baseline biomarkers from latest report
             results = BloodResult.objects.filter(report=latest_report)
             baseline = {
@@ -64,3 +64,6 @@ def on_protocol_created(sender, instance, created, **kwargs):
 
             instance.baseline_biomarkers = baseline
             instance.save(update_fields=['baseline_biomarkers'])
+        except BloodReport.DoesNotExist:
+            # No blood report yet, skip initialization
+            pass
