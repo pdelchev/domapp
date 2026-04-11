@@ -325,11 +325,11 @@ export default function ProtocolCheckin() {
               >
                 <div className="font-semibold text-sm">{protocol.name}</div>
                 <div className="text-xs text-gray-600 mt-1">{protocol.adherence_percentage}% adherence</div>
-                <Badge
-                  color={protocol.confidence_score > 0.8 ? 'green' : 'yellow'}
-                  text={`${Math.round(protocol.confidence_score * 100)}% confident`}
-                  className="mt-2"
-                />
+                <div className="mt-2">
+                  <Badge color={protocol.confidence_score > 0.8 ? 'green' : 'yellow'}>
+                    {Math.round(protocol.confidence_score * 100)}% confident
+                  </Badge>
+                </div>
               </button>
             ))}
           </div>
@@ -561,15 +561,17 @@ export default function ProtocolCheckin() {
                           </ul>
                         </div>
                       )}
-                      <Badge
-                        color={
-                          insight.priority === 'critical' ? 'red' :
-                          insight.priority === 'high' ? 'red' :
-                          insight.priority === 'medium' ? 'yellow' : 'green'
-                        }
-                        text={insight.priority.toUpperCase()}
-                        className="mt-2"
-                      />
+                      <div className="mt-2">
+                        <Badge
+                          color={
+                            insight.priority === 'critical' ? 'red' :
+                            insight.priority === 'high' ? 'red' :
+                            insight.priority === 'medium' ? 'yellow' : 'green'
+                          }
+                        >
+                          {insight.priority.toUpperCase()}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 </div>
