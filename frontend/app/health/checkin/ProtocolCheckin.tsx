@@ -88,6 +88,20 @@ export default function ProtocolCheckin() {
   const [error, setError] = useState('');
   const [aiInsights, setAiInsights] = useState<any[]>([]);
 
+  // Form section states
+  const [openSections, setOpenSections] = useState({
+    mood: true,
+    biometrics: false,
+    supplements: true,
+    diet: false,
+    sleep: false,
+    exercise: false,
+  });
+
+  const toggleSection = (section: keyof typeof openSections) => {
+    setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
   // Load protocols
   useEffect(() => {
     const loadProtocols = async () => {
@@ -341,7 +355,7 @@ export default function ProtocolCheckin() {
 
             {/* Mood & Energy */}
             {todaysFields.includes('mood') && (
-              <FormSection title="How are you feeling?" icon="😊" defaultOpen={true}>
+              <FormSection title="How are you feeling?" icon="😊" open={openSections.mood} onToggle={() => toggleSection('mood')}>
                 {todaysFields.includes('mood') && (
                   <Slider
                     label="Mood (1 = terrible, 10 = excellent)"
@@ -368,7 +382,7 @@ export default function ProtocolCheckin() {
 
             {/* Biometrics */}
             {todaysFields.some(f => ['weight_kg', 'systolic_bp', 'diastolic_bp'].includes(f)) && (
-              <FormSection title="Biometrics" icon="⚡" defaultOpen={false}>
+              <FormSection title="Biometrics" icon="⚡" open={openSections.biometrics} onToggle={() => toggleSection('biometrics')}>
                 <div className="grid grid-cols-2 gap-3">
                   {todaysFields.includes('weight_kg') && (
                     <Input
@@ -404,7 +418,7 @@ export default function ProtocolCheckin() {
 
             {/* Supplements */}
             {todaysFields.includes('supplements_taken') && Object.keys(formData.supplements_taken).length > 0 && (
-              <FormSection title="Supplements" icon="💊" defaultOpen={true}>
+              <FormSection title="Supplements" icon="💊" open={openSections.supplements} onToggle={() => toggleSection('supplements')}>
                 <div className="space-y-3">
                   {Object.entries(formData.supplements_taken).map(([suppName, suppData]) => (
                     <div key={suppName} className="flex items-start gap-3 pb-3 border-b">
@@ -441,7 +455,7 @@ export default function ProtocolCheckin() {
 
             {/* Diet */}
             {todaysFields.includes('diet_notes') && (
-              <FormSection title="Diet" icon="🥗" defaultOpen={false}>
+              <FormSection title="Diet" icon="🥗" open={openSections.diet} onToggle={() => toggleSection('diet')}>
                 <Select
                   label="How well did you follow the protocol diet?"
                   value={formData.diet_notes}
@@ -459,7 +473,7 @@ export default function ProtocolCheckin() {
 
             {/* Sleep */}
             {todaysFields.some(f => ['sleep_hours', 'sleep_quality'].includes(f)) && (
-              <FormSection title="Sleep" icon="😴" defaultOpen={false}>
+              <FormSection title="Sleep" icon="😴" open={openSections.sleep} onToggle={() => toggleSection('sleep')}>
                 {todaysFields.includes('sleep_hours') && (
                   <Input
                     label="Hours of sleep last night"
@@ -482,7 +496,7 @@ export default function ProtocolCheckin() {
 
             {/* Exercise */}
             {todaysFields.includes('exercise_type') && (
-              <FormSection title="Exercise" icon="🏃" defaultOpen={false}>
+              <FormSection title="Exercise" icon="🏃" open={openSections.exercise} onToggle={() => toggleSection('exercise')}>
                 <Input
                   label="Exercise type"
                   placeholder="e.g., cardio, yoga, strength"
