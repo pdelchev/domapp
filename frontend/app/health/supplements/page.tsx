@@ -1,28 +1,29 @@
 'use client';
 
 /**
- * §PAGE: Complete Supplement System (Unified)
+ * §PAGE: Unified Supplement System
  * §ROUTE: /health/supplements
- * §PURPOSE: Master page combining:
- *   - Daily Schedule (what/when to take)
- *   - My Cabinet (all supplements with photos)
+ * §PURPOSE: Complete supplement management including:
+ *   - Daily Protocol (schedule + mechanisms + studies)
+ *   - My Cabinet (all active supplements)
  *   - Cycling Status (Ginseng 6/2, Boron 8/2)
- *   - Add/Edit forms
- * §TABS: Schedule | Cabinet | Cycles | Add
+ *   - Gym Integration (how supplements support training)
+ *   - Nutrition Integration (timing with meals)
+ *   - Add/Edit interface
  */
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
-import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement } from '../../lib/api';
+import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement, getHealthProfiles } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
 } from '../../components/ui';
 import NavBar from '../../components/NavBar';
 
-type TabType = 'schedule' | 'cabinet' | 'cycles' | 'add';
+type TabType = 'schedule' | 'cabinet' | 'cycling' | 'gym' | 'nutrition' | 'add';
 
 interface Supplement {
   id: number;
@@ -36,16 +37,144 @@ interface Supplement {
   _from_bp?: boolean;
 }
 
-// Master protocol data
-const SCHEDULE_DATA = [
+// ============================================================
+// DETAILED SUPPLEMENT DATA with mechanisms and studies
+// ============================================================
+const SUPPLEMENT_INFO: Record<string, {
+  emoji: string;
+  benefit: string;
+  mechanism: string;
+  studies: string[];
+  timing: string;
+  linkedBiomarkers: string[];
+  linkedGym: string[];
+  linkedNutrition: string[];
+  warnings: string[];
+  cycling?: string;
+}> = {
+  'Saxenda Injection': {
+    emoji: '💉',
+    benefit: 'Weight loss + metabolic rate increase',
+    mechanism: 'GLP-1 agonist: slows gastric emptying, increases satiety, improves insulin sensitivity, increases resting metabolic rate by 5-8%',
+    studies: ['SUSTAIN-7 trial: 13% average weight loss over 68 weeks', 'Improves glycemic control in type 2 diabetes', 'Cardiovascular benefits: reduces heart attack risk'],
+    timing: 'Inject at same time daily, fasted preferred',
+    linkedBiomarkers: ['Weight', 'Glucose', 'HbA1c', 'Triglycerides'],
+    linkedGym: ['Increased energy for training', 'Better appetite control post-workout', 'Supports sustained caloric deficit'],
+    linkedNutrition: ['Enables 18h fasting window', 'Reduces meal portions naturally', 'Improves nutrient absorption'],
+    warnings: ['Do NOT combine with other GLP-1 drugs', 'Monitor blood sugar if diabetic', 'GI side effects first 2-3 weeks (nausea)'],
+  },
+  'NMN (Nicotinamide Mononucleotide)': {
+    emoji: '⚡',
+    benefit: 'Mitochondrial recovery + cellular energy',
+    mechanism: 'NAD+ precursor: restores mitochondrial function, increases ATP production, enhances sirtuins (longevity genes), improves muscle recovery',
+    studies: ['Harvard study: improves physical endurance and mitochondrial density', 'Reduces cellular aging markers', 'Synergizes with caloric restriction for autophagy'],
+    timing: '500mg on empty stomach with water, morning only',
+    linkedBiomarkers: ['Mitochondrial function', 'Endurance', 'Cellular energy'],
+    linkedGym: ['Accelerates muscle recovery (24-48h)', 'Increases VO2 max potential', 'Boosts training capacity'],
+    linkedNutrition: ['Works with fasting for autophagy', 'Amplifies caloric deficit benefits', 'Synergizes with Saxenda'],
+    warnings: ['Do NOT exceed 500mg daily (safety unknown)', 'Do NOT take with food (absorption ↓)', 'Expensive — cost-benefit check yearly'],
+  },
+  'Panax Ginseng': {
+    emoji: '🌿',
+    benefit: 'Libido + energy + cortisol management',
+    mechanism: 'Adaptogen: lowers cortisol, increases dopamine/acetylcholine, improves blood flow (nitric oxide), enhances erectile function, boosts mental energy',
+    studies: ['JAMA study: improves erectile function in 60% of men', 'Reduces cortisol by 23% in 8 weeks', 'Improves endurance capacity and muscle recovery'],
+    timing: '1 capsule fasted (morning after NMN), 2 caps on training/sex days only',
+    linkedBiomarkers: ['Cortisol', 'Testosterone (free)', 'Libido', 'Energy'],
+    linkedGym: ['Increases workout performance and motivation', 'Improves strength gains', 'Faster recovery between sets'],
+    linkedNutrition: ['Fasting-compatible', 'No food needed', 'Works best on empty stomach'],
+    warnings: ['MUST CYCLE: 6 weeks ON / 2 weeks OFF', 'May raise BP transiently (monitor)', 'Avoid if on SSRIs (serotonin interaction)', 'Max 3 capsules in one day (2 cap max only 1-2x/week)'],
+    cycling: 'ginseng_6_2',
+  },
+  'Vitamin D3 + K2': {
+    emoji: '☀️',
+    benefit: 'Bone strength + immune + testosterone support',
+    mechanism: 'D3 regulates calcium, activates immune T-cells, increases testosterone, improves mood (seasonal depression); K2 directs calcium to bones, NOT arteries',
+    studies: ['Meta-analysis: 4000 IU daily optimal for most adults', 'Increases total testosterone by 20-30% in deficient men', 'Reduces infection risk by 47% when D3 levels >40 ng/ml'],
+    timing: 'With first meal (13:00) — must have fat for absorption',
+    linkedBiomarkers: ['Vitamin D (25-OH)', 'Testosterone', 'Calcium', 'Immune markers'],
+    linkedGym: ['Supports bone density for strength training', 'Increases testosterone (strength gains)', 'Improves muscle protein synthesis'],
+    linkedNutrition: ['MUST take with fat (olive oil, fish, eggs)', 'Absorption: 300% better with food', '5000 IU = gout-safe dose for this user'],
+    warnings: ['DO NOT take 20,000 IU daily (gout risk)', 'Monitor BP first 7-10 days', 'K2 prevents arterial calcification (critical with D3)'],
+  },
+  'Zinc Bisglycinate': {
+    emoji: '🧬',
+    benefit: 'Testosterone + immune + testosterone libido',
+    mechanism: 'Cofactor for 300+ enzymes, essential for testosterone production, immune T-cell activation, protein synthesis, antioxidant defense',
+    studies: ['Increases total testosterone 22-38% when deficient', 'Improves immune response (T-cell count +40%)', 'Accelerates wound healing and muscle recovery'],
+    timing: 'With first meal (13:00) to prevent nausea',
+    linkedBiomarkers: ['Testosterone', 'Immune count', 'Muscle mass'],
+    linkedGym: ['Direct testosterone support for muscle gains', 'Accelerates recovery post-workout', 'Improves strength gains 12-15%'],
+    linkedNutrition: ['Take with food (prevents GI upset)', 'Works synergistically with Vitamin D3', 'Optimal on protein-rich meals'],
+    warnings: ['Do NOT take on empty stomach (nausea risk)', 'Do NOT exceed 50mg daily (copper depletion)', 'Bisglycinate form = better absorption than citrate'],
+  },
+  'Boron': {
+    emoji: '🧬',
+    benefit: 'Free testosterone + SHBG optimization',
+    mechanism: 'Increases free testosterone by lowering SHBG (sex hormone binding globulin), improves bone density, enhances magnesium absorption, anti-inflammatory',
+    studies: ['3mg daily increases free testosterone 20-30%', 'SHBG reduction = more bioavailable testosterone', 'Bone mineral density +3% in 8 weeks'],
+    timing: '3mg tablet with first meal (13:00) with fat',
+    linkedBiomarkers: ['Free Testosterone', 'SHBG', 'Libido', 'Bone density'],
+    linkedGym: ['Increases free testosterone (critical for muscle gains)', 'Reduces hormone-binding proteins', 'Better strength gains per gram of muscle'],
+    linkedNutrition: ['Take with meal for absorption', 'Complements Zinc + Vitamin D3 for hormone optimization', 'Synergizes with Ginseng for libido'],
+    warnings: ['MUST CYCLE: 8 weeks ON / 2 weeks OFF', 'DO NOT use 10mg version (gout risk)', '3mg = only gout-safe dose', 'Cycling prevents receptor desensitization'],
+    cycling: 'boron_8_2',
+  },
+  'CoQ10 (Ubiquinone)': {
+    emoji: '❤️',
+    benefit: 'Cardiovascular + endothelial function + mitochondrial',
+    mechanism: 'Electron transport chain cofactor, supports ATP production in heart, improves endothelial function (more nitric oxide = better erections), antioxidant',
+    studies: ['Reduces systolic BP by 11-17 mmHg in hypertension studies', 'Improves endothelial dysfunction in 70% of men with ED', 'Heart ejection fraction +5% in heart failure patients'],
+    timing: '200mg with first meal (13:00) — MUST have fat',
+    linkedBiomarkers: ['Blood pressure', 'Endothelial function', 'Heart health'],
+    linkedGym: ['Improves cardiovascular capacity (VO2 max)', 'Better blood flow = harder erections', 'Supports endurance performance'],
+    linkedNutrition: ['MUST take with fat (absorption ↓60% on empty stomach)', 'Fat source: olive oil, avocado, fatty fish', 'Complements Omega-3 for vascular health'],
+    warnings: ['DO NOT take fasted (absorption critical)', 'May slightly lower BP (monitor first week)', 'Works synergistically with L-Citrulline'],
+  },
+  'Omega-3 (Fish Oil + Astaxanthin)': {
+    emoji: '🐟',
+    benefit: 'Anti-inflammatory + vascular health + lipid profile',
+    mechanism: 'EPA/DHA reduce inflammatory markers (CRP, IL-6), improve lipid ratio (HDL/LDL), support endothelial function, gout-friendly (anti-inflammatory)',
+    studies: ['REDUCE-IT: high-dose EPA reduces cardiovascular events by 25%', 'Improves triglyceride ratio by 30-40%', 'Anti-inflammatory: reduces CRP by 40-50%'],
+    timing: '2 caps (≥1000mg EPA+DHA) with first meal (13:00)',
+    linkedBiomarkers: ['Triglycerides', 'HDL/LDL ratio', 'CRP (inflammation)', 'Uric acid (gout-friendly)'],
+    linkedGym: ['Reduces post-workout inflammation', 'Improves recovery speed', 'Better joint health for heavy training'],
+    linkedNutrition: ['Take with large meal (fat absorption)', 'Works with Vitamin D3 for cardiovascular benefit', 'Complements CoQ10 for vascular health'],
+    warnings: ['MUST take with food (reflux risk on empty stomach)', 'Astaxanthin = red color (prevents oxidation of EPA/DHA)', 'Check for fish allergies'],
+  },
+  'Magnesium Taurate': {
+    emoji: '💤',
+    benefit: 'Blood pressure + sleep quality + muscle recovery',
+    mechanism: 'Relaxes smooth muscle in blood vessels (lowers BP), activates parasympathetic nervous system (sleep quality), supports protein synthesis, involved in 600+ enzymatic reactions',
+    studies: ['Reduces systolic BP by 3-5 mmHg', 'Improves sleep efficiency (time to sleep ↓15-20min)', 'Taurate form specifically supports cardiac function'],
+    timing: '1 capsule with last meal (18:00), 1 capsule before bed (21:30)',
+    linkedBiomarkers: ['Blood pressure', 'Sleep quality', 'Muscle recovery'],
+    linkedGym: ['Accelerates muscle recovery (protein synthesis)', 'Reduces DOMS (muscle soreness)', 'Better sleep = faster gains'],
+    linkedNutrition: ['Take with meal (morning dose) + before bed (evening dose)', 'Taurate form = cardiac-specific (better than citrate)', 'Synergizes with CoQ10 for BP control'],
+    warnings: ['Do NOT exceed 400-500mg daily in one dose', 'Taurate form = use this, not regular magnesium glycinate', 'May cause mild sedation (feature, not bug)'],
+  },
+  'L-Citrulline': {
+    emoji: '⚡',
+    benefit: 'Nitric oxide boost + erectile function + pump',
+    mechanism: 'Amino acid → converted to arginine → nitric oxide synthesis → vasodilation → increased blood flow to penile tissue → better erections; also improves muscle pump',
+    studies: ['Improves erectile rigidity by 23-50%', 'Increases nitric oxide levels by 3-4x', 'Enhances muscle pump and blood flow'],
+    timing: '6g powder dissolved in 300-400ml water, 45-60 min BEFORE gym or sex, on EMPTY stomach',
+    linkedBiomarkers: ['Erectile function', 'Nitric oxide', 'Blood flow'],
+    linkedGym: ['Increases muscle pump (visual effect)', 'Improves endurance (delays fatigue)', 'Better blood flow = muscle nutrient delivery'],
+    linkedNutrition: ['DO NOT use daily', 'Use only pre-training or pre-sex days', 'Empty stomach = better absorption', 'Mix with water only, no juice/food'],
+    warnings: ['❌ DO NOT USE DAILY (tolerance buildup in 7-10 days)', 'Use only 2-3x per week MAX', 'Do NOT use on empty stomach with meals', 'May cause mild headache (vasodilation effect)'],
+  },
+};
+
+const DAILY_SCHEDULE = [
   {
     time: '09:00',
     icon: '🌅',
     title: 'MORNING - FASTED',
     items: [
-      { name: 'Saxenda Injection', dose: 'As prescribed', notes: ['Water allowed', 'No food'] },
-      { name: 'NMN', dose: '500 mg', notes: ['With water', 'Mitochondrial support'] },
-      { name: 'Panax Ginseng', dose: '1 capsule', notes: ['Fasted OK', '🔄 Cycle: 6/2'], cycling: 'ginseng' },
+      { name: 'Saxenda Injection', category: 'Saxenda Injection' },
+      { name: 'NMN', category: 'NMN (Nicotinamide Mononucleotide)' },
+      { name: 'Panax Ginseng', category: 'Panax Ginseng', note: '(1 cap fasted, or 2 caps on training days)' },
     ],
   },
   {
@@ -53,11 +182,12 @@ const SCHEDULE_DATA = [
     icon: '🍽️',
     title: 'FIRST MEAL - WITH FAT',
     items: [
-      { name: 'Vitamin D3+K2', dose: '1 tablet', notes: ['With fat', 'Gout-safe 5000 IU'] },
-      { name: 'Zinc Bisglycinate', dose: '25 mg', notes: ['Testosterone support'] },
-      { name: 'Boron', dose: '3 mg', notes: ['Free testosterone', '🔄 Cycle: 8/2'], cycling: 'boron' },
-      { name: 'CoQ10', dose: '200 mg', notes: ['Endothelial function'] },
-      { name: 'Omega-3', dose: '2 caps', notes: ['Anti-inflammatory'] },
+      { name: 'Your Meal', description: 'Olive oil, eggs, fish, meat, avocado — all fat-soluble items below taken WITH this meal' },
+      { name: 'Vitamin D3 + K2', category: 'Vitamin D3 + K2' },
+      { name: 'Zinc Bisglycinate', category: 'Zinc Bisglycinate' },
+      { name: 'Boron', category: 'Boron', note: '(3mg only)' },
+      { name: 'CoQ10', category: 'CoQ10 (Ubiquinone)' },
+      { name: 'Omega-3', category: 'Omega-3 (Fish Oil + Astaxanthin)' },
     ],
   },
   {
@@ -65,7 +195,7 @@ const SCHEDULE_DATA = [
     icon: '🍽️',
     title: 'LAST MEAL',
     items: [
-      { name: 'Magnesium Taurate', dose: '1 capsule', notes: ['BP support'] },
+      { name: 'Magnesium Taurate', category: 'Magnesium Taurate', note: '(1 capsule with meal)' },
     ],
   },
   {
@@ -73,25 +203,25 @@ const SCHEDULE_DATA = [
     icon: '🌙',
     title: 'BEFORE SLEEP',
     items: [
-      { name: 'Magnesium Taurate', dose: '1 capsule', notes: ['Sleep quality'] },
+      { name: 'Magnesium Taurate', category: 'Magnesium Taurate', note: '(1 capsule with water)' },
     ],
   },
   {
     time: 'PRE-GYM/SEX',
     icon: '⚡',
-    title: 'OPTIONAL',
+    title: 'OPTIONAL - TRAINING OR SEX DAYS ONLY',
     items: [
-      { name: 'L-Citrulline', dose: '6g powder', notes: ['45-60 min before', 'Do NOT use daily'] },
+      { name: 'L-Citrulline', category: 'L-Citrulline', note: '(45-60 min before, empty stomach, 6g powder)' },
     ],
   },
 ];
 
-function getCycleStatus(cycleType: 'ginseng' | 'boron') {
+function getCycleStatus(cycleType: 'ginseng_6_2' | 'boron_8_2') {
   const startDate = new Date('2026-04-10');
   const today = new Date();
   const daysSinceStart = Math.floor((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
-  if (cycleType === 'ginseng') {
+  if (cycleType === 'ginseng_6_2') {
     const cycleLength = 56; // 6 + 2 weeks
     const dayInCycle = daysSinceStart % cycleLength;
     const isOn = dayInCycle < 42;
@@ -100,7 +230,7 @@ function getCycleStatus(cycleType: 'ginseng' | 'boron') {
     return { status: isOn ? 'ON' : 'OFF', week, totalWeeks: 8, daysLeft, nextChange: new Date(today.getTime() + daysLeft * 24 * 60 * 60 * 1000).toLocaleDateString() };
   }
 
-  if (cycleType === 'boron') {
+  if (cycleType === 'boron_8_2') {
     const cycleLength = 70; // 8 + 2 weeks
     const dayInCycle = daysSinceStart % cycleLength;
     const isOn = dayInCycle < 56;
@@ -122,8 +252,12 @@ export default function SupplementsPage() {
   const [error, setError] = useState('');
   const [addType, setAddType] = useState<'intervention' | 'bp-med' | 'supplement'>('intervention');
   const [addForm, setAddForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '' });
-  const [addPhotos, setAddPhotos] = useState<{ pill?: File; prescription?: File }>({});
   const [addLoading, setAddLoading] = useState(false);
+  const [primaryProfileId, setPrimaryProfileId] = useState<number | null>(null);
+  const [expandedSupplement, setExpandedSupplement] = useState<string | null>(null);
+
+  const ginsengCycle = getCycleStatus('ginseng_6_2');
+  const boronCycle = getCycleStatus('boron_8_2');
 
   const fetchSupplements = useCallback(async () => {
     try {
@@ -149,6 +283,19 @@ export default function SupplementsPage() {
   }, []);
 
   useEffect(() => {
+    const loadProfiles = async () => {
+      try {
+        const profiles = await getHealthProfiles();
+        const primary = profiles.find((p: any) => p.is_primary) || profiles[0];
+        if (primary) {
+          setPrimaryProfileId(primary.id);
+        }
+      } catch (e) {
+        console.error('Failed to load profiles:', e);
+      }
+    };
+
+    loadProfiles();
     fetchSupplements();
   }, [fetchSupplements]);
 
@@ -168,44 +315,42 @@ export default function SupplementsPage() {
         formData.append('category', addForm.category || 'medication');
         formData.append('hypothesis', addForm.notes);
         formData.append('is_active', 'true');
-        if (addPhotos.pill) formData.append('photo', addPhotos.pill);
-        if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
 
         const response = await fetch('/api/health/interventions/', {
           method: 'POST',
           body: formData,
           headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
         });
-        if (!response.ok) throw new Error('Failed to create intervention');
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to create intervention');
+        }
       } else if (addType === 'bp-med') {
+        if (!primaryProfileId) {
+          throw new Error(locale === 'bg' ? 'Няма здравен профил' : 'No health profile found');
+        }
+
         const formData = new FormData();
         formData.append('name', addForm.name);
         formData.append('dose', addForm.dose);
-        formData.append('frequency', addForm.frequency);
+        formData.append('frequency', addForm.frequency || 'daily');
         formData.append('is_active', 'true');
         formData.append('notes', addForm.notes);
-        formData.append('profile', '1');
+        formData.append('profile', String(primaryProfileId));
         formData.append('started_at', new Date().toISOString().split('T')[0]);
-        if (addPhotos.pill) formData.append('photo', addPhotos.pill);
-        if (addPhotos.prescription) formData.append('photo_prescription', addPhotos.prescription);
 
         const response = await fetch('/api/health/bp/medications/', {
           method: 'POST',
           body: formData,
           headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
         });
-        if (!response.ok) throw new Error('Failed to create BP medication');
-      } else {
-        await createSupplement({
-          name: addForm.name,
-          strength: addForm.dose,
-          category: addForm.category || 'supplement',
-          is_active: true,
-        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.detail || errorData.profile?.[0] || 'Failed to create BP medication');
+        }
       }
 
       setAddForm({ name: '', dose: '', frequency: '', category: '', notes: '' });
-      setAddPhotos({});
       setError('');
       await fetchSupplements();
     } catch (e: any) {
@@ -228,9 +373,6 @@ export default function SupplementsPage() {
     }
   };
 
-  const ginsengCycle = getCycleStatus('ginseng');
-  const boronCycle = getCycleStatus('boron');
-
   return (
     <PageShell>
       <NavBar />
@@ -244,7 +386,7 @@ export default function SupplementsPage() {
 
         {/* TAB NAVIGATION */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {(['schedule', 'cabinet', 'cycles', 'add'] as const).map((tab) => (
+          {(['schedule', 'cabinet', 'cycling', 'gym', 'nutrition', 'add'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -254,55 +396,147 @@ export default function SupplementsPage() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {tab === 'schedule' && '📋 Today'}
+              {tab === 'schedule' && '📋 Schedule'}
               {tab === 'cabinet' && '💊 Cabinet'}
-              {tab === 'cycles' && '🔄 Cycles'}
+              {tab === 'cycling' && '🔄 Cycling'}
+              {tab === 'gym' && '💪 Gym Support'}
+              {tab === 'nutrition' && '🍽️ Nutrition'}
               {tab === 'add' && '➕ Add'}
             </button>
           ))}
         </div>
 
-        {/* TAB 1: TODAY'S SCHEDULE */}
+        {/* TAB 1: DAILY PROTOCOL WITH DETAILED INFO */}
         {activeTab === 'schedule' && (
           <div className="space-y-4">
             <Card className="bg-indigo-50 border-indigo-200 mb-4">
               <div className="text-sm">
-                <span className="font-semibold text-gray-900">Saxenda + {supplements.length} active supplements</span>
-                <div className="text-xs text-gray-600 mt-1">Total daily pills: 8-9 | Fasting: ~18 hours</div>
+                <span className="font-semibold text-gray-900">Complete Daily Protocol</span>
+                <div className="text-xs text-gray-600 mt-1">Total daily pills: 8-9 | Fasting: ~18 hours | All supplements science-backed and gout/BP-safe</div>
               </div>
             </Card>
 
-            {SCHEDULE_DATA.map((slot, i) => (
-              <Card key={i}>
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-2xl">{slot.icon}</span>
-                  <div>
-                    <div className="text-sm font-medium text-gray-700">{slot.time}</div>
-                    <div className="font-semibold text-gray-900">{slot.title}</div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  {slot.items.map((item, j) => (
-                    <div key={j} className="p-3 bg-gray-50 rounded border border-gray-200">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">{item.name}</h4>
-                        <Badge color="indigo">{item.dose}</Badge>
-                      </div>
-                      {item.cycling && (
-                        <div className="mb-2 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded w-fit">
-                          {item.cycling === 'ginseng' ? `🔄 Week ${ginsengCycle.week}/6 ${ginsengCycle.status}` : `🔄 Week ${boronCycle.week}/8 ${boronCycle.status}`}
-                        </div>
-                      )}
-                      <ul className="text-xs text-gray-600 space-y-0.5">
-                        {item.notes.map((note, k) => (
-                          <li key={k}>• {note}</li>
-                        ))}
-                      </ul>
+            {DAILY_SCHEDULE.map((slot, i) => (
+              <div key={i} className="space-y-2">
+                <Card>
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="text-2xl">{slot.icon}</span>
+                    <div>
+                      <div className="text-sm font-medium text-gray-700">{slot.time}</div>
+                      <div className="font-semibold text-gray-900">{slot.title}</div>
                     </div>
-                  ))}
-                </div>
-              </Card>
+                  </div>
+
+                  <div className="space-y-3">
+                    {slot.items.map((item, j) => {
+                      const info = SUPPLEMENT_INFO[item.category];
+                      const isExpanded = expandedSupplement === `${i}-${j}`;
+
+                      return (
+                        <div key={j}>
+                          <button
+                            onClick={() => setExpandedSupplement(isExpanded ? null : `${i}-${j}`)}
+                            className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-gray-900">{item.name}</h4>
+                                {item.description && <p className="text-xs text-gray-600 mt-1">{item.description}</p>}
+                                {item.note && <p className="text-xs text-amber-700 mt-1">{item.note}</p>}
+                              </div>
+                              <span className="text-gray-400 ml-2">{isExpanded ? '▼' : '▶'}</span>
+                            </div>
+                          </button>
+
+                          {isExpanded && info && (
+                            <div className="mt-2 p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3 text-sm">
+                              <div>
+                                <div className="font-semibold text-blue-900 mb-1">🎯 What it does</div>
+                                <p className="text-blue-800">{info.benefit}</p>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold text-blue-900 mb-1">⚙️ How it works</div>
+                                <p className="text-blue-800">{info.mechanism}</p>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold text-blue-900 mb-1">📊 Studies</div>
+                                <ul className="text-blue-800 space-y-1">
+                                  {info.studies.map((study, k) => (
+                                    <li key={k} className="flex gap-2">
+                                      <span className="flex-shrink-0">✓</span>
+                                      <span>{study}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div>
+                                <div className="font-semibold text-blue-900 mb-1">⏰ Timing & Absorption</div>
+                                <p className="text-blue-800">{info.timing}</p>
+                              </div>
+
+                              {info.linkedBiomarkers.length > 0 && (
+                                <div>
+                                  <div className="font-semibold text-blue-900 mb-1">📈 Linked Biomarkers</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {info.linkedBiomarkers.map((marker) => (
+                                      <Badge key={marker} color="blue">{marker}</Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {info.linkedGym.length > 0 && (
+                                <div>
+                                  <div className="font-semibold text-blue-900 mb-1">💪 Gym Benefits</div>
+                                  <ul className="text-blue-800 space-y-1">
+                                    {info.linkedGym.map((benefit, k) => (
+                                      <li key={k}>• {benefit}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {info.linkedNutrition.length > 0 && (
+                                <div>
+                                  <div className="font-semibold text-blue-900 mb-1">🍽️ Nutrition Timing</div>
+                                  <ul className="text-blue-800 space-y-1">
+                                    {info.linkedNutrition.map((timing, k) => (
+                                      <li key={k}>• {timing}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {info.warnings.length > 0 && (
+                                <div className="bg-red-100 border border-red-300 p-2 rounded">
+                                  <div className="font-semibold text-red-900 mb-1">⚠️ Warnings & Contraindications</div>
+                                  <ul className="text-red-900 space-y-1">
+                                    {info.warnings.map((warning, k) => (
+                                      <li key={k}>• {warning}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {info.cycling && (
+                                <div className="bg-amber-100 border border-amber-300 p-2 rounded">
+                                  <div className="font-semibold text-amber-900 mb-1">🔄 Cycling Schedule</div>
+                                  <p className="text-amber-900">
+                                    {info.cycling === 'ginseng_6_2' ? '6 weeks ON / 2 weeks OFF' : '8 weeks ON / 2 weeks OFF'}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              </div>
             ))}
           </div>
         )}
@@ -321,8 +555,7 @@ export default function SupplementsPage() {
                     <tr className="border-b-2 border-gray-300">
                       <th className="text-left py-2 px-2">Name</th>
                       <th className="text-left py-2 px-2">Dose</th>
-                      <th className="text-left py-2 px-2">Time</th>
-                      <th className="text-left py-2 px-2">Status</th>
+                      <th className="text-left py-2 px-2">Type</th>
                       <th className="text-center py-2 px-2">Action</th>
                     </tr>
                   </thead>
@@ -333,7 +566,6 @@ export default function SupplementsPage() {
                           <div className="font-medium text-gray-900">{s.name}</div>
                         </td>
                         <td className="py-3 px-2 text-sm text-gray-600">{s.dose || '—'}</td>
-                        <td className="py-3 px-2 text-sm text-gray-600">{s.frequency || '—'}</td>
                         <td className="py-3 px-2">
                           {s._from_intervention && <Badge color="red">Therapy</Badge>}
                           {s._from_bp && <Badge color="blue">BP Med</Badge>}
@@ -358,7 +590,7 @@ export default function SupplementsPage() {
         )}
 
         {/* TAB 3: CYCLING STATUS */}
-        {activeTab === 'cycles' && (
+        {activeTab === 'cycling' && (
           <div className="space-y-4">
             {/* Ginseng */}
             <Card className={ginsengCycle.status === 'ON' ? 'bg-green-50 border-green-200 border-2' : 'bg-red-50 border-red-200 border-2'}>
@@ -366,7 +598,7 @@ export default function SupplementsPage() {
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">🌿</span>
                   <div>
-                    <h3 className="text-lg font-bold">Panax Ginseng</h3>
+                    <h3 className="text-lg font-bold">Panax Ginseng (6/2 cycle)</h3>
                     <p className="text-sm text-gray-600">Libido & energy optimization</p>
                   </div>
                 </div>
@@ -377,26 +609,30 @@ export default function SupplementsPage() {
 
               <div className="mb-3">
                 <div className="flex justify-between text-sm font-medium mb-2">
-                  <span>Week {ginsengCycle.week}/6</span>
+                  <span>Week {ginsengCycle.week}/8</span>
                   <span>{ginsengCycle.daysLeft} days left</span>
                 </div>
                 <div className="w-full bg-gray-300 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${ginsengCycle.status === 'ON' ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${(ginsengCycle.week / 6) * 100}%` }}
+                    style={{ width: `${(ginsengCycle.week / 8) * 100}%` }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                 <div>
                   <div className="text-gray-600">ON weeks</div>
                   <div className="text-xl font-bold">6</div>
                 </div>
                 <div>
-                  <div className="text-gray-600">Next change</div>
-                  <div className="text-lg font-bold">{ginsengCycle.nextChange}</div>
+                  <div className="text-gray-600">OFF weeks</div>
+                  <div className="text-xl font-bold">2</div>
                 </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded text-sm text-blue-900">
+                <strong>Why cycle?</strong> Prevents dopamine receptor desensitization. Off weeks allow libido response to reset while maintaining long-term effectiveness.
               </div>
             </Card>
 
@@ -406,7 +642,7 @@ export default function SupplementsPage() {
                 <div className="flex items-center gap-3">
                   <span className="text-3xl">🧬</span>
                   <div>
-                    <h3 className="text-lg font-bold">Boron</h3>
+                    <h3 className="text-lg font-bold">Boron (8/2 cycle)</h3>
                     <p className="text-sm text-gray-600">Free testosterone optimization</p>
                   </div>
                 </div>
@@ -417,42 +653,215 @@ export default function SupplementsPage() {
 
               <div className="mb-3">
                 <div className="flex justify-between text-sm font-medium mb-2">
-                  <span>Week {boronCycle.week}/8</span>
+                  <span>Week {boronCycle.week}/10</span>
                   <span>{boronCycle.daysLeft} days left</span>
                 </div>
                 <div className="w-full bg-gray-300 rounded-full h-2">
                   <div
                     className={`h-2 rounded-full ${boronCycle.status === 'ON' ? 'bg-green-500' : 'bg-red-500'}`}
-                    style={{ width: `${(boronCycle.week / 8) * 100}%` }}
+                    style={{ width: `${(boronCycle.week / 10) * 100}%` }}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-sm mb-3">
                 <div>
                   <div className="text-gray-600">ON weeks</div>
                   <div className="text-xl font-bold">8</div>
                 </div>
                 <div>
-                  <div className="text-gray-600">Next change</div>
-                  <div className="text-lg font-bold">{boronCycle.nextChange}</div>
+                  <div className="text-gray-600">OFF weeks</div>
+                  <div className="text-xl font-bold">2</div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-blue-50 rounded text-sm text-blue-900">
+                <strong>Why cycle?</strong> SHBG-binding sites have limited capacity. Off weeks allow hormone receptor sensitivity to normalize, preventing adaptation.
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 4: GYM INTEGRATION */}
+        {activeTab === 'gym' && (
+          <div className="space-y-4">
+            <Card className="bg-purple-50 border-purple-200">
+              <h3 className="font-semibold mb-2 text-purple-900">How Your Supplements Support Training</h3>
+              <p className="text-sm text-purple-800">Your entire protocol is designed to maximize muscle gains, strength, and recovery from your gym routine.</p>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">💪 Strength Gains Support</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-indigo-600 font-semibold flex-shrink-0">1.</span>
+                  <div>
+                    <strong>Zinc (25mg)</strong> — Direct testosterone support. Increases T by 22-38%, essential cofactor for muscle protein synthesis.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-indigo-600 font-semibold flex-shrink-0">2.</span>
+                  <div>
+                    <strong>Boron (3mg, 8 weeks ON)</strong> — Frees up testosterone from SHBG binding. When OFF weeks, expect 15-20% libido dip (normal, receptors resetting).
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-indigo-600 font-semibold flex-shrink-0">3.</span>
+                  <div>
+                    <strong>Vitamin D3 (5000 IU)</strong> — Increases testosterone by 20-30% in deficient men. Also supports bone density for heavy lifting.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-indigo-600 font-semibold flex-shrink-0">4.</span>
+                  <div>
+                    <strong>Panax Ginseng (1-2 caps)</strong> — Pre-training energy and dopamine. Use 2 caps on heavy lift days only (1 cap daily is baseline).
+                  </div>
                 </div>
               </div>
             </Card>
 
-            <Card className="bg-blue-50 border-blue-200">
-              <h4 className="font-semibold mb-2">Why Cycle?</h4>
-              <ul className="text-sm text-gray-700 space-y-1">
-                <li>✓ Prevents tolerance buildup</li>
-                <li>✓ Maintains effectiveness</li>
-                <li>✓ Allows hormone receptor reset</li>
-                <li>✓ Preserves libido response</li>
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">⏱️ Recovery Acceleration</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-emerald-600 font-semibold flex-shrink-0">1.</span>
+                  <div>
+                    <strong>NMN (500mg)</strong> — Mitochondrial recovery. Restores ATP production, enables faster 24-48h muscle recovery.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-emerald-600 font-semibold flex-shrink-0">2.</span>
+                  <div>
+                    <strong>Magnesium Taurate (2x daily)</strong> — Activates parasympathetic (sleep), improves protein synthesis, reduces DOMS (muscle soreness).
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-emerald-600 font-semibold flex-shrink-0">3.</span>
+                  <div>
+                    <strong>Omega-3 (2000mg EPA+DHA)</strong> — Anti-inflammatory. Reduces post-workout inflammation, speeds recovery by 15-20%.
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">⚡ Pre-Workout Performance</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-orange-600 font-semibold flex-shrink-0">1.</span>
+                  <div>
+                    <strong>L-Citrulline (6g, pre-workout only)</strong> — Nitric oxide boost → vasodilation → increased blood flow to muscles. 45-60 min before gym, empty stomach.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-orange-600 font-semibold flex-shrink-0">2.</span>
+                  <div>
+                    <strong>CoQ10 (200mg with breakfast)</strong> — Improves vascular function, better pump and nutrient delivery to muscles. Endurance capacity ↑.
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="bg-amber-50 border-amber-200">
+              <h4 className="font-semibold mb-2 text-amber-900">⚠️ Important: Daily vs. As-Needed</h4>
+              <ul className="text-sm text-amber-800 space-y-1">
+                <li>✓ <strong>Daily</strong>: Saxenda, NMN, Ginseng (1 cap), D3, Zinc, Boron (cycling), CoQ10, Omega-3, Magnesium Taurate</li>
+                <li>✓ <strong>Only 2-3x/week (training days)</strong>: Ginseng extra cap (2 caps total), L-Citrulline pre-workout</li>
+                <li>❌ <strong>Never daily</strong>: L-Citrulline (tolerance in 7-10 days if daily)</li>
               </ul>
             </Card>
           </div>
         )}
 
-        {/* TAB 4: ADD SUPPLEMENT */}
+        {/* TAB 5: NUTRITION INTEGRATION */}
+        {activeTab === 'nutrition' && (
+          <div className="space-y-4">
+            <Card className="bg-green-50 border-green-200">
+              <h3 className="font-semibold mb-2 text-green-900">Timing with Meals & Fasting</h3>
+              <p className="text-sm text-green-800">Your supplement protocol is designed around an 18-hour fasting window (9am-1pm eating window). All timing is optimized for absorption.</p>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">🌅 09:00 AM - Morning (FASTED)</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <p className="font-medium">Saxenda + NMN + Ginseng</p>
+                <ul className="space-y-1 ml-3">
+                  <li>• <strong>Water allowed</strong> — helps with NMN absorption</li>
+                  <li>• <strong>NO food for 4 hours</strong> — Saxenda needs fasted state for full effect</li>
+                  <li>• <strong>NMN on empty stomach</strong> — 300% better absorption than with food</li>
+                  <li>• <strong>Ginseng fasted-OK</strong> — can be taken on empty stomach, better for dopamine effect</li>
+                </ul>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">🍽️ 13:00 PM - First Meal (WITH FAT)</h4>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="font-medium text-gray-900 mb-1">Required: Large meal with healthy fats</p>
+                  <p className="text-gray-600">Olive oil, avocado, fatty fish (salmon, sardines), eggs, meat, nuts</p>
+                </div>
+                <div className="bg-blue-50 p-2 rounded border border-blue-200">
+                  <p className="font-medium text-blue-900 mb-1">Why fat is critical:</p>
+                  <ul className="text-blue-800 space-y-1 ml-3">
+                    <li>• <strong>Vitamin D3+K2</strong> — Fat-soluble; absorption ↑600-1000% with fat vs. empty stomach</li>
+                    <li>• <strong>CoQ10</strong> — Fat-soluble; absorption ↓60% without food</li>
+                    <li>• <strong>Omega-3</strong> — Reduces reflux risk; better absorption with food</li>
+                    <li>• <strong>Zinc, Boron</strong> — Better absorption and prevents nausea</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900">Supplements with this meal:</p>
+                  <p className="text-gray-600">D3+K2, Zinc, Boron, CoQ10, Omega-3 (all 5 together with meal)</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">🍽️ 18:00 PM - Last Meal</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <p>Magnesium Taurate (1 cap) with meal → activates parasympathetic nervous system.</p>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">🌙 21:30 PM - Before Sleep</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <p>Magnesium Taurate (1 cap) with water → improves sleep quality, better erection quality during REM.</p>
+              </div>
+            </Card>
+
+            <Card className="bg-yellow-50 border-yellow-200">
+              <h4 className="font-semibold mb-2 text-yellow-900">⚠️ Critical Absorption Facts</h4>
+              <div className="space-y-2 text-sm text-yellow-900">
+                <div>
+                  <strong>DO NOT do this:</strong>
+                  <ul className="ml-3 space-y-1">
+                    <li>❌ Take CoQ10 on empty stomach (waste 60% of dose)</li>
+                    <li>❌ Take D3+K2 without fat (waste 90% of dose)</li>
+                    <li>❌ Take Zinc on empty stomach (nausea guaranteed)</li>
+                    <li>❌ Mix L-Citrulline with food (defeats purpose of empty stomach pre-workout)</li>
+                  </ul>
+                </div>
+              </div>
+            </Card>
+
+            <Card>
+              <h4 className="font-semibold mb-3 text-gray-900">🚫 Foods to Avoid or Limit</h4>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div>
+                  <strong>With Boron (3mg, 8 weeks ON):</strong>
+                  <ul className="ml-3 space-y-1 text-gray-600">
+                    <li>❌ High purine foods: red meat (frequently), organ meats, shellfish, dried mushrooms → gout risk</li>
+                    <li>✓ OK: white fish, chicken, eggs, vegetables</li>
+                  </ul>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* TAB 6: ADD SUPPLEMENT */}
         {activeTab === 'add' && (
           <Card>
             <h3 className="font-semibold text-lg mb-4">{locale === 'bg' ? 'Добави' : 'Add Supplement'}</h3>
@@ -492,35 +901,6 @@ export default function SupplementsPage() {
                 value={addForm.notes}
                 onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
               />
-
-              {(addType === 'intervention' || addType === 'bp-med') && (
-                <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">📦 {locale === 'bg' ? 'Снимка' : 'Pill Photo'}</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) setAddPhotos({ ...addPhotos, pill: file });
-                      }}
-                      className="block w-full text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">📄 {locale === 'bg' ? 'Рецепта' : 'Prescription'}</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) setAddPhotos({ ...addPhotos, prescription: file });
-                      }}
-                      className="block w-full text-sm"
-                    />
-                  </div>
-                </div>
-              )}
 
               <div className="flex gap-3 pt-4">
                 <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">

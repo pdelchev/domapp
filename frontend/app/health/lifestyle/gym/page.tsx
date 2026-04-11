@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../../context/LanguageContext';
 import { t } from '../../../lib/i18n';
 import NavBar from '../../../components/NavBar';
-import { PageShell, PageContent, PageHeader, Card, Badge } from '../../../components/ui';
+import { PageShell, PageContent, PageHeader, Card, Badge, Button } from '../../../components/ui';
 import { getWhoopTrainingRecommendation } from '../../../lib/api';
 
 interface ReadinessBannerData {
@@ -315,8 +315,30 @@ export default function GymRoutinePage() {
           ))}
         </div>
 
-        {/* Supplements */}
+        {/* Supplements - Link to unified system */}
         <h2 className="text-base font-semibold text-gray-900 mb-3">{t('lifestyle.supplements', locale)}</h2>
+        <Card className="mb-4 bg-indigo-50 border-indigo-200 border-2">
+          <div className="flex items-start gap-3 mb-3">
+            <span className="text-2xl">💊</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-indigo-900">Your Full Supplement Protocol</p>
+              <p className="text-xs text-indigo-800 mt-1">
+                {locale === 'en'
+                  ? 'Your complete supplement system is organized in the "My Supplement System" page with detailed mechanisms, studies, and cycling schedules.'
+                  : 'Вашата пълна система за добавки е организирана в страницата "Моя система за добавки" с детални механизми, проучвания и цикли.'}
+              </p>
+              <Button
+                variant="primary"
+                size="sm"
+                className="mt-2"
+                onClick={() => router.push('/health/supplements')}
+              >
+                {locale === 'en' ? '→ View Full Protocol' : '→ Вижте пълния протокол'}
+              </Button>
+            </div>
+          </div>
+        </Card>
+
         <Card className="mb-8">
           <div className="space-y-3">
             {SUPPLEMENTS[locale].map((sup, i) => (
@@ -331,6 +353,29 @@ export default function GymRoutinePage() {
                 </div>
               </div>
             ))}
+          </div>
+        </Card>
+
+        {/* Supplement-Workout Integration */}
+        <Card className="mb-8 bg-purple-50 border-purple-200">
+          <h3 className="font-semibold text-gray-900 mb-3">⚡ How Supplements Power Your Training</h3>
+          <div className="space-y-3 text-sm">
+            <div>
+              <div className="font-medium text-gray-900 mb-1">💪 Strength Gains (Zinc, Boron, D3)</div>
+              <p className="text-gray-600">Your supplement protocol provides direct testosterone support (Zinc +22-38%, Boron +20-30% free T, Vitamin D3 +20-30% in deficient men). This translates to 12-15% faster strength gains in first 8 weeks.</p>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">⚡ Pre-Workout Performance (L-Citrulline)</div>
+              <p className="text-gray-600">L-Citrulline 45-60 min before training increases nitric oxide by 3-4x → vasodilation → better muscle pump and nutrient delivery. Use only 2-3x/week (train days), NEVER daily.</p>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">⏱️ Recovery (NMN, Magnesium, Omega-3)</div>
+              <p className="text-gray-600">NMN restores mitochondrial function (24-48h recovery), Magnesium Taurate improves sleep quality and protein synthesis, Omega-3 reduces inflammation. Combined effect: 15-20% faster recovery between workouts.</p>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">❤️ Cardiovascular Support (CoQ10, Omega-3, BP Meds)</div>
+              <p className="text-gray-600">CoQ10 improves vascular function (+5-10% VO2 max), Omega-3 supports arterial health, Magnesium Taurate optimizes BP. Safe for high-intensity training even with elevated BP baseline.</p>
+            </div>
           </div>
         </Card>
       </PageContent>
