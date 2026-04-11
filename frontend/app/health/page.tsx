@@ -366,57 +366,47 @@ export default function LifePage() {
             onClick={() => router.push('/health/emergency')}
             className="w-full text-left mb-4 hover:opacity-90 transition-opacity"
           >
-            <div className="rounded-2xl bg-gradient-to-br from-red-600 to-red-700 text-white p-4 shadow-lg hover:shadow-xl transition-shadow">
-              <div className="flex items-center justify-between">
+            <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white border-red-600">
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-widest opacity-90">
-                    {locale === 'bg' ? '🚨 Спешна карта' : '🚨 Emergency Card'}
-                  </div>
-                  <h2 className="text-xl font-bold mt-1">{emergencyCard.profile_full_name}</h2>
-                  <div className="text-xs opacity-90 mt-1">
-                    {emergencyCard.profile_dob && (
-                      <>
-                        <span>{Math.floor((Date.now() - new Date(emergencyCard.profile_dob).getTime()) / 31557600000)} {locale === 'bg' ? 'г.' : 'yrs'} · </span>
-                      </>
-                    )}
-                    {emergencyCard.profile_sex === 'female' ? (locale === 'bg' ? 'Жена' : 'Female') : (locale === 'bg' ? 'Мъж' : 'Male')}
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Име' : 'Name'}</div>
+                  <div className="font-semibold text-sm">{emergencyCard.profile_full_name}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Възраст' : 'Age'}</div>
+                  <div className="font-semibold">
+                    {emergencyCard.profile_dob
+                      ? Math.floor((Date.now() - new Date(emergencyCard.profile_dob).getTime()) / 31557600000)
+                      : '—'}
                   </div>
                 </div>
-
-                <div className="text-right">
-                  <div className="text-xs font-semibold uppercase tracking-widest opacity-90">
-                    {locale === 'bg' ? 'Кръвна' : 'Blood'}
+                <div>
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Пол' : 'Sex'}</div>
+                  <div className="font-semibold">
+                    {emergencyCard.profile_sex === 'female' ? (locale === 'bg' ? 'Ж' : 'F') : (locale === 'bg' ? 'М' : 'M')}
                   </div>
-                  <div className="text-4xl font-black mt-1">{emergencyCard.blood_type}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Кръв' : 'Blood'}</div>
+                  <div className="font-bold text-base">{emergencyCard.blood_type}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Условия' : 'Conditions'}</div>
+                  <div className="font-semibold text-[11px] truncate">
+                    {emergencyCard.chronic_conditions?.split('\n')[0] || '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Лекар' : 'Doctor'}</div>
+                  <div className="font-semibold text-[11px] truncate">
+                    {emergencyCard.primary_doctor_name || '—'}
+                  </div>
                 </div>
               </div>
-
-              {/* Key info in a row */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 pt-3 border-t border-white/20 text-xs">
-                {emergencyCard.chronic_conditions && (
-                  <div>
-                    <span className="opacity-75">{locale === 'bg' ? 'Условия' : 'Conditions'}</span>
-                    <div className="font-medium">{emergencyCard.chronic_conditions.split('\n')[0]}</div>
-                  </div>
-                )}
-                {emergencyCard.emergency_contacts.length > 0 && (
-                  <div>
-                    <span className="opacity-75">{locale === 'bg' ? 'Контакт' : 'Contact'}</span>
-                    <div className="font-medium">{emergencyCard.emergency_contacts[0].name}</div>
-                  </div>
-                )}
-                {emergencyCard.primary_doctor_name && (
-                  <div>
-                    <span className="opacity-75">{locale === 'bg' ? 'Лекар' : 'Doctor'}</span>
-                    <div className="font-medium">{emergencyCard.primary_doctor_name}</div>
-                  </div>
-                )}
+              <div className="text-right text-[11px] opacity-75 mt-2">
+                🚨 {locale === 'bg' ? 'Кликнете за редактиране →' : 'Click to edit →'}
               </div>
-
-              <div className="text-right mt-2 text-xs opacity-75">
-                {locale === 'bg' ? 'Кликнете за редактиране →' : 'Click to edit →'}
-              </div>
-            </div>
+            </Card>
           </button>
         )}
 
