@@ -7,7 +7,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('health', '0007_whoop_integration'),
+        ('health', '0021_bpmedication_photo_bpmedication_photo_prescription_and_more'),
         ('accounts', '0001_initial'),
     ]
 
