@@ -26,6 +26,8 @@ urlpatterns = [
     path('', include('health.life_urls')),
     # §DAILY: Unified daily tracking — wizard, supplements, timeline, doses
     path('', include('health.daily_urls')),
+    # §PROTOCOL: Health protocol engine — genetic-driven personalized protocols
+    path('protocol/', include('health.protocol_urls')),
     # Custom paths BEFORE router — otherwise router catches "bulk-upload" as a report pk
     path('reports/bulk-upload/', views.BulkUploadView.as_view(), name='bulk-upload'),
     path('reports/<int:report_id>/results/', views.ManualResultsView.as_view(), name='manual-results'),

@@ -406,3 +406,357 @@ class InterventionLog(models.Model):
     def __str__(self):
         mark = '✓' if self.taken else '✗'
         return f"{mark} {self.intervention.name} · {self.date}"
+
+
+# ── PROTOCOL ENGINE ─────────────────────────────────────────────────────
+# Genetic-driven personalized health protocols with smart daily logging
+
+
+class GeneticProfile(models.Model):
+    """
+    用户的遗传学概况 (User's genetic profile)
+
+    Stores genetic variants from LINA/Ramus lab files:
+    - Cardiovascular risk (APOE4, LPA variants)
+    - Metabolic risk (TCF7L2, FTO variants)
+    - Nutrient absorption capacity (MTHFR, etc)
+    - CYP450 metabolizer status
+    - Supplement recommendations derived from genetics
+    """
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='genetic_profile'
+    )
+
+    # Risk scoring (0-100)
+    cardiovascular_risk = models.IntegerField(
+        default=50,
+        help_text="APOE4, LPA, 9p21 variants"
+    )
+    metabolic_risk = models.IntegerField(
+        default=50,
+        help_text="TCF7L2, FTO, PPARG variants"
+    )
+    inflammation_risk = models.IntegerField(
+        default=50,
+        help_text="IL6, CRP, TNF-α genetic predisposition"
+    )
+    longevity_potential = models.IntegerField(
+        default=50,
+        help_text="FOXO3, APOE, Klotho variants"
+    )
+
+    # Nutrient absorption capacity
+    nutrient_absorption = models.JSONField(
+        default=dict,
+        help_text="{'folate': 'MTHFR slow → need 5-MTHF', ...}"
+    )
+
+    # Drug/supplement metabolism
+    cyp_metabolizer_status = models.JSONField(
+        default=dict,
+        help_text="{'CYP2D6': 'poor', 'CYP3A4': 'normal', ...}"
+    )
+
+    # Supplement recommendations generated from genetics
+    recommended_supplements = models.JSONField(
+        default=list,
+        help_text="[{'supplement': 'Folate (5-MTHF)', 'dose': '1000 mcg', 'reason': 'MTHFR slow'}, ...]"
+    )
+
+    # Raw genetic data for future analysis
+    raw_genetic_data = models.JSONField(
+        default=dict,
+        help_text="Full SNP dataset from lab file"
+    )
+
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "genetic profiles"
+
+    def __str__(self):
+        return f"{self.user.username} genetic profile"
+
+
+class HealthProtocol(models.Model):
+    """
+    個人化した健康プロトコル (Personalized health protocol)
+
+    Generated from:
+    - Genetic risk assessment
+    - Current biomarker status
+    - User preferences & past adherence
+    - Clinical evidence
+
+    Example: "LDL Reduction Protocol"
+    - Baseline LDL: 180 mg/dL
+    - Target: 100 mg/dL in 12 weeks
+    - Interventions: Red Yeast Rice + Mediterranean diet + cardio
+    """
+
+    STATUS_CHOICES = [
+        ('active', 'Active - Currently following'),
+        ('paused', 'Paused - Temporarily not following'),
+        ('completed', 'Completed - Finished and evaluated'),
+        ('archived', 'Archived - No longer relevant'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='health_protocols'
+    )
+
+    # Metadata
+    name = models.CharField(
+        max_length=255,
+        help_text="e.g., 'LDL Reduction Protocol'"
+    )
+    description = models.TextField(
+        help_text="Why this protocol? What's the goal?"
+    )
+
+    # What triggered creation?
+    triggered_by = models.JSONField(
+        default=dict,
+        help_text="{'biomarker': 'LDL high', 'genetic_risk': 'APOE4', ...}"
+    )
+
+    # Timeline
+    start_date = models.DateField(auto_now_add=True)
+    end_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="When should we retest?"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='active'
+    )
+
+    # What to do daily
+    daily_requirements = models.JSONField(
+        default=dict,
+        help_text="{'supplements': [...], 'diet': [...], 'exercise': '...', 'sleep': '...'}"
+    )
+
+    # Which fields to ask in daily log (smart form)
+    daily_log_fields = models.JSONField(
+        default=list,
+        help_text="['mood', 'supplements_taken', 'exercise_type', 'diet_notes']"
+    )
+
+    # Tracking
+    adherence_percentage = models.FloatField(
+        default=0.0,
+        help_text="% of days user completed protocol"
+    )
+
+    # Baseline & goals
+    baseline_biomarkers = models.JSONField(
+        default=dict,
+        help_text="{'LDL': 180, 'HDL': 35, ...}"
+    )
+    expected_outcomes = models.JSONField(
+        default=dict,
+        help_text="{'LDL': {'baseline': 180, 'target': 100, 'timeline_weeks': 12}, ...}"
+    )
+
+    # Confidence & evidence
+    confidence_score = models.FloatField(
+        default=0.7,
+        help_text="0-1 confidence this protocol will work"
+    )
+    evidence_sources = models.JSONField(
+        default=list,
+        help_text="['Mediterranean diet RCT', 'User genetics', ...]"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name_plural = "health protocols"
+        ordering = ['-start_date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['user', 'start_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name}"
+
+
+class DailyProtocolLog(models.Model):
+    """
+    日常プロトコルログ (Daily protocol log)
+
+    Smart daily log that only asks for fields relevant to active protocols.
+    Auto-calculates adherence% based on completed fields.
+
+    Example:
+    - Mon (LDL Protocol): ask [mood, supplements, exercise, diet]
+    - Wed (Sleep Protocol): ask [mood, sleep_hours, sleep_quality, supplements]
+    - Adherence calculated as: (completed_fields / required_fields) * 100
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='daily_protocol_logs'
+    )
+    protocol = models.ForeignKey(
+        HealthProtocol,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='daily_logs'
+    )
+    date = models.DateField(db_index=True)
+
+    # --- MOOD & ENERGY (always logged) ---
+    mood = models.IntegerField(null=True, blank=True, help_text="1-10")
+    energy_level = models.IntegerField(null=True, blank=True, help_text="1-10")
+    stress_level = models.IntegerField(null=True, blank=True, help_text="1-10")
+
+    # --- BIOMETRICS ---
+    weight_kg = models.FloatField(null=True, blank=True)
+    systolic_bp = models.IntegerField(null=True, blank=True)
+    diastolic_bp = models.IntegerField(null=True, blank=True)
+    resting_heart_rate = models.IntegerField(null=True, blank=True)
+
+    # --- SLEEP & RECOVERY ---
+    sleep_hours = models.FloatField(null=True, blank=True)
+    sleep_quality = models.IntegerField(null=True, blank=True, help_text="1-10")
+    sleep_notes = models.TextField(blank=True)
+    whoop_recovery_score = models.IntegerField(null=True, blank=True, help_text="0-100 from WHOOP")
+
+    # --- SUPPLEMENTS ---
+    supplements_taken = models.JSONField(
+        default=dict,
+        help_text="{'Red Yeast Rice': {'taken': True, 'time': '08:00'}, ...}"
+    )
+    supplement_notes = models.TextField(blank=True)
+
+    # --- NUTRITION ---
+    meals = models.JSONField(
+        default=list,
+        help_text="[{'meal': 'breakfast', 'items': ['oatmeal', 'berries']}, ...]"
+    )
+    diet_notes = models.TextField(blank=True)
+    water_intake_ml = models.IntegerField(null=True, blank=True)
+
+    # --- EXERCISE & MOVEMENT ---
+    exercise_type = models.CharField(max_length=50, blank=True, help_text="cardio, yoga, etc")
+    exercise_duration_min = models.IntegerField(null=True, blank=True)
+    exercise_intensity = models.CharField(max_length=20, blank=True, help_text="low/moderate/high")
+    whoop_strain_score = models.IntegerField(null=True, blank=True, help_text="0-21 from WHOOP")
+
+    # --- PROTOCOL ADHERENCE ---
+    protocol_adherence_pct = models.FloatField(
+        default=0.0,
+        help_text="% of protocol requirements completed"
+    )
+    protocol_notes = models.TextField(blank=True, help_text="Why deviated? What was hard?")
+
+    # --- SYMPTOMS & SIDE EFFECTS ---
+    symptoms = models.JSONField(default=list, help_text="['headache', 'bloating']")
+    side_effects = models.TextField(blank=True)
+
+    # --- AI METADATA ---
+    is_complete = models.BooleanField(default=False)
+    ai_insights = models.JSONField(default=dict)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'protocol', 'date')
+        indexes = [
+            models.Index(fields=['user', 'date']),
+            models.Index(fields=['protocol', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.protocol_adherence_pct}%"
+
+
+class ProtocolRecommendation(models.Model):
+    """
+    AI-生成的建議 (AI-generated recommendations)
+
+    Examples:
+    - "Your HRV dropped 10%. Increase Magnesium to 400mg."
+    - "LDL trending down! You're on track. Keep it up."
+    - "Adherence dropped on weekends. Try habit stacking."
+    """
+
+    CATEGORY_CHOICES = [
+        ('supplement_adjust', 'Supplement dose/timing adjustment'),
+        ('diet_change', 'Diet or food suggestion'),
+        ('exercise_intensity', 'Exercise intensity or type change'),
+        ('sleep_protocol', 'Sleep optimization'),
+        ('stress_management', 'Stress reduction'),
+        ('biomarker_warning', 'Biomarker risk alert'),
+        ('adherence_help', 'Help improving adherence'),
+        ('medication_interaction', 'Potential supplement-medication issue'),
+    ]
+
+    PRIORITY_CHOICES = [
+        ('critical', '⚠️ Critical'),
+        ('high', '🔴 High'),
+        ('medium', '🟡 Medium'),
+        ('low', '🟢 Low'),
+    ]
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='protocol_recommendations'
+    )
+    protocol = models.ForeignKey(
+        HealthProtocol,
+        on_delete=models.CASCADE,
+        related_name='recommendations'
+    )
+
+    # What's the recommendation?
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
+
+    # Evidence & impact
+    evidence = models.JSONField(
+        default=dict,
+        help_text="{'data_points': ['HRV down 10%'], 'source': 'last 14 days', ...}"
+    )
+    actionable_steps = models.JSONField(default=list)
+    expected_impact = models.JSONField(default=dict)
+
+    # User engagement
+    is_accepted = models.BooleanField(default=False)
+    is_implemented = models.BooleanField(default=False)
+    implementation_date = models.DateField(null=True, blank=True)
+    implementation_notes = models.TextField(blank=True)
+    outcome = models.CharField(
+        max_length=20,
+        null=True,
+        blank=True,
+        choices=[('success', 'Worked!'), ('neutral', 'No change'), ('negative', 'Made worse')]
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-priority', '-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_accepted']),
+            models.Index(fields=['protocol', 'priority']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.title}"
