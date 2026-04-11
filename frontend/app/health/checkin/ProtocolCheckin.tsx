@@ -259,11 +259,16 @@ export default function ProtocolCheckin() {
         <NavBar />
         <PageContent>
           <PageHeader title="Daily Health Check-In" />
-          <EmptyState
-            icon="🚀"
-            message="No active protocols yet. Create one in Health Hub to start tracking."
-            action={<Button variant="primary" href="/health">Go to Health Hub</Button>}
-          />
+          <div className="text-center py-12">
+            <EmptyState
+              icon="🚀"
+              message="No active protocols yet."
+              subtext="Go to Health Hub to create personalized protocols."
+            />
+            <Button variant="primary" href="/health" className="mt-6">
+              Go to Health Hub
+            </Button>
+          </div>
         </PageContent>
       </PageShell>
     );
