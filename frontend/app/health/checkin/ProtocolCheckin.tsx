@@ -298,10 +298,10 @@ export default function ProtocolCheckin() {
     <PageShell>
       <NavBar />
       <PageContent size="md">
-        <PageHeader
-          title="🏥 Daily Health Check-In"
-          subtitle={`${formData.date} · ${selectedProtocol?.name || 'Select protocol'}`}
-        />
+        <PageHeader title="🏥 Daily Health Check-In" />
+        <div className="text-xs text-gray-500 mb-4">
+          {formData.date} · {selectedProtocol?.name || 'Select protocol'}
+        </div>
 
         {success && <Alert type="success" message={success} />}
         {error && <Alert type="error" message={error} />}
