@@ -992,6 +992,31 @@ export default function LifePage() {
           </Link>
         </div>
 
+        {/* ═══ HEALTH PROTOCOLS ═══ */}
+        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          {locale === 'bg' ? 'Здравни протоколи' : 'Health Protocols'}
+        </div>
+        <Link href="/health/checkin" className="block">
+          <Card className="hover:shadow-md transition-shadow bg-gradient-to-br from-indigo-50 to-purple-50 border-l-4 border-indigo-500">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h3 className="text-sm font-semibold text-indigo-900 mb-1">
+                  {locale === 'bg' ? '🧬 Персонализиран протокол' : '🧬 Personalized Protocol'}
+                </h3>
+                <p className="text-xs text-gray-600 mb-3">
+                  {locale === 'bg'
+                    ? 'Дневния чек-ин с ИИ препоръки, основани на твоите данни'
+                    : 'Daily check-in with AI recommendations based on your data'}
+                </p>
+              </div>
+              <span className="text-xs text-gray-400">→</span>
+            </div>
+            <div className="inline-block">
+              <Badge color="indigo" text={locale === 'bg' ? 'Започни' : 'Start'} />
+            </div>
+          </Card>
+        </Link>
+
         {/* ═══ BIOLOGICAL AGE ═══ */}
         {(data?.phenoage || cmAge) && (
           <>
