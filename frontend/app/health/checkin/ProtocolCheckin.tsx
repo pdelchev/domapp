@@ -456,18 +456,20 @@ export default function ProtocolCheckin() {
             {/* Diet */}
             {todaysFields.includes('diet_notes') && (
               <FormSection title="Diet" icon="🥗" open={openSections.diet} onToggle={() => toggleSection('diet')}>
-                <Select
-                  label="How well did you follow the protocol diet?"
-                  value={formData.diet_notes}
-                  onChange={(e) => handleFieldChange('diet_notes', e.target.value)}
-                  options={[
-                    { value: '', label: '-- Select --' },
-                    { value: 'perfect', label: '✅ Perfect' },
-                    { value: 'mostly', label: '🟢 Mostly' },
-                    { value: 'some', label: '🟡 Some deviations' },
-                    { value: 'poor', label: '🔴 Poor' },
-                  ]}
-                />
+                <div>
+                  <label className="text-xs font-semibold text-gray-700 block mb-2">How well did you follow the protocol diet?</label>
+                  <select
+                    value={formData.diet_notes}
+                    onChange={(e) => handleFieldChange('diet_notes', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">-- Select --</option>
+                    <option value="perfect">✅ Perfect</option>
+                    <option value="mostly">🟢 Mostly</option>
+                    <option value="some">🟡 Some deviations</option>
+                    <option value="poor">🔴 Poor</option>
+                  </select>
+                </div>
               </FormSection>
             )}
 
