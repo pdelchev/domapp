@@ -515,25 +515,34 @@ export default function LifePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {/* Progress Summary */}
-            <Card className="mb-2">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-xs font-medium text-gray-600">
-                  {takenCount}/{todaySchedules.length} {locale === 'bg' ? 'завършено' : 'completed'}
-                </div>
-                <div className="flex gap-1">
-                  {takenCount > 0 && <Badge color="green">✓ {takenCount}</Badge>}
-                  {skippedCount > 0 && <Badge color="red">✗ {skippedCount}</Badge>}
-                  {pendingCount > 0 && <Badge color="gray">{pendingCount}</Badge>}
-                </div>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                <div
-                  className="bg-green-500 h-1.5 rounded-full transition-all"
-                  style={{ width: `${(takenCount / todaySchedules.length) * 100}%` }}
-                />
-              </div>
-            </Card>
+            {/* Progress Summary — includes both scheduled supplements AND active medications */}
+            {(() => {
+              const totalItems = todaySchedules.length + (data?.active_interventions ?? []).length;
+              const takenMeds = (data?.active_interventions ?? []).filter(iv => iv.taken_today === true).length;
+              const totalTaken = takenCount + takenMeds;
+              const progressPercent = totalItems > 0 ? (totalTaken / totalItems) * 100 : 0;
+
+              return (
+                <Card className="mb-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-medium text-gray-600">
+                      {totalTaken}/{totalItems} {locale === 'bg' ? 'завършено' : 'completed'}
+                    </div>
+                    <div className="flex gap-1">
+                      {totalTaken > 0 && <Badge color="green">✓ {totalTaken}</Badge>}
+                      {totalItems - totalTaken > 0 && <Badge color="gray">{totalItems - totalTaken}</Badge>}
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className="bg-green-500 h-1.5 rounded-full transition-all"
+                      style={{ width: `${progressPercent}%` }}
+                    />
+                  </div>
+                </Card>
+              );
+            })()}
+
 
             {/* Items organized by time slot */}
             {Object.entries(groupedByTime).map(([timeSlot, items]) => (
@@ -983,114 +992,6 @@ export default function LifePage() {
               </Card>
             )}
           </>
-        )}
-
-        {/* ═══ INTERVENTIONS (meds & supplements) ═══ */}
-        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-          {locale === 'bg' ? 'Лекарства и добавки' : 'Medications & Supplements'}
-        </div>
-        {(data?.active_interventions ?? []).length === 0 ? (
-          <Card>
-            <EmptyState
-              icon="💊"
-              message={locale === 'bg'
-                ? 'Няма активни добавки. Добавете нови чрез ритуала.'
-                : 'No active supplements or meds. Add via the ritual.'}
-            />
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {data!.active_interventions.map((iv) => {
-              const isMed = iv.category === 'medication';
-              const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : iv.category === 'diet' ? '🥗' : iv.category === 'exercise' ? '🏃' : '⚡';
-              const takenToday = iv.taken_today === true;
-              const daysSinceStart = Math.floor((Date.now() - new Date(iv.started_on).getTime()) / 86400000);
-              const lastTakenLabel = iv.last_taken_date
-                ? (() => {
-                    const daysAgo = Math.floor((Date.now() - new Date(iv.last_taken_date).getTime()) / 86400000);
-                    if (daysAgo === 0) return locale === 'bg' ? 'днес' : 'today';
-                    if (daysAgo === 1) return locale === 'bg' ? 'вчера' : 'yesterday';
-                    return locale === 'bg' ? `преди ${daysAgo} дни` : `${daysAgo}d ago`;
-                  })()
-                : (locale === 'bg' ? 'няма запис' : 'no log');
-
-              return (
-                <Card key={iv.id} className="!p-0 overflow-hidden">
-                  <div className="flex">
-                    {/* Take button — left strip */}
-                    <button
-                      type="button"
-                      onClick={() => handleMarkTaken(iv)}
-                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
-                        takenToday
-                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
-                      }`}
-                      title={takenToday
-                        ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
-                        : (locale === 'bg' ? 'Маркирай като взето' : 'Mark taken')}
-                    >
-                      <span className="text-xl">{takenToday ? '✓' : '○'}</span>
-                      <span className="text-[9px] font-medium leading-tight">
-                        {takenToday
-                          ? (locale === 'bg' ? 'Взето' : 'Taken')
-                          : (locale === 'bg' ? 'Вземи' : 'Take')}
-                      </span>
-                    </button>
-
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-lg flex-shrink-0">{icon}</span>
-                          <div className="min-w-0">
-                            <div className="font-semibold text-sm text-gray-900 truncate">{iv.name}</div>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {iv.dose && (
-                                <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                                  {iv.dose}
-                                </span>
-                              )}
-                              {iv.frequency && iv.frequency !== 'daily' && (
-                                <span className="text-xs text-gray-500">{FREQ_LABELS[iv.frequency] || iv.frequency}</span>
-                              )}
-                              {iv.reminder_times && iv.reminder_times.length > 0 && (
-                                <span className="text-xs text-gray-400">⏰ {iv.reminder_times.join(', ')}</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
-                          {iv.evidence_grade}
-                        </Badge>
-                      </div>
-
-                      {/* Footer: last taken + days active + end action */}
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                        <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                          <span>
-                            {locale === 'bg' ? 'Последно:' : 'Last:'}{' '}
-                            <span className={iv.last_taken_date ? 'text-gray-600' : 'text-amber-500'}>{lastTakenLabel}</span>
-                          </span>
-                          <span>·</span>
-                          <span>
-                            {locale === 'bg' ? `Ден ${daysSinceStart}` : `Day ${daysSinceStart}`}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleEnd(iv.id)}
-                          className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          {locale === 'bg' ? 'Приключи' : 'End'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
         )}
 
         {/* ═══ BLOOD TEST RESULTS (from lifestyle) ═══ */}
