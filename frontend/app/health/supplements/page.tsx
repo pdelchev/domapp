@@ -429,7 +429,7 @@ export default function SupplementsPage() {
 
                   <div className="space-y-3">
                     {slot.items.map((item, j) => {
-                      const info = SUPPLEMENT_INFO[item.category];
+                      const info = item.category ? SUPPLEMENT_INFO[item.category] : undefined;
                       const isExpanded = expandedSupplement === `${i}-${j}`;
 
                       return (
