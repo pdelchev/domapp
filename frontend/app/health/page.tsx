@@ -243,6 +243,15 @@ export default function LifePage() {
   const [today] = useState(() => new Date().toISOString().split('T')[0]);
   const [savingDose, setSavingDose] = useState<number | null>(null);
 
+  // Daily activities tracking (stored in localStorage for persistence)
+  const [dailyActivities, setDailyActivities] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(`daily_activities_${today}`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    return {};
+  });
+
   const load = async () => {
     setLoading(true);
     try {
@@ -371,6 +380,17 @@ export default function LifePage() {
     } catch (e) {
       await load(); // revert on error
       setError(e instanceof Error ? e.message : 'Failed');
+    }
+  };
+
+  const toggleActivity = (activityId: string) => {
+    const newActivities = {
+      ...dailyActivities,
+      [activityId]: !dailyActivities[activityId],
+    };
+    setDailyActivities(newActivities);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`daily_activities_${today}`, JSON.stringify(newActivities));
     }
   };
 
@@ -515,11 +535,14 @@ export default function LifePage() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {/* Progress Summary — includes both scheduled supplements AND active medications */}
+            {/* Progress Summary — includes supplements, medications, AND daily activities */}
             {(() => {
-              const totalItems = todaySchedules.length + (data?.active_interventions ?? []).length;
+              const DAILY_ACTIVITIES = ['breakfast', 'lunch', 'dinner', 'gym', 'bp_check', 'water'];
+              const activitiesDone = DAILY_ACTIVITIES.filter(a => dailyActivities[a]).length;
+
+              const totalItems = todaySchedules.length + (data?.active_interventions ?? []).length + DAILY_ACTIVITIES.length;
               const takenMeds = (data?.active_interventions ?? []).filter(iv => iv.taken_today === true).length;
-              const totalTaken = takenCount + takenMeds;
+              const totalTaken = takenCount + takenMeds + activitiesDone;
               const progressPercent = totalItems > 0 ? (totalTaken / totalItems) * 100 : 0;
 
               return (
@@ -684,6 +707,152 @@ export default function LifePage() {
                 </div>
               </div>
             )}
+
+            {/* Daily Activities — Meals, Gym, BP Checks */}
+            <div>
+              <div className="text-xs font-semibold text-gray-600 px-2 py-2 mt-4 mb-2">
+                🎯 {locale === 'bg' ? 'Дневни активности' : 'Daily Activities'}
+              </div>
+              <div className="space-y-2">
+                {/* Meals */}
+                {[
+                  { id: 'breakfast', emoji: '🍳', name: locale === 'bg' ? 'Закуска' : 'Breakfast', time: '8-10am' },
+                  { id: 'lunch', emoji: '🍽️', name: locale === 'bg' ? 'Обяд' : 'Lunch', time: '12-1pm' },
+                  { id: 'dinner', emoji: '🍷', name: locale === 'bg' ? 'Вечеря' : 'Dinner', time: '6-7pm' },
+                ].map((meal) => (
+                  <Card key={meal.id} className="!p-0 overflow-hidden">
+                    <div className="flex">
+                      <button
+                        type="button"
+                        onClick={() => toggleActivity(meal.id)}
+                        className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                          dailyActivities[meal.id]
+                            ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                            : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                        }`}
+                      >
+                        <span className="text-xl">{dailyActivities[meal.id] ? '✓' : '○'}</span>
+                        <span className="text-[9px] font-medium leading-tight">
+                          {dailyActivities[meal.id]
+                            ? (locale === 'bg' ? 'Взято' : 'Done')
+                            : (locale === 'bg' ? 'Вземи' : 'Do')}
+                        </span>
+                      </button>
+                      <div className="flex-1 min-w-0 p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-lg flex-shrink-0">{meal.emoji}</span>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-sm text-gray-900">{meal.name}</div>
+                              <div className="text-xs text-gray-500">{meal.time}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+
+                {/* Gym/Training */}
+                <Card className="!p-0 overflow-hidden">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      onClick={() => toggleActivity('gym')}
+                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                        dailyActivities['gym']
+                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                    >
+                      <span className="text-xl">{dailyActivities['gym'] ? '✓' : '○'}</span>
+                      <span className="text-[9px] font-medium leading-tight">
+                        {dailyActivities['gym']
+                          ? (locale === 'bg' ? 'Взято' : 'Done')
+                          : (locale === 'bg' ? 'Вземи' : 'Do')}
+                      </span>
+                    </button>
+                    <div className="flex-1 min-w-0 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg flex-shrink-0">🏋️</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-gray-900">{locale === 'bg' ? 'Тренировка' : 'Gym & Training'}</div>
+                            <div className="text-xs text-gray-500">{locale === 'bg' ? 'Работен план' : 'Daily routine'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Blood Pressure Check */}
+                <Card className="!p-0 overflow-hidden">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      onClick={() => toggleActivity('bp_check')}
+                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                        dailyActivities['bp_check']
+                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                    >
+                      <span className="text-xl">{dailyActivities['bp_check'] ? '✓' : '○'}</span>
+                      <span className="text-[9px] font-medium leading-tight">
+                        {dailyActivities['bp_check']
+                          ? (locale === 'bg' ? 'Взято' : 'Done')
+                          : (locale === 'bg' ? 'Вземи' : 'Do')}
+                      </span>
+                    </button>
+                    <div className="flex-1 min-w-0 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg flex-shrink-0">❤️</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-gray-900">{locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure Check'}</div>
+                            <div className="text-xs text-gray-500">{locale === 'bg' ? 'Измерване' : 'Morning reading'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Water Intake */}
+                <Card className="!p-0 overflow-hidden">
+                  <div className="flex">
+                    <button
+                      type="button"
+                      onClick={() => toggleActivity('water')}
+                      className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                        dailyActivities['water']
+                          ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                          : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                    >
+                      <span className="text-xl">{dailyActivities['water'] ? '✓' : '○'}</span>
+                      <span className="text-[9px] font-medium leading-tight">
+                        {dailyActivities['water']
+                          ? (locale === 'bg' ? 'Взято' : 'Done')
+                          : (locale === 'bg' ? 'Вземи' : 'Do')}
+                      </span>
+                    </button>
+                    <div className="flex-1 min-w-0 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-lg flex-shrink-0">💧</span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-sm text-gray-900">{locale === 'bg' ? 'Вода' : 'Hydration'}</div>
+                            <div className="text-xs text-gray-500">{locale === 'bg' ? '2.5L+ дневно' : '2.5L+ daily'}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
           </div>
         )}
 
