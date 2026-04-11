@@ -501,7 +501,7 @@ export default function LifePage() {
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           {locale === 'bg' ? 'Дневен контролен списък' : 'Daily Checklist'}
         </div>
-        {todaySchedules.length === 0 ? (
+        {todaySchedules.length === 0 && (data?.active_interventions ?? []).length === 0 ? (
           <Card>
             <EmptyState
               icon="💊"
@@ -606,9 +606,77 @@ export default function LifePage() {
                 </div>
               </div>
             ))}
+
+            {/* Active Interventions (medications/supplements) */}
+            {(data?.active_interventions ?? []).length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-gray-600 px-2 py-2 mt-4 mb-2">
+                  💊 {locale === 'bg' ? 'Лекарства' : 'Medications & Supplements'}
+                </div>
+                <div className="space-y-2">
+                  {data!.active_interventions.map((iv) => {
+                    const isMed = iv.category === 'medication';
+                    const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : iv.category === 'diet' ? '🥗' : iv.category === 'exercise' ? '🏃' : '⚡';
+                    const takenToday = iv.taken_today === true;
+                    return (
+                      <Card key={iv.id} className="!p-0 overflow-hidden">
+                        <div className="flex">
+                          {/* Take button — left strip */}
+                          <button
+                            type="button"
+                            onClick={() => handleMarkTaken(iv)}
+                            className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
+                              takenToday
+                                ? 'bg-green-50 text-green-600 hover:bg-green-100'
+                                : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
+                            }`}
+                            title={takenToday
+                              ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
+                              : (locale === 'bg' ? 'Маркирай като взето' : 'Mark taken')}
+                          >
+                            <span className="text-xl">{takenToday ? '✓' : '○'}</span>
+                            <span className="text-[9px] font-medium leading-tight">
+                              {takenToday
+                                ? (locale === 'bg' ? 'Взето' : 'Taken')
+                                : (locale === 'bg' ? 'Вземи' : 'Take')}
+                            </span>
+                          </button>
+
+                          {/* Content */}
+                          <div className="flex-1 min-w-0 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-lg flex-shrink-0">{icon}</span>
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-sm text-gray-900 truncate">{iv.name}</div>
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {iv.dose && (
+                                      <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                                        {iv.dose}
+                                      </span>
+                                    )}
+                                    {iv.reminder_times && iv.reminder_times.length > 0 && (
+                                      <span className="text-xs text-gray-400">⏰ {iv.reminder_times.join(', ')}</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              {iv.evidence_grade && (
+                                <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                                  {iv.evidence_grade}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
-
 
         {/* MORNING BRIEFING */}
         {data?.briefing && (
