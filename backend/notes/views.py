@@ -16,6 +16,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.utils import timezone
 from django.db.models import Count, Q
+from django.utils.html import strip_tags
 from .models import Note, NoteFolder, NoteTag
 from .serializers import (
     NoteSerializer, NoteListSerializer,
@@ -139,12 +140,16 @@ class NoteViewSet(viewsets.ModelViewSet):
         if color:
             qs = qs.filter(color=color)
 
-        # Full-text search — searches title and JSON content
+        # Full-text search — searches title and content based on type
         search = params.get('search')
         if search:
+            # For blocks and plaintext, search content directly
+            # For richtext, would need to strip HTML in the db query (harder)
+            # Simpler: filter all, then do in-memory HTML stripping for richtext
+            # Better: use Q objects to search by type
             qs = qs.filter(
                 Q(title__icontains=search) |
-                Q(content__icontains=search)
+                Q(content__icontains=search)  # Works for blocks, plaintext, and raw HTML
             )
 
         return qs.distinct()

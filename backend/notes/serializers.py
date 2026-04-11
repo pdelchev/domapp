@@ -11,7 +11,9 @@ where only title/stats/metadata are needed. Reduces payload 5-10x on lists.
 """
 
 from rest_framework import serializers
+from django.utils.html import strip_tags
 from .models import Note, NoteFolder, NoteTag
+from .utils import sanitize_html
 
 
 class NoteFolderSerializer(serializers.ModelSerializer):
@@ -70,30 +72,41 @@ class NoteListSerializer(serializers.ModelSerializer):
             'linked_lease', 'linked_problem',
             'checklist_stats', 'word_count',
             'is_template', 'template_name',
-            'content_preview',
+            'content_type', 'content_preview',
             'created_at', 'updated_at',
         ]
         read_only_fields = ('checklist_stats', 'word_count', 'created_at', 'updated_at')
 
     def get_content_preview(self, obj):
-        """Extract first 150 chars from text/heading blocks for list preview."""
-        blocks = obj.content if isinstance(obj.content, list) else []
-        parts = []
-        for block in blocks:
-            btype = block.get('type', '')
-            if btype in ('text', 'heading'):
-                parts.append(block.get('content', ''))
-            elif btype == 'checklist':
-                for item in block.get('items', []):
-                    prefix = '[x] ' if item.get('checked') else '[ ] '
-                    parts.append(prefix + item.get('text', ''))
-            elif btype == 'bullet':
-                for item in block.get('items', []):
-                    parts.append('- ' + item.get('text', ''))
-            if len(' '.join(parts)) > 150:
-                break
-        preview = ' '.join(parts)[:150]
-        return preview
+        """Extract first 150 chars from content based on type."""
+        if obj.content_type == 'blocks':
+            # Legacy block content
+            blocks = obj.content if isinstance(obj.content, list) else []
+            parts = []
+            for block in blocks:
+                btype = block.get('type', '')
+                if btype in ('text', 'heading'):
+                    parts.append(block.get('content', ''))
+                elif btype == 'checklist':
+                    for item in block.get('items', []):
+                        prefix = '[x] ' if item.get('checked') else '[ ] '
+                        parts.append(prefix + item.get('text', ''))
+                elif btype == 'bullet':
+                    for item in block.get('items', []):
+                        parts.append('- ' + item.get('text', ''))
+                if len(' '.join(parts)) > 150:
+                    break
+            preview = ' '.join(parts)[:150]
+            return preview
+        elif obj.content_type == 'richtext':
+            # HTML content — strip tags for preview
+            raw = obj.content if isinstance(obj.content, str) else ''
+            stripped = strip_tags(raw)
+            return stripped[:150]
+        else:  # plaintext
+            # Plain text content
+            content = obj.content if isinstance(obj.content, str) else ''
+            return content[:150]
 
 
 class NoteSerializer(serializers.ModelSerializer):
@@ -115,7 +128,7 @@ class NoteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Note
         fields = [
-            'id', 'title', 'content', 'color',
+            'id', 'title', 'content', 'content_type', 'color',
             'folder', 'folder_name', 'tag_ids',
             'is_pinned', 'is_archived', 'is_trashed', 'trashed_at',
             'linked_property', 'linked_property_name',
@@ -128,19 +141,39 @@ class NoteSerializer(serializers.ModelSerializer):
         read_only_fields = ('checklist_stats', 'word_count', 'trashed_at', 'created_at', 'updated_at')
 
     def validate_content(self, value):
-        """Validate content is a list of block objects with required 'type' field."""
-        if not isinstance(value, list):
-            raise serializers.ValidationError("Content must be a list of blocks.")
-        valid_types = {'text', 'heading', 'checklist', 'bullet', 'table', 'divider', 'code'}
-        for i, block in enumerate(value):
-            if not isinstance(block, dict):
-                raise serializers.ValidationError(f"Block {i} must be an object.")
-            if block.get('type') not in valid_types:
-                raise serializers.ValidationError(
-                    f"Block {i} has invalid type '{block.get('type')}'. "
-                    f"Valid types: {', '.join(sorted(valid_types))}"
-                )
-        return value
+        """
+        Validate content based on content_type.
+        - blocks: must be list of typed block objects
+        - richtext: must be string (HTML), sanitize for safety
+        - plaintext: accept any string
+        """
+        # Get content_type from request data (initial_data)
+        content_type = self.initial_data.get('content_type', 'richtext')
+
+        if content_type == 'blocks':
+            # Legacy block validation
+            if not isinstance(value, list):
+                raise serializers.ValidationError("Content must be a list of blocks.")
+            valid_types = {'text', 'heading', 'checklist', 'bullet', 'table', 'divider', 'code'}
+            for i, block in enumerate(value):
+                if not isinstance(block, dict):
+                    raise serializers.ValidationError(f"Block {i} must be an object.")
+                if block.get('type') not in valid_types:
+                    raise serializers.ValidationError(
+                        f"Block {i} has invalid type '{block.get('type')}'. "
+                        f"Valid types: {', '.join(sorted(valid_types))}"
+                    )
+            return value
+        elif content_type == 'richtext':
+            # HTML content — sanitize for XSS prevention
+            if not isinstance(value, str):
+                raise serializers.ValidationError("Rich text content must be a string.")
+            return sanitize_html(value)
+        else:  # plaintext
+            # Plain text — accept any string
+            if isinstance(value, list):
+                raise serializers.ValidationError("Plain text content must be a string, not a list.")
+            return value if isinstance(value, str) else str(value)
 
     def create(self, validated_data):
         tags = validated_data.pop('tags', [])

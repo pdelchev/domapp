@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
-import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement, getHealthProfiles } from '../../lib/api';
+import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement, getHealthProfiles, createMedicationReminder, getMedicationReminders } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -255,6 +255,16 @@ export default function SupplementsPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [primaryProfileId, setPrimaryProfileId] = useState<number | null>(null);
   const [expandedSupplement, setExpandedSupplement] = useState<string | null>(null);
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminderForm, setReminderForm] = useState({
+    medication_name: '',
+    reminder_time: '08:00',
+    frequency: 'daily',
+    dosage: '',
+    instructions: '',
+    notes: '',
+  });
 
   const ginsengCycle = getCycleStatus('ginseng_6_2');
   const boronCycle = getCycleStatus('boron_8_2');
@@ -289,6 +299,12 @@ export default function SupplementsPage() {
         const primary = profiles.find((p: any) => p.is_primary) || profiles[0];
         if (primary) {
           setPrimaryProfileId(primary.id);
+          try {
+            const allReminders = await getMedicationReminders(primary.id);
+            setReminders(allReminders);
+          } catch (e) {
+            console.error('Failed to load reminders:', e);
+          }
         }
       } catch (e) {
         console.error('Failed to load profiles:', e);
@@ -368,6 +384,41 @@ export default function SupplementsPage() {
       else if (type === 'bp-med') await deleteBPMedication(id);
       else await deleteSupplement(id);
       await fetchSupplements();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+  const handleCreateReminder = async () => {
+    if (!primaryProfileId || !reminderForm.medication_name.trim()) {
+      setError(locale === 'bg' ? 'Име на лекарство е задължително' : 'Medication name required');
+      return;
+    }
+
+    try {
+      await createMedicationReminder({
+        profile: primaryProfileId,
+        medication_name: reminderForm.medication_name,
+        reminder_time: reminderForm.reminder_time,
+        frequency: reminderForm.frequency,
+        dosage: reminderForm.dosage,
+        instructions: reminderForm.instructions,
+        notes: reminderForm.notes,
+      });
+
+      setReminderForm({
+        medication_name: '',
+        reminder_time: '08:00',
+        frequency: 'daily',
+        dosage: '',
+        instructions: '',
+        notes: '',
+      });
+      setShowReminderForm(false);
+      setError('');
+
+      const allReminders = await getMedicationReminders(primaryProfileId);
+      setReminders(allReminders);
     } catch (e: any) {
       setError(e.message);
     }
@@ -546,44 +597,82 @@ export default function SupplementsPage() {
           <>
             {loading ? (
               <Spinner />
-            ) : supplements.length === 0 ? (
-              <EmptyState icon="💊" message={locale === 'bg' ? 'Няма добавки' : 'No supplements'} />
+            ) : supplements.length === 0 && reminders.length === 0 ? (
+              <EmptyState icon="💊" message={locale === 'bg' ? 'Няма добавки или напомняния' : 'No supplements or reminders'} />
             ) : (
-              <div className="space-y-3">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b-2 border-gray-300">
-                      <th className="text-left py-2 px-2">Name</th>
-                      <th className="text-left py-2 px-2">Dose</th>
-                      <th className="text-left py-2 px-2">Type</th>
-                      <th className="text-center py-2 px-2">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supplements.map((s) => (
-                      <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                        <td className="py-3 px-2">
-                          <div className="font-medium text-gray-900">{s.name}</div>
-                        </td>
-                        <td className="py-3 px-2 text-sm text-gray-600">{s.dose || '—'}</td>
-                        <td className="py-3 px-2">
-                          {s._from_intervention && <Badge color="red">Therapy</Badge>}
-                          {s._from_bp && <Badge color="blue">BP Med</Badge>}
-                          {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
-                        </td>
-                        <td className="py-3 px-2 text-center">
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
-                          >
-                            ✕
-                          </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-6">
+                {/* Supplements */}
+                {supplements.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-gray-900">💊 {locale === 'bg' ? 'Добавки' : 'Supplements'}</h3>
+                    <div className="space-y-3">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b-2 border-gray-300">
+                            <th className="text-left py-2 px-2">Name</th>
+                            <th className="text-left py-2 px-2">Dose</th>
+                            <th className="text-left py-2 px-2">Type</th>
+                            <th className="text-center py-2 px-2">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {supplements.map((s) => (
+                            <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
+                              <td className="py-3 px-2">
+                                <div className="font-medium text-gray-900">{s.name}</div>
+                              </td>
+                              <td className="py-3 px-2 text-sm text-gray-600">{s.dose || '—'}</td>
+                              <td className="py-3 px-2">
+                                {s._from_intervention && <Badge color="red">Therapy</Badge>}
+                                {s._from_bp && <Badge color="blue">BP Med</Badge>}
+                                {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
+                              </td>
+                              <td className="py-3 px-2 text-center">
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
+                                >
+                                  ✕
+                                </Button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reminders */}
+                {reminders.length > 0 && (
+                  <div className="space-y-2">
+                    <h3 className="font-semibold text-gray-900">🔔 {locale === 'bg' ? 'Напомняния' : 'Reminders'}</h3>
+                    <div className="space-y-2">
+                      {reminders.map((reminder: any) => (
+                        <Card key={reminder.id}>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{reminder.medication_name}</div>
+                              <div className="text-xs text-gray-600 mt-1">
+                                ⏰ {reminder.reminder_time} • {reminder.frequency_display || 'daily'}
+                              </div>
+                              {reminder.dosage && (
+                                <div className="text-xs text-gray-600">💊 {reminder.dosage}</div>
+                              )}
+                              {reminder.instructions && (
+                                <div className="text-xs text-gray-500 italic mt-1">{reminder.instructions}</div>
+                              )}
+                            </div>
+                            <Badge color={reminder.status === 'active' ? 'green' : 'yellow'}>
+                              {reminder.status_display || 'Active'}
+                            </Badge>
+                          </div>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -861,62 +950,159 @@ export default function SupplementsPage() {
           </div>
         )}
 
-        {/* TAB 6: ADD SUPPLEMENT */}
+        {/* TAB 6: ADD SUPPLEMENT & REMINDER */}
         {activeTab === 'add' && (
-          <Card>
-            <h3 className="font-semibold text-lg mb-4">{locale === 'bg' ? 'Добави' : 'Add Supplement'}</h3>
+          <div className="space-y-6">
+            {/* Add Supplement */}
+            <Card>
+              <h3 className="font-semibold text-lg mb-4">{locale === 'bg' ? 'Добави добавка' : 'Add Supplement'}</h3>
 
-            <div className="space-y-4">
-              <Select
-                label={locale === 'bg' ? 'Тип' : 'Type'}
-                value={addType}
-                onChange={(e) => setAddType(e.target.value as any)}
-              >
-                <option value="intervention">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
-                <option value="bp-med">{locale === 'bg' ? 'КН лекарство' : 'BP Medicine'}</option>
-                <option value="supplement">{locale === 'bg' ? 'Добавка' : 'Supplement'}</option>
-              </Select>
-
-              <Input
-                label={locale === 'bg' ? 'Име' : 'Name'}
-                required
-                value={addForm.name}
-                onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-              />
-
-              <Input
-                label={locale === 'bg' ? 'Доза' : 'Dose'}
-                value={addForm.dose}
-                onChange={(e) => setAddForm({ ...addForm, dose: e.target.value })}
-              />
-
-              <Input
-                label={locale === 'bg' ? 'Честота' : 'Frequency'}
-                value={addForm.frequency}
-                onChange={(e) => setAddForm({ ...addForm, frequency: e.target.value })}
-              />
-
-              <Textarea
-                label={locale === 'bg' ? 'Бележки' : 'Notes'}
-                value={addForm.notes}
-                onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
-              />
-
-              <div className="flex gap-3 pt-4">
-                <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">
-                  {locale === 'bg' ? 'Отмени' : 'Cancel'}
-                </Button>
-                <Button
-                  variant="primary"
-                  disabled={addLoading}
-                  onClick={handleAddSupplement}
-                  className="flex-1"
+              <div className="space-y-4">
+                <Select
+                  label={locale === 'bg' ? 'Тип' : 'Type'}
+                  value={addType}
+                  onChange={(e) => setAddType(e.target.value as any)}
                 >
-                  {addLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
-                </Button>
+                  <option value="intervention">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                  <option value="bp-med">{locale === 'bg' ? 'КН лекарство' : 'BP Medicine'}</option>
+                  <option value="supplement">{locale === 'bg' ? 'Добавка' : 'Supplement'}</option>
+                </Select>
+
+                <Input
+                  label={locale === 'bg' ? 'Име' : 'Name'}
+                  required
+                  value={addForm.name}
+                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                />
+
+                <Input
+                  label={locale === 'bg' ? 'Доза' : 'Dose'}
+                  value={addForm.dose}
+                  onChange={(e) => setAddForm({ ...addForm, dose: e.target.value })}
+                />
+
+                <Input
+                  label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                  value={addForm.frequency}
+                  onChange={(e) => setAddForm({ ...addForm, frequency: e.target.value })}
+                />
+
+                <Textarea
+                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                  value={addForm.notes}
+                  onChange={(e) => setAddForm({ ...addForm, notes: e.target.value })}
+                />
+
+                <div className="flex gap-3 pt-4">
+                  <Button variant="secondary" onClick={() => setActiveTab('cabinet')} className="flex-1">
+                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    disabled={addLoading}
+                    onClick={handleAddSupplement}
+                    className="flex-1"
+                  >
+                    {addLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Добави' : 'Add')}
+                  </Button>
+                </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+
+            {/* Add Reminder */}
+            {showReminderForm ? (
+              <Card>
+                <h3 className="font-semibold text-lg mb-4">🔔 {locale === 'bg' ? 'Добави напомняне' : 'Add Medication Reminder'}</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  {locale === 'bg'
+                    ? 'Настройте ежедневно напомняне за приемането на вашето лекарство.'
+                    : 'Set up a daily reminder to take your medication.'}
+                </p>
+
+                <div className="space-y-4">
+                  <Input
+                    label={locale === 'bg' ? 'Лекарство' : 'Medication Name'}
+                    placeholder={locale === 'bg' ? 'Например: Лизиноприл 10mg' : 'e.g., Lisinopril 10mg'}
+                    value={reminderForm.medication_name}
+                    onChange={(e) => setReminderForm({ ...reminderForm, medication_name: e.target.value })}
+                    required
+                  />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label={locale === 'bg' ? 'Време на напомняне' : 'Reminder Time'}
+                      type="time"
+                      value={reminderForm.reminder_time}
+                      onChange={(e) => setReminderForm({ ...reminderForm, reminder_time: e.target.value })}
+                      required
+                    />
+
+                    <Select
+                      label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                      value={reminderForm.frequency}
+                      onChange={(e) => setReminderForm({ ...reminderForm, frequency: e.target.value })}
+                    >
+                      <option value="once">{locale === 'bg' ? 'Веднъж' : 'Once'}</option>
+                      <option value="daily">{locale === 'bg' ? 'Всеки ден' : 'Every day'}</option>
+                      <option value="weekdays">{locale === 'bg' ? 'Работни дни' : 'Weekdays only'}</option>
+                      <option value="weekends">{locale === 'bg' ? 'Уикенди' : 'Weekends only'}</option>
+                      <option value="custom">{locale === 'bg' ? 'Избор' : 'Custom days'}</option>
+                    </Select>
+                  </div>
+
+                  <Input
+                    label={locale === 'bg' ? 'Доза' : 'Dosage'}
+                    placeholder={locale === 'bg' ? 'Например: 1 таблетка, 5ml' : 'e.g., 1 tablet, 5ml'}
+                    value={reminderForm.dosage}
+                    onChange={(e) => setReminderForm({ ...reminderForm, dosage: e.target.value })}
+                  />
+
+                  <Input
+                    label={locale === 'bg' ? 'Инструкции' : 'Instructions'}
+                    placeholder={locale === 'bg' ? 'Например: Приемете с храна, Преди легене' : 'e.g., Take with food, Before bed'}
+                    value={reminderForm.instructions}
+                    onChange={(e) => setReminderForm({ ...reminderForm, instructions: e.target.value })}
+                  />
+
+                  <Textarea
+                    label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                    placeholder={locale === 'bg' ? 'Допълнителни бележки...' : 'Additional notes...'}
+                    value={reminderForm.notes}
+                    onChange={(e) => setReminderForm({ ...reminderForm, notes: e.target.value })}
+                  />
+
+                  <div className="flex gap-3 pt-4">
+                    <Button
+                      variant="secondary"
+                      onClick={() => setShowReminderForm(false)}
+                      className="flex-1"
+                    >
+                      {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleCreateReminder}
+                      className="flex-1"
+                    >
+                      {locale === 'bg' ? 'Създай напомняне' : 'Create Reminder'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card>
+                <h3 className="font-semibold text-lg mb-4">🔔 {locale === 'bg' ? 'Напомняния за лекарства' : 'Medication Reminders'}</h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  {locale === 'bg'
+                    ? 'Получавайте напомняния за приемането на вашите добавки и лекарства.'
+                    : 'Get reminded to take your supplements and medications on time.'}
+                </p>
+                <Button onClick={() => setShowReminderForm(true)} variant="primary">
+                  + {locale === 'bg' ? 'Добави напомняне' : 'Add Reminder'}
+                </Button>
+              </Card>
+            )}
+          </div>
         )}
       </PageContent>
     </PageShell>

@@ -152,6 +152,16 @@ class Note(models.Model):
     title = models.CharField(max_length=500, blank=True, default='')
     # Block-based content — see module docstring for schema
     content = models.JSONField(default=list, blank=True)
+    content_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('blocks', 'Block-based'),
+            ('richtext', 'Rich text'),
+            ('plaintext', 'Plain text'),
+        ],
+        default='richtext',
+        help_text='Content format: blocks (legacy), richtext (HTML with toolbar), or plaintext (unformatted)'
+    )
     color = models.CharField(max_length=20, choices=COLOR_CHOICES, default='white')
 
     # State flags
