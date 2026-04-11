@@ -154,7 +154,7 @@ export default function ProtocolCheckin() {
 
     const completedFields = todaysFields.filter(field => {
       const value = formData[field as keyof LogData];
-      return value !== null && value !== undefined && value !== '' && value !== false;
+      return value !== null && value !== undefined && value !== '';
     });
 
     const adherence = (completedFields.length / todaysFields.length) * 100;
