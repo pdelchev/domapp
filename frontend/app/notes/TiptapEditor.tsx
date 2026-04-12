@@ -7,12 +7,61 @@ import { useEffect, useRef } from 'react';
 import { Button } from '../components/ui';
 
 interface TiptapEditorProps {
-  initialContent?: string;
+  initialContent?: string | any[];
   onChange: (content: string) => void;
 }
 
+// Convert old block format to HTML
+const convertBlocksToHTML = (blocks: any[]): string => {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return '<p></p>';
+  }
+
+  const html = blocks
+    .map((block: any) => {
+      const type = block.type || '';
+      const content = block.content || '';
+
+      if (type === 'text' || type === 'heading') {
+        return `<p>${content}</p>`;
+      }
+      if (type === 'paragraph') {
+        const text = Array.isArray(content)
+          ? content.map((c: any) => c.text || '').join('')
+          : content;
+        return `<p>${text}</p>`;
+      }
+      if (type === 'checklist') {
+        const items = (block.items || [])
+          .map((item: any) => `<li>${item.checked ? '✓ ' : ''}${item.text || ''}</li>`)
+          .join('');
+        return `<ul>${items}</ul>`;
+      }
+      if (type === 'bullet') {
+        const items = (block.items || [])
+          .map((item: any) => `<li>${item.text || ''}</li>`)
+          .join('');
+        return `<ul>${items}</ul>`;
+      }
+      if (type === 'code') {
+        return `<pre><code>${content}</code></pre>`;
+      }
+      return '';
+    })
+    .filter((h: string) => h.length > 0)
+    .join('');
+
+  return html || '<p></p>';
+};
+
 export default function TiptapEditor({ initialContent = '', onChange }: TiptapEditorProps) {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Normalize content: convert blocks to HTML if needed
+  const normalizedContent =
+    typeof initialContent === 'string'
+      ? initialContent
+      : convertBlocksToHTML(Array.isArray(initialContent) ? initialContent : []);
 
   const editor = useEditor({
     extensions: [
@@ -48,7 +97,7 @@ export default function TiptapEditor({ initialContent = '', onChange }: TiptapEd
       }),
       Underline,
     ],
-    content: initialContent,
+    content: normalizedContent,
     editorProps: {
       attributes: {
         class: 'prose prose-sm focus:outline-none max-w-none px-4 py-3 text-base',
