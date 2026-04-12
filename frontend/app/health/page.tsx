@@ -721,10 +721,11 @@ export default function LifePage() {
                         </div>
                       </Card>
                     );
-                    ))}
+                  })}
                     </div>
-                  </div>
-                ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
