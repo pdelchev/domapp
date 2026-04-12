@@ -1270,59 +1270,187 @@ export default function LifePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {data?.phenoage && (
-                <Card>
-                  <div className="flex items-baseline justify-between mb-3">
-                    <div>
-                      <div className="text-[13px] font-medium text-gray-700">{t('life.phenoage', locale)}</div>
-                      <div className="text-[11px] text-gray-400">Levine 2018 · 9 blood markers</div>
+                <Card className="p-4">
+                  <div className="flex items-baseline justify-between mb-4 pb-3 border-b border-gray-100">
+                    <div className="flex-1">
+                      <div className="text-[13px] font-semibold text-gray-900 flex items-center gap-2">
+                        📊 {t('life.phenoage', locale)}
+                        <span className="text-[10px] font-normal text-gray-500">(Levine 2018)</span>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-1">Истинската скорост на стареене (9 кръвни маркери)</div>
                     </div>
-                    {data.phenoage.test_date && <div className="text-xs text-gray-500">{data.phenoage.test_date}</div>}
+                    {data.phenoage.test_date && <div className="text-xs text-gray-400">{data.phenoage.test_date}</div>}
                   </div>
+
                   {data.phenoage.phenoage != null ? (
-                    <div className="flex items-end gap-5">
-                      <div>
-                        <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
-                        <div className="text-5xl font-bold text-indigo-600">{data.phenoage.phenoage}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
-                        <div className="text-3xl font-medium text-gray-700">{data.phenoage.chronological_age}</div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] text-gray-500">Δ</div>
-                        <div className={`text-3xl font-medium ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                    <>
+                      {/* Big Numbers */}
+                      <div className="flex items-end gap-6 mb-6">
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Био-възраст</div>
+                          <div className="text-5xl font-bold text-indigo-600">{data.phenoage.phenoage}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Хронологична</div>
+                          <div className="text-3xl font-medium text-gray-700">{data.phenoage.chronological_age}</div>
+                        </div>
+                        <div className="ml-auto">
+                          <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Δ (Delta)</div>
+                          <div className={`text-4xl font-bold ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                          </div>
                         </div>
                       </div>
-                    </div>
+
+                      {/* Delta Interpretation */}
+                      <div className={`p-3 rounded-lg mb-4 text-sm ${
+                        (data.phenoage.age_accel ?? 0) < -5 ? 'bg-green-50 text-green-800' :
+                        (data.phenoage.age_accel ?? 0) < 0 ? 'bg-blue-50 text-blue-800' :
+                        (data.phenoage.age_accel ?? 0) < 5 ? 'bg-amber-50 text-amber-800' :
+                        'bg-red-50 text-red-800'
+                      }`}>
+                        {(data.phenoage.age_accel ?? 0) < -5 && '✅ Отлично! Стареят по-бавно от сверстниците'}
+                        {(data.phenoage.age_accel ?? 0) >= -5 && (data.phenoage.age_accel ?? 0) < 0 && '✓ Добре. Стареят нормално'}
+                        {(data.phenoage.age_accel ?? 0) >= 0 && (data.phenoage.age_accel ?? 0) < 5 && '⚠️ Обърни внимание. Ускорено стареене'}
+                        {(data.phenoage.age_accel ?? 0) >= 5 && '🔴 Критично! Много ускорено стареене'}
+                      </div>
+
+                      {/* 9 Markers */}
+                      <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                        <div className="text-xs font-semibold text-gray-700 mb-2">9 КРЪВНИ МАРКЕРИ:</div>
+                        <div className="text-[11px] space-y-1 text-gray-700">
+                          <div className={`${data.phenoage.inputs_used?.Albumin ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('Albumin') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.Albumin ? '✓' : '✗'} Albumin (протеин за възстановяване)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.Creatinine ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('Creatinine') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.Creatinine ? '✓' : '✗'} Creatinine (бъбречна функция)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.Glucose ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('Glucose') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.Glucose ? '✓' : '✗'} Glucose (контрол на захара)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.CRP ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('CRP') ? '✗ text-red-700 font-semibold' : ''}`}>
+                            {data.phenoage.inputs_used?.CRP ? '✓' : '✗'} CRP - C-Reactive Protein {data.phenoage.missing_markers?.includes('CRP') && '❌ ЛИПСВА'}
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.Lymphocyte ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('Lymphocyte') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.Lymphocyte ? '✓' : '✗'} Lymphocyte % (имунна система)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.MCV ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('MCV') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.MCV ? '✓' : '✗'} MCV (качество еритроцити)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.RDW ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('RDW') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.RDW ? '✓' : '✗'} RDW (вариативност еритроцити)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.ALP ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('ALP') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.ALP ? '✓' : '✗'} Alkaline Phosphatase (кости)
+                          </div>
+                          <div className={`${data.phenoage.inputs_used?.WBC ? '✓ text-green-700' : data.phenoage.missing_markers?.includes('WBC') ? '✗ text-red-700' : ''}`}>
+                            {data.phenoage.inputs_used?.WBC ? '✓' : '✗'} WBC (борба с инфекции)
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action items */}
+                      <div className="bg-blue-50 p-3 rounded-lg text-sm">
+                        <div className="font-semibold text-blue-900 mb-2">📋 ЕКШЪН:</div>
+                        <ul className="text-[11px] text-blue-800 space-y-1">
+                          {data.phenoage.missing_markers?.length > 0 && (
+                            <li>✓ Направи кръвен тест и попълни липсващите маркери</li>
+                          )}
+                          <li>✓ {(data.phenoage.age_accel ?? 0) > 3 ? 'ПРИОРИТЕТ: Намали BP и тегло' : 'Поддържай здравите навици'}</li>
+                          <li>✓ Измервай регулярно (всяк месец) за траниране</li>
+                        </ul>
+                      </div>
+                    </>
                   ) : (
-                    <div className="text-sm text-gray-500">{data.phenoage.note}</div>
+                    <div className="bg-amber-50 p-3 rounded-lg text-sm text-amber-800">
+                      <div className="font-semibold mb-1">⏳ {data.phenoage.note}</div>
+                      <div className="text-[11px]">Направи кръвен тест с всички 9 маркера + укажи възрастта за изчисление</div>
+                    </div>
                   )}
                 </Card>
               )}
               {cmAge && cmAge.signals_present > 0 && (
-                <Card>
-                  <div className="flex items-baseline justify-between mb-3">
-                    <div>
-                      <div className="text-[13px] font-medium text-gray-700">{t('vitals.cm_age_title', locale)}</div>
-                      <div className="text-[11px] text-gray-400">BP + body comp · {cmAge.signals_present}/4 signals</div>
+                <Card className="p-4">
+                  <div className="flex items-baseline justify-between mb-4 pb-3 border-b border-gray-100">
+                    <div className="flex-1">
+                      <div className="text-[13px] font-semibold text-gray-900 flex items-center gap-2">
+                        ❤️ {t('vitals.cm_age_title', locale)}
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-1">Сърдечно-съдова & метаболична здравина</div>
                     </div>
                   </div>
-                  <div className="flex items-end gap-5">
+
+                  {/* Big Numbers */}
+                  <div className="flex items-end gap-6 mb-6">
                     <div>
-                      <div className="text-[11px] text-gray-500">{t('life.bio_age', locale)}</div>
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Карди-възраст</div>
                       <div className="text-5xl font-bold text-indigo-600">{cmAge.cardiometabolic_age}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] text-gray-500">{t('life.chron_age', locale)}</div>
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Хронологична</div>
                       <div className="text-3xl font-medium text-gray-700">{cmAge.chronological_age}</div>
                     </div>
-                    <div>
-                      <div className="text-[11px] text-gray-500">Δ</div>
-                      <div className={`text-3xl font-medium ${cmAge.delta_years <= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className="ml-auto">
+                      <div className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Δ (Delta)</div>
+                      <div className={`text-4xl font-bold ${cmAge.delta_years <= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {cmAge.delta_years >= 0 ? '+' : ''}{cmAge.delta_years}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Delta Interpretation */}
+                  <div className={`p-3 rounded-lg mb-4 text-sm ${
+                    cmAge.delta_years <= 0 ? 'bg-green-50 text-green-800' :
+                    cmAge.delta_years < 5 ? 'bg-amber-50 text-amber-800' :
+                    'bg-red-50 text-red-800'
+                  }`}>
+                    {cmAge.delta_years <= 0 && '✅ Отлично! Сърцето и метаболизма на здрав човек'}
+                    {cmAge.delta_years > 0 && cmAge.delta_years < 5 && '⚠️ Обърни внимание. Метаболично ускорено стареене'}
+                    {cmAge.delta_years >= 5 && '🔴 Критично! Висок риск от инфаркт/инсулт'}
+                  </div>
+
+                  {/* 4 Signals */}
+                  <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">4 СИГНАЛА ({cmAge.signals_present}/4):</div>
+                    <div className="text-[11px] space-y-1 text-gray-700">
+                      <div className={cmAge.bp_average ? 'text-green-700' : 'text-red-700'}>
+                        {cmAge.bp_average ? '✓' : '✗'} Кръвно налягане {cmAge.bp_average ? `(${Math.round(cmAge.bp_average)}/${Math.round(cmAge.bp_average * 0.6)})` : '✗ ЛИПСВА'}
+                      </div>
+                      <div className={cmAge.body_fat_pct ? 'text-green-700' : 'text-red-700'}>
+                        {cmAge.body_fat_pct ? '✓' : '✗'} Телесна мазнина {cmAge.body_fat_pct ? `(${cmAge.body_fat_pct}%)` : '✗ ЛИПСВА'}
+                      </div>
+                      <div className={cmAge.ldl ? 'text-green-700' : 'text-gray-500'}>
+                        {cmAge.ldl ? '✓' : '◦'} LDL холестерол {cmAge.ldl ? `(${cmAge.ldl})` : '(опционално)'}
+                      </div>
+                      <div className={cmAge.glucose ? 'text-green-700' : 'text-gray-500'}>
+                        {cmAge.glucose ? '✓' : '◦'} Глюкоза на гладно {cmAge.glucose ? `(${cmAge.glucose})` : '(опционално)'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* What it means */}
+                  <div className="bg-blue-50 p-3 rounded-lg mb-4 text-sm">
+                    <div className="font-semibold text-blue-900 mb-2">📊 ЗНАЧЕНИЕ:</div>
+                    <div className="text-[11px] text-blue-800 space-y-1">
+                      <p>Карди-възрастта показва риска от сърдечни и съдови болести:</p>
+                      <ul className="space-y-0.5 ml-2">
+                        <li>• <span className="font-semibold">0 години:</span> Минимален риск</li>
+                        <li>• <span className="font-semibold">+5 години:</span> Висок риск от инфаркт</li>
+                        <li>• <span className="font-semibold">+10+ години:</span> Критичен - незабавно лечение</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Action items */}
+                  <div className="bg-amber-50 p-3 rounded-lg text-sm">
+                    <div className="font-semibold text-amber-900 mb-2">⚡ ЕКШЪН:</div>
+                    <ul className="text-[11px] text-amber-800 space-y-1">
+                      {cmAge.signals_present < 4 && (
+                        <li>✓ Попълни липсващите {4 - cmAge.signals_present} показателя (BP, телесна мазнина)</li>
+                      )}
+                      <li>✓ {cmAge.delta_years > 5 ? 'ПРИОРИТЕТ: Намали BP с 15-20 mmHg' : 'Поддържай редовни мерения'}</li>
+                      <li>✓ Целя: Намаляне на Δ с 3-5 години за 6 месеца</li>
+                    </ul>
                   </div>
                 </Card>
               )}
