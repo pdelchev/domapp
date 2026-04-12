@@ -402,6 +402,45 @@ export default function SupplementsPage() {
     return flaggedResults;
   };
 
+  // Get missing supplements for flagged biomarkers
+  const getMissingSuggestions = () => {
+    if (!latestReport || !latestReport.results) return [];
+
+    const flaggedBiomarkers = latestReport.results.filter((result: any) =>
+      result.flag && ['abnormal', 'borderline', 'critical'].includes(result.flag)
+    );
+
+    const supplementNames = supplements.map((s) => s.name);
+    const suggestions: any[] = [];
+
+    // For each flagged biomarker, find supplements that target it but aren't added
+    flaggedBiomarkers.forEach((flagged: any) => {
+      const biomarkerName = flagged.biomarker?.name || flagged.biomarker;
+
+      Object.entries(SUPPLEMENT_INFO).forEach(([suppName, info]: [string, any]) => {
+        if (supplementNames.includes(suppName)) return; // Already added
+
+        const isRelevant = info.linkedBiomarkers.some((marker: string) =>
+          biomarkerName?.toLowerCase().includes(marker.toLowerCase()) ||
+          marker.toLowerCase().includes(biomarkerName?.toLowerCase())
+        );
+
+        if (isRelevant && !suggestions.find((s) => s.name === suppName)) {
+          suggestions.push({
+            name: suppName,
+            biomarker: biomarkerName,
+            flag: flagged.flag,
+            value: flagged.value,
+            unit: flagged.unit,
+            info: info,
+          });
+        }
+      });
+    });
+
+    return suggestions;
+  };
+
   const fetchSupplements = useCallback(async () => {
     try {
       setLoading(true);
@@ -1028,6 +1067,56 @@ export default function SupplementsPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Suggested Supplements */}
+                {(() => {
+                  const suggestions = getMissingSuggestions();
+                  if (suggestions.length === 0) return null;
+                  return (
+                    <div className="space-y-2">
+                      <h3 className="font-semibold text-gray-900">💡 {locale === 'bg' ? 'Препоръчани добавки' : 'Suggested Supplements'}</h3>
+                      <p className="text-sm text-gray-600 mb-3">{locale === 'bg' ? 'На основата на вашите резултати' : 'Based on your blood test results:'}</p>
+                      <div className="space-y-2">
+                        {suggestions.map((sugg: any) => (
+                          <Card key={sugg.name} className="bg-amber-50 border-amber-200">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="text-2xl">{sugg.info.emoji}</span>
+                                  <div>
+                                    <div className="font-medium text-gray-900">{sugg.name}</div>
+                                    <div className="text-xs text-amber-700">
+                                      {sugg.biomarker} is <strong>{sugg.flag}</strong> ({sugg.value}{sugg.unit ? ` ${sugg.unit}` : ''})
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-xs text-amber-800 mb-2">{sugg.info.benefit}</div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setAddForm({
+                                    name: sugg.name,
+                                    dose: sugg.info.timing.split(' ')[0],
+                                    category: 'capsule',
+                                    frequency: 'daily',
+                                    time_slot: 'breakfast',
+                                    notes: sugg.info.benefit,
+                                  });
+                                  setAddType('supplement');
+                                  setActiveTab('add');
+                                }}
+                              >
+                                + {locale === 'bg' ? 'Добави' : 'Add'}
+                              </Button>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </>
