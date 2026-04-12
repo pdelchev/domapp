@@ -892,9 +892,11 @@ export default function LifePage() {
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      setPreviewPhotoUrl(iv.photo.startsWith('http') ? iv.photo : `/api/media/${iv.photo}`);
-                                      setPreviewPhotoName(iv.name);
-                                      setShowPhotoPreview(true);
+                                      if (iv.photo) {
+                                        setPreviewPhotoUrl(iv.photo.startsWith('http') ? iv.photo : `/api/media/${iv.photo}`);
+                                        setPreviewPhotoName(iv.name);
+                                        setShowPhotoPreview(true);
+                                      }
                                     }}
                                     className="relative group focus:outline-none"
                                     title={locale === 'bg' ? 'Щракнете за увеличение' : 'Click to enlarge'}
