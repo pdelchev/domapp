@@ -1,8 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { BlockNoteViewRaw, useBlockNoteEditor } from '@blocknote/react';
-import '@blocknote/react/style.css';
+import { useEffect, useState } from 'react';
 
 interface BlockNoteEditorProps {
   initialContent?: any;
@@ -11,75 +9,40 @@ interface BlockNoteEditorProps {
 
 export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
   const [isClient, setIsClient] = useState(false);
-  const lastContentRef = useRef<any>(null);
-
-  const editor = useBlockNoteEditor();
+  const [content, setContent] = useState<string>('');
 
   useEffect(() => {
     setIsClient(true);
-  }, []);
-
-  // Load initial content
-  useEffect(() => {
-    if (!editor || !isClient) return;
-
-    try {
-      if (initialContent && Array.isArray(initialContent) && initialContent.length > 0) {
-        editor.replaceBlocks(editor.topLevelBlocks, initialContent);
-        lastContentRef.current = initialContent;
-      }
-    } catch (error) {
-      console.error('Failed to load initial content:', error);
+    // Load initial content as text
+    if (initialContent && Array.isArray(initialContent)) {
+      setContent(JSON.stringify(initialContent, null, 2));
     }
-  }, [editor, isClient, initialContent]);
+  }, [initialContent]);
 
-  // Monitor content changes
-  useEffect(() => {
-    if (!editor || !isClient) return;
-
-    const checkAndNotifyChanges = () => {
-      try {
-        const currentContent = editor.topLevelBlocks;
-
-        // Check if content has changed
-        if (JSON.stringify(currentContent) !== JSON.stringify(lastContentRef.current)) {
-          lastContentRef.current = currentContent;
-          onChange(currentContent);
-        }
-      } catch (error) {
-        console.error('Failed to check content changes:', error);
+  const handleChange = (text: string) => {
+    setContent(text);
+    // Try to parse and send back
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        onChange(parsed);
       }
-    };
+    } catch {
+      // If not valid JSON, send as-is wrapped in blocks
+      onChange([{ type: 'paragraph', content: [{ type: 'text', text: text }] }]);
+    }
+  };
 
-    // Poll for changes every 500ms as a fallback
-    const interval = setInterval(checkAndNotifyChanges, 500);
-
-    return () => clearInterval(interval);
-  }, [editor, isClient, onChange]);
-
-  if (!isClient || !editor) {
+  if (!isClient) {
     return <div className="w-full h-full bg-gray-50 rounded animate-pulse" />;
   }
 
   return (
-    <div className="w-full h-full bg-white rounded-lg border border-gray-200 overflow-hidden editor-wrapper">
-      <style>{`
-        .editor-wrapper .bn-editor {
-          padding: 20px;
-          font-size: 16px;
-          line-height: 1.6;
-        }
-        .editor-wrapper .bn-block-group {
-          margin-bottom: 12px;
-        }
-        .editor-wrapper {
-          --bn-colors-editor-bg: white;
-          --bn-colors-side-menu: #f3f4f6;
-          --bn-colors-highlights-gray-highlight: #f3f4f6;
-          --bn-colors-ui-text: #374151;
-        }
-      `}</style>
-      <BlockNoteViewRaw editor={editor} />
-    </div>
+    <textarea
+      value={content}
+      onChange={(e) => handleChange(e.target.value)}
+      className="w-full h-full p-4 border border-gray-200 rounded-lg font-mono text-sm"
+      placeholder="Enter note content (JSON format for blocks)..."
+    />
   );
 }
