@@ -276,17 +276,17 @@ export default function NotesPage() {
           </div>
 
           {/* ═══ MIDDLE: NOTE LIST ═══ */}
-          <div className="w-64 flex flex-col gap-1 border-l border-r border-gray-200">
+          <div className="w-56 flex flex-col gap-1 border-l border-r border-gray-200">
             {/* Search */}
             <Input
               placeholder={locale === 'bg' ? 'Търси...' : 'Search...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="mx-1 my-1 h-7 text-xs px-2"
+              className="mx-0.5 my-1 h-7 text-xs px-1.5"
             />
 
             {/* Note List */}
-            <div className="flex-1 overflow-y-auto space-y-1 px-2 pb-2">
+            <div className="flex-1 overflow-y-auto space-y-0.5 px-1 pb-2">
               {filteredNotes.length === 0 ? (
                 <EmptyState
                   icon="📝"
@@ -297,13 +297,13 @@ export default function NotesPage() {
                   <div
                     key={note.id}
                     onClick={() => setSelectedNote(note)}
-                    className={`p-2 rounded text-xs cursor-pointer transition-all ${
+                    className={`p-1.5 rounded text-xs cursor-pointer transition-all ${
                       selectedNote?.id === note.id
                         ? 'bg-indigo-50 border-l-3 border-indigo-600'
                         : 'hover:bg-gray-50'
                     }`}
                   >
-                    <div className="font-semibold text-gray-900 truncate">
+                    <div className="font-semibold text-gray-900 truncate text-[13px]">
                       {note.is_pinned && '📌 '}
                       {note.title}
                     </div>

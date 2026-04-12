@@ -3,6 +3,8 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Underline from '@tiptap/extension-underline';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import { useEffect, useRef } from 'react';
 import { Button } from '../components/ui';
 
@@ -96,6 +98,17 @@ export default function TiptapEditor({ initialContent = '', onChange }: TiptapEd
         },
       }),
       Underline,
+      TaskList.configure({
+        HTMLAttributes: {
+          class: 'list-none space-y-2',
+        },
+      }),
+      TaskItem.configure({
+        HTMLAttributes: {
+          class: 'flex items-start gap-2',
+        },
+        nested: true,
+      }),
     ],
     content: normalizedContent,
     editorProps: {
@@ -220,6 +233,14 @@ export default function TiptapEditor({ initialContent = '', onChange }: TiptapEd
           title="Numbered List"
         >
           1.
+        </Button>
+        <Button
+          size="sm"
+          variant={editor.isActive('taskList') ? 'primary' : 'ghost'}
+          onClick={() => editor.chain().focus().toggleTaskList().run()}
+          title="Checklist"
+        >
+          ☑
         </Button>
 
         <div className="w-px bg-gray-300 mx-1" />
