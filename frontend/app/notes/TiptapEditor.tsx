@@ -21,36 +21,99 @@ const convertBlocksToHTML = (blocks: any[]): string => {
 
   const html = blocks
     .map((block: any) => {
-      const type = block.type || '';
-      const content = block.content || '';
+      if (!block || typeof block !== 'object') return '';
 
-      if (type === 'text' || type === 'heading') {
-        return `<p>${content}</p>`;
+      const type = block.type || '';
+      let content = block.content || '';
+
+      // Handle text-like blocks
+      if (type === 'text') {
+        if (!content) return '';
+        // Escape HTML special characters
+        const escaped = String(content)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<p>${escaped}</p>`;
       }
+
+      if (type === 'heading') {
+        if (!content) return '';
+        const level = block.level || 2;
+        const escaped = String(content)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<h${level}>${escaped}</h${level}>`;
+      }
+
       if (type === 'paragraph') {
-        const text = Array.isArray(content)
-          ? content.map((c: any) => c.text || '').join('')
-          : content;
-        return `<p>${text}</p>`;
+        let text = '';
+        if (Array.isArray(content)) {
+          text = content.map((c: any) => c.text || '').join('');
+        } else if (typeof content === 'string') {
+          text = content;
+        }
+        if (!text) return '';
+        const escaped = String(text)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<p>${escaped}</p>`;
       }
+
       if (type === 'checklist') {
         const items = (block.items || [])
-          .map((item: any) => `<li>${item.checked ? '✓ ' : ''}${item.text || ''}</li>`)
+          .map((item: any) => {
+            const text = item.text || '';
+            const checkbox = item.checked ? '✓ ' : '☐ ';
+            return `<li>${checkbox}${text}</li>`;
+          })
           .join('');
-        return `<ul>${items}</ul>`;
+        return items ? `<ul>${items}</ul>` : '';
       }
+
       if (type === 'bullet') {
         const items = (block.items || [])
           .map((item: any) => `<li>${item.text || ''}</li>`)
           .join('');
-        return `<ul>${items}</ul>`;
+        return items ? `<ul>${items}</ul>` : '';
       }
+
+      if (type === 'orderedList') {
+        const items = (block.items || [])
+          .map((item: any) => `<li>${item.text || ''}</li>`)
+          .join('');
+        return items ? `<ol>${items}</ol>` : '';
+      }
+
       if (type === 'code') {
-        return `<pre><code>${content}</code></pre>`;
+        if (!content) return '';
+        const language = block.language || '';
+        return `<pre><code${language ? ` class="language-${language}"` : ''}>${content}</code></pre>`;
       }
+
+      if (type === 'blockquote') {
+        if (!content) return '';
+        return `<blockquote>${content}</blockquote>`;
+      }
+
+      if (type === 'divider') {
+        return '<hr />';
+      }
+
+      // Fallback for unknown types - try to extract any text
+      if (type && content) {
+        const escaped = String(content)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        return `<p>${escaped}</p>`;
+      }
+
       return '';
     })
-    .filter((h: string) => h.length > 0)
+    .filter((h: string) => h.trim().length > 0)
     .join('');
 
   return html || '<p></p>';
