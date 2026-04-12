@@ -601,24 +601,21 @@ export default function LifePage() {
           </button>
         )}
 
-        {/* ═══ DAILY CHECKLIST (unified with medications & supplements) ═══ */}
-        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-          {locale === 'bg' ? 'Дневен контролен списък' : 'Daily Checklist'}
+        {/* ═══ UNIFIED DAILY ROUTINE ═══ */}
+        <div className="mt-6 mb-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+          📅 {locale === 'bg' ? 'Дневен режим' : 'Daily Routine'}
         </div>
         {todaySchedules.length === 0 && (data?.active_interventions ?? []).length === 0 ? (
           <Card>
             <EmptyState
               icon="💊"
               message={locale === 'bg'
-                ? 'Няма планирани добавки за днес'
-                : 'No supplements scheduled for today'}
-              subtext={locale === 'bg'
-                ? 'Отидете на "Моя система за добавки" за управление на вашия протокол'
-                : 'Go to "My Supplement System" to manage your protocol'}
+                ? 'Няма планирани лекарства за днес'
+                : 'No medications scheduled for today'}
             />
           </Card>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {/* Progress Summary — includes supplements, medications, AND daily activities */}
             {(() => {
               const DAILY_ACTIVITIES = ['breakfast', 'lunch', 'dinner', 'gym', 'bp_check', 'water'];
@@ -651,12 +648,18 @@ export default function LifePage() {
             })()}
 
 
-            {/* Items organized by time slot */}
-            {Object.entries(groupedByTime).map(([timeSlot, items]) => (
-              <div key={timeSlot}>
-                <div className="text-xs font-semibold text-gray-600 px-2 py-2 mb-2">
-                  {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
+            {/* Supplements/Schedules organized by time slot */}
+            {Object.entries(groupedByTime).length > 0 && (
+              <div>
+                <div className="text-xs font-semibold text-gray-700 px-2 py-2 mb-2">
+                  💊 {locale === 'bg' ? 'График' : 'Schedule'}
                 </div>
+                <div className="space-y-3">
+                  {Object.entries(groupedByTime).map(([timeSlot, items]) => (
+                    <div key={timeSlot}>
+                      <div className="text-xs font-medium text-gray-600 px-2 py-1 mb-2">
+                        {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
+                      </div>
                 <div className="space-y-2">
                   {items.map((schedule) => {
                     const log = doseLogs[schedule.id];
@@ -718,16 +721,18 @@ export default function LifePage() {
                         </div>
                       </Card>
                     );
-                  })}
-                </div>
+                    ))}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
 
             {/* Active Interventions (medications/supplements) */}
             {(data?.active_interventions ?? []).length > 0 && (
               <div>
-                <div className="flex items-center justify-between px-2 py-2 mt-4 mb-2">
-                  <div className="text-xs font-semibold text-gray-600">
+                <div className="flex items-center justify-between px-2 py-2 mb-2">
+                  <div className="text-xs font-semibold text-gray-700">
                     💊 {locale === 'bg' ? 'Лекарства' : 'Medications & Supplements'}
                   </div>
                   <Button
@@ -826,8 +831,8 @@ export default function LifePage() {
 
             {/* Daily Activities — Meals, Gym, BP Checks */}
             <div>
-              <div className="text-xs font-semibold text-gray-600 px-2 py-2 mt-4 mb-2">
-                🎯 {locale === 'bg' ? 'Дневни активности' : 'Daily Activities'}
+              <div className="text-xs font-semibold text-gray-700 px-2 py-2 mb-2">
+                🎯 {locale === 'bg' ? 'Активности' : 'Activities'}
               </div>
               <div className="space-y-2">
                 {/* Meals */}
