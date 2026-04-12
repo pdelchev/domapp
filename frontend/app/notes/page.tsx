@@ -25,6 +25,7 @@ interface Note {
   folder_id: number | null;
   title: string;
   content: any; // JSON from BlockNote
+  content_type?: 'blocks' | 'richtext' | 'plaintext';
   color: string;
   is_pinned: boolean;
   is_archived: boolean;
@@ -357,7 +358,10 @@ export default function NotesPage() {
               <div className="flex-1 overflow-hidden">
                 <BlockNoteEditor
                   initialContent={selectedNote.content}
-                  onChange={(content) => handleUpdateNote({ content })}
+                  onChange={(content) => handleUpdateNote({
+                    content,
+                    content_type: selectedNote.content_type || 'blocks'
+                  })}
                 />
               </div>
             </div>
