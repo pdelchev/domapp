@@ -17,7 +17,6 @@ import {
   getLifeSummary, deleteIntervention,
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
   getStageRegressionForecast, saveInterventionLogs, getEmergencyCard,
-  createIntervention, updateIntervention,
 } from '../lib/api';
 // RitualModal removed — replaced by /health/checkin wizard
 
@@ -432,17 +431,24 @@ export default function LifePage() {
     try {
       setAddingMedication(true);
 
-      // Create FormData for file upload if photo exists
-      const payload: any = {
-        name: newMedicationForm.name,
-        dose: newMedicationForm.dose || null,
-        frequency: newMedicationForm.frequency,
-        category: newMedicationForm.category,
-        notes: newMedicationForm.notes || '',
-      };
+      const formData = new FormData();
+      formData.append('name', newMedicationForm.name);
+      formData.append('dose', newMedicationForm.dose || '');
+      formData.append('frequency', newMedicationForm.frequency);
+      formData.append('category', newMedicationForm.category);
+      formData.append('hypothesis', newMedicationForm.notes);
+      formData.append('is_active', 'true');
 
-      // Call API to create intervention
-      await createIntervention(payload);
+      const response = await fetch('/api/health/interventions/', {
+        method: 'POST',
+        body: formData,
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || (locale === 'bg' ? 'Неуспешно добавяне' : 'Failed to create'));
+      }
 
       await load();
       setShowAddMedicationForm(false);
@@ -1574,16 +1580,23 @@ export default function LifePage() {
                       try {
                         setEditingMedication(true);
 
-                        const payload: any = {
-                          name: editForm.name,
-                          dose: editForm.dose || null,
-                          frequency: editForm.frequency,
-                          category: editForm.category,
-                          notes: editForm.notes || '',
-                        };
+                        const formData = new FormData();
+                        formData.append('name', editForm.name);
+                        formData.append('dose', editForm.dose || '');
+                        formData.append('frequency', editForm.frequency);
+                        formData.append('category', editForm.category);
+                        formData.append('hypothesis', editForm.notes);
 
-                        // Call API to update intervention
-                        await updateIntervention(editingId, payload);
+                        const response = await fetch(`/api/health/interventions/${editingId}/`, {
+                          method: 'PATCH',
+                          body: formData,
+                          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}` },
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json().catch(() => ({}));
+                          throw new Error(errorData.detail || (locale === 'bg' ? 'Неуспешно обновяване' : 'Failed to update'));
+                        }
 
                         await load();
                         setEditingId(null);
