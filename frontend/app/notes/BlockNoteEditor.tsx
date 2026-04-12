@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BlockNoteView, useBlockNote } from '@blocknote/react';
+import { BlockNoteViewRaw, useBlockNoteEditor } from '@blocknote/react';
 import { BlockNoteEditor as BlockNote } from '@blocknote/core';
 import '@blocknote/react/style.css';
 
@@ -13,7 +13,7 @@ interface BlockNoteEditorProps {
 export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
   const [isClient, setIsClient] = useState(false);
 
-  const editor = useBlockNote({
+  const editor = useBlockNoteEditor({
     initialContent: initialContent || undefined,
     onEditorContentChange: (editor) => {
       onChange(editor.topLevelBlocks);
@@ -46,7 +46,7 @@ export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteE
           --bn-colors-ui-text: #374151;
         }
       `}</style>
-      <BlockNoteView editor={editor} />
+      <BlockNoteViewRaw editor={editor} />
     </div>
   );
 }
