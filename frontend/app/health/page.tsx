@@ -1411,19 +1411,19 @@ export default function LifePage() {
 
                   {/* 4 Signals */}
                   <div className="bg-gray-50 p-3 rounded-lg mb-4">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">4 СИГНАЛА ({cmAge.signals_present}/4):</div>
+                    <div className="text-xs font-semibold text-gray-700 mb-2">СИГНАЛИ ({cmAge.signals_present}/4):</div>
                     <div className="text-[11px] space-y-1 text-gray-700">
-                      <div className={cmAge.bp_average ? 'text-green-700' : 'text-red-700'}>
-                        {cmAge.bp_average ? '✓' : '✗'} Кръвно налягане {cmAge.bp_average ? `(${Math.round(cmAge.bp_average)}/${Math.round(cmAge.bp_average * 0.6)})` : '✗ ЛИПСВА'}
+                      <div className={cmAge.signals_present >= 1 ? 'text-green-700' : 'text-red-700'}>
+                        {cmAge.signals_present >= 1 ? '✓' : '✗'} Кръвно налягане (BP)
                       </div>
-                      <div className={cmAge.body_fat_pct ? 'text-green-700' : 'text-red-700'}>
-                        {cmAge.body_fat_pct ? '✓' : '✗'} Телесна мазнина {cmAge.body_fat_pct ? `(${cmAge.body_fat_pct}%)` : '✗ ЛИПСВА'}
+                      <div className={cmAge.signals_present >= 2 ? 'text-green-700' : 'text-red-700'}>
+                        {cmAge.signals_present >= 2 ? '✓' : '✗'} Телесна мазнина (Body Comp)
                       </div>
-                      <div className={cmAge.ldl ? 'text-green-700' : 'text-gray-500'}>
-                        {cmAge.ldl ? '✓' : '◦'} LDL холестерол {cmAge.ldl ? `(${cmAge.ldl})` : '(опционално)'}
+                      <div className={cmAge.signals_present >= 3 ? 'text-green-700' : 'text-gray-500'}>
+                        {cmAge.signals_present >= 3 ? '✓' : '◦'} LDL холестерол
                       </div>
-                      <div className={cmAge.glucose ? 'text-green-700' : 'text-gray-500'}>
-                        {cmAge.glucose ? '✓' : '◦'} Глюкоза на гладно {cmAge.glucose ? `(${cmAge.glucose})` : '(опционално)'}
+                      <div className={cmAge.signals_present >= 4 ? 'text-green-700' : 'text-gray-500'}>
+                        {cmAge.signals_present >= 4 ? '✓' : '◦'} Глюкоза на гладно
                       </div>
                     </div>
                   </div>
