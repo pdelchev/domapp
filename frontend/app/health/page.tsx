@@ -437,7 +437,8 @@ export default function LifePage() {
       formData.append('frequency', newMedicationForm.frequency);
       formData.append('category', newMedicationForm.category);
       formData.append('hypothesis', newMedicationForm.notes);
-      formData.append('is_active', 'true');
+      formData.append('started_on', new Date().toISOString().split('T')[0]); // Today's date
+      formData.append('evidence_grade', 'B');
 
       const response = await fetch('/api/health/interventions/', {
         method: 'POST',
@@ -447,6 +448,7 @@ export default function LifePage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error('API Error:', errorData);
         throw new Error(errorData.detail || (locale === 'bg' ? 'Неуспешно добавяне' : 'Failed to create'));
       }
 
@@ -1595,6 +1597,7 @@ export default function LifePage() {
 
                         if (!response.ok) {
                           const errorData = await response.json().catch(() => ({}));
+                          console.error('API Error:', errorData);
                           throw new Error(errorData.detail || (locale === 'bg' ? 'Неуспешно обновяване' : 'Failed to update'));
                         }
 
