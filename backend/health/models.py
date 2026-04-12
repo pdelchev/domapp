@@ -760,3 +760,68 @@ class ProtocolRecommendation(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.title}"
+
+
+# ── Meal Timing (synchronized with supplement schedule) ──────────────
+
+class MealTiming(models.Model):
+    """
+    §MEAL: Daily meal plan synchronized with supplement intake times.
+    Shows what to eat when, aligned with supplement absorption needs.
+
+    Example:
+      09:00 - Breakfast (optional) + Saxenda fasted
+      13:00 - Lunch with fat (olive oil, fish) + Vitamin D3+K2, CoQ10, Omega-3
+      18:00 - Dinner + Magnesium Taurate
+      21:30 - Sleep prep + Magnesium Taurate + water
+    """
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='meal_timings')
+    profile = models.ForeignKey(HealthProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='meal_timings')
+
+    time_slot = models.CharField(max_length=5)  # "09:00", "13:00", "18:00", "21:30"
+    meal_name = models.CharField(max_length=100)  # "Breakfast", "Lunch", "Dinner", "Pre-sleep"
+    meal_name_bg = models.CharField(max_length=100, blank=True, default='')  # "Закуска", "Обяд", etc
+
+    description = models.TextField(blank=True, default='')  # "Light breakfast: eggs, olive oil, avocado"
+    description_bg = models.TextField(blank=True, default='')  # Bulgarian version
+
+    nutritional_focus = models.JSONField(
+        default=list, blank=True,
+        help_text="['fat', 'protein', 'carbs', 'hydration'] — what's important at this time"
+    )
+
+    # Supplements that should be taken at this time
+    supplement_ids = models.JSONField(
+        default=list, blank=True,
+        help_text="List of Intervention IDs to take at this meal time"
+    )
+
+    # Hydration reminder
+    water_ml = models.IntegerField(null=True, blank=True)  # e.g., 500 for 500ml water
+
+    # Optional meal suggestions
+    suggested_foods = models.JSONField(
+        default=list, blank=True,
+        help_text="['olive oil', 'fish', 'eggs'] — foods that pair well with supplements"
+    )
+    suggested_foods_bg = models.JSONField(
+        default=list, blank=True,
+        help_text="Bulgarian version of suggested foods"
+    )
+
+    # Why this meal at this time
+    notes = models.TextField(blank=True, default='')
+    notes_bg = models.TextField(blank=True, default='')
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [('user', 'profile', 'time_slot')]
+        ordering = ['time_slot']
+        indexes = [models.Index(fields=['user', 'time_slot'])]
+
+    def __str__(self):
+        return f"{self.time_slot} - {self.meal_name}"

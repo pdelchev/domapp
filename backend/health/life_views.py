@@ -11,8 +11,8 @@ from rest_framework.views import APIView
 from datetime import date as date_cls, timedelta
 from django.db.models import Max
 
-from .models import Intervention, HealthProfile, HealthScoreSnapshot, InterventionLog
-from .life_serializers import InterventionSerializer, HealthScoreSnapshotSerializer
+from .models import Intervention, HealthProfile, HealthScoreSnapshot, InterventionLog, MealTiming
+from .life_serializers import InterventionSerializer, HealthScoreSnapshotSerializer, MealTimingSerializer
 from .life_services import compute_health_score, get_deltas
 from .phenoage import compute_phenoage
 from .briefing import compute_briefing
@@ -265,3 +265,26 @@ class MorningBriefingView(APIView):
         if not profile:
             return Response({'detail': 'No HealthProfile found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(compute_briefing(user, profile))
+
+
+class MealTimingViewSet(viewsets.ModelViewSet):
+    """CRUD for meal timing synchronized with supplements. Filters: ?profile=&active=."""
+    serializer_class = MealTimingSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        from .models import MealTiming
+        qs = MealTiming.objects.filter(user=self.request.user)
+        if (pid := self.request.query_params.get('profile')):
+            qs = qs.filter(profile_id=pid)
+        if (active := self.request.query_params.get('active')) in ('true', '1'):
+            qs = qs.filter(is_active=True)
+        elif active in ('false', '0'):
+            qs = qs.filter(is_active=False)
+        return qs.order_by('time_slot')
+
+    def perform_create(self, serializer):
+        profile = serializer.validated_data.get('profile') or _primary_profile(self.request.user)
+        if profile and profile.user_id != self.request.user.id:
+            profile = _primary_profile(self.request.user)
+        serializer.save(user=self.request.user, profile=profile)

@@ -11,6 +11,7 @@ from . import life_views
 
 router = DefaultRouter()
 router.register(r'interventions', life_views.InterventionViewSet, basename='intervention')
+router.register(r'meals', life_views.MealTimingViewSet, basename='meal')
 
 urlpatterns = [
     path('life-summary/', life_views.LifeSummaryView.as_view(), name='life-summary'),
