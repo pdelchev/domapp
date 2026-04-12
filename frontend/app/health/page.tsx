@@ -2186,10 +2186,8 @@ export default function LifePage() {
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
             onClick={() => setShowPhotoPreview(false)}
           >
-            <Card
-              className="w-full max-w-sm"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div onClick={(e) => e.stopPropagation()}>
+              <Card className="w-full max-w-sm">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900">{previewPhotoName}</h3>
                 <button
@@ -2208,7 +2206,8 @@ export default function LifePage() {
                   className="w-full h-full object-contain"
                 />
               </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         )}
 
