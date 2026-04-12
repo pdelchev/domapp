@@ -293,6 +293,11 @@ export default function LifePage() {
   });
   const [addingMedication, setAddingMedication] = useState(false);
 
+  // Photo preview popup
+  const [showPhotoPreview, setShowPhotoPreview] = useState(false);
+  const [previewPhotoUrl, setPreviewPhotoUrl] = useState('');
+  const [previewPhotoName, setPreviewPhotoName] = useState('');
+
   // Daily activities tracking (stored in localStorage for persistence)
   const [dailyActivities, setDailyActivities] = useState<Record<string, boolean>>(() => {
     if (typeof window !== 'undefined') {
@@ -884,14 +889,22 @@ export default function LifePage() {
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
                                 {iv.photo ? (
-                                  <div className="relative group">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPreviewPhotoUrl(iv.photo.startsWith('http') ? iv.photo : `/api/media/${iv.photo}`);
+                                      setPreviewPhotoName(iv.name);
+                                      setShowPhotoPreview(true);
+                                    }}
+                                    className="relative group focus:outline-none"
+                                    title={locale === 'bg' ? 'Щракнете за увеличение' : 'Click to enlarge'}
+                                  >
                                     <img
                                       src={iv.photo.startsWith('http') ? iv.photo : `/api/media/${iv.photo}`}
                                       alt={iv.name}
-                                      className="w-12 h-12 rounded object-cover bg-gray-100 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow"
-                                      title={locale === 'bg' ? 'Щракнете за увеличение' : 'Click to enlarge'}
+                                      className="w-12 h-12 rounded object-cover bg-gray-100 border border-indigo-200 cursor-pointer hover:shadow-lg transition-shadow"
                                     />
-                                  </div>
+                                  </button>
                                 ) : (
                                   <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400 border border-dashed border-gray-300">
                                     📷
@@ -919,8 +932,8 @@ export default function LifePage() {
                                   >
                                     ✎
                                   </Button>
-                                  {iv.evidence_grade && (
-                                    <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                                  {iv.evidence_grade && iv.evidence_grade !== 'B' && (
+                                    <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'} title={locale === 'bg' ? 'Качество на доказателствата' : 'Evidence quality'}>
                                       {iv.evidence_grade}
                                     </Badge>
                                   )}
@@ -2158,6 +2171,38 @@ export default function LifePage() {
                       : (locale === 'bg' ? 'Запази' : 'Save')}
                   </Button>
                 </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* Photo Preview Modal */}
+        {showPhotoPreview && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowPhotoPreview(false)}
+          >
+            <Card
+              className="w-full max-w-sm"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">{previewPhotoName}</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPhotoPreview(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                  title={locale === 'bg' ? 'Затвори' : 'Close'}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center" style={{ aspectRatio: '1' }}>
+                <img
+                  src={previewPhotoUrl}
+                  alt={previewPhotoName}
+                  className="w-full h-full object-contain"
+                />
               </div>
             </Card>
           </div>
