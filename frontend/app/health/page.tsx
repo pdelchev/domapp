@@ -1713,6 +1713,7 @@ export default function LifePage() {
                         frequency: 'daily',
                         category: 'supplement',
                         notes: '',
+                        reminder_time: '',
                         photo_file: null,
                       });
                     }}
