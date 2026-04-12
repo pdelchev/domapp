@@ -253,16 +253,25 @@ export default function LifePage() {
     frequency: 'daily',
     category: 'supplement',
     notes: '',
+    reminder_time: '',
     photo_file: null as File | null,
   });
   const [editingMedication, setEditingMedication] = useState(false);
 
-  // Add vitals form state
+  // Add vitals form state (BP + Weight + Measurements)
   const [showAddVitalsForm, setShowAddVitalsForm] = useState(false);
   const [vitalsForm, setVitalsForm] = useState({
     bp_systolic: '',
     bp_diastolic: '',
     pulse: '',
+    arm: 'left' as 'left' | 'right',
+    posture: 'sitting' as 'sitting' | 'standing' | 'lying',
+    is_after_caffeine: false,
+    is_after_exercise: false,
+    is_after_medication: false,
+    is_stressed: false,
+    is_clinic_reading: false,
+    is_fasting: false,
     weight: '',
     waist_cm: '',
     notes: '',
@@ -487,6 +496,72 @@ export default function LifePage() {
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       setNewMedicationForm({ ...newMedicationForm, photo_file: e.target.files[0] });
+    }
+  };
+
+  const handleSaveVitals = async () => {
+    try {
+      setAddingVitals(true);
+      const pid = data?.profile?.id;
+      if (!pid) throw new Error('Profile not found');
+
+      // Save BP reading if provided
+      if (vitalsForm.bp_systolic && vitalsForm.bp_diastolic) {
+        const bpRes = await fetch('/api/health/bp/readings/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          },
+          body: JSON.stringify({
+            profile: pid,
+            systolic: parseInt(vitalsForm.bp_systolic),
+            diastolic: parseInt(vitalsForm.bp_diastolic),
+            pulse: vitalsForm.pulse ? parseInt(vitalsForm.pulse) : null,
+            measured_at: new Date().toISOString(),
+            arm: vitalsForm.arm,
+            posture: vitalsForm.posture,
+            is_after_caffeine: vitalsForm.is_after_caffeine,
+            is_after_exercise: vitalsForm.is_after_exercise,
+            is_after_medication: vitalsForm.is_after_medication,
+            is_stressed: vitalsForm.is_stressed,
+            is_clinic_reading: vitalsForm.is_clinic_reading,
+            is_fasting: vitalsForm.is_fasting,
+            notes: vitalsForm.notes,
+          }),
+        });
+        if (!bpRes.ok) {
+          const errorData = await bpRes.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to save BP reading');
+        }
+      }
+
+      // TODO: Save weight and waist measurements if provided
+      // For now, just show success and reload
+
+      setShowAddVitalsForm(false);
+      setVitalsForm({
+        bp_systolic: '',
+        bp_diastolic: '',
+        pulse: '',
+        arm: 'left',
+        posture: 'sitting',
+        is_after_caffeine: false,
+        is_after_exercise: false,
+        is_after_medication: false,
+        is_stressed: false,
+        is_clinic_reading: false,
+        is_fasting: false,
+        weight: '',
+        waist_cm: '',
+        notes: '',
+      });
+      await load();
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
+    } finally {
+      setAddingVitals(false);
     }
   };
 
@@ -806,32 +881,42 @@ export default function LifePage() {
                                   </div>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    setEditingId(iv.id);
-                                    setEditForm({
-                                      name: iv.name || '',
-                                      dose: iv.dose || '',
-                                      dose_unit: 'mg',
-                                      form: 'tablet',
-                                      frequency: iv.frequency || 'daily',
-                                      category: iv.category || 'supplement',
-                                      notes: '',
-                                      photo_file: null,
-                                    });
-                                  }}
-                                  title={locale === 'bg' ? 'Редактирай' : 'Edit'}
-                                >
-                                  ✎
-                                </Button>
-                                {iv.evidence_grade && (
-                                  <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
-                                    {iv.evidence_grade}
-                                  </Badge>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                {iv.photo && (
+                                  <img
+                                    src={iv.photo}
+                                    alt={iv.name}
+                                    className="w-12 h-12 rounded object-cover bg-gray-100"
+                                  />
                                 )}
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      setEditingId(iv.id);
+                                      setEditForm({
+                                        name: iv.name || '',
+                                        dose: iv.dose || '',
+                                        dose_unit: 'mg',
+                                        form: 'tablet',
+                                        frequency: iv.frequency || 'daily',
+                                        category: iv.category || 'supplement',
+                                        notes: iv.notes || '',
+                                        reminder_time: iv.reminder_times?.[0] || '',
+                                        photo_file: null,
+                                      });
+                                    }}
+                                    title={locale === 'bg' ? 'Редактирай' : 'Edit'}
+                                  >
+                                    ✎
+                                  </Button>
+                                  {iv.evidence_grade && (
+                                    <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                                      {iv.evidence_grade}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1343,6 +1428,17 @@ export default function LifePage() {
                 </div>
               </Card>
             )}
+
+            {/* Add Measurements Button */}
+            <div className="mt-4">
+              <Button
+                variant="primary"
+                onClick={() => setShowAddVitalsForm(true)}
+                className="w-full"
+              >
+                {locale === 'bg' ? '❤️ Добави измервания' : '❤️ Add Measurements'}
+              </Button>
+            </div>
           </>
         )}
 
@@ -1562,6 +1658,14 @@ export default function LifePage() {
                   <option value="as_needed">{locale === 'bg' ? 'По необходимост' : 'As Needed'}</option>
                 </Select>
 
+                {/* Reminder Time */}
+                <Input
+                  label={locale === 'bg' ? '⏰ Час' : '⏰ Reminder Time'}
+                  type="time"
+                  value={editForm.reminder_time}
+                  onChange={(e) => setEditForm({ ...editForm, reminder_time: e.target.value })}
+                />
+
                 {/* Notes */}
                 <Textarea
                   label={locale === 'bg' ? 'Бележки' : 'Notes'}
@@ -1578,7 +1682,11 @@ export default function LifePage() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={handlePhotoUpload}
+                    onChange={(e) => {
+                      if (e.target.files?.[0]) {
+                        setEditForm({ ...editForm, photo_file: e.target.files[0] });
+                      }
+                    }}
                     className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
                   />
                   {editForm.photo_file && (
@@ -1628,6 +1736,12 @@ export default function LifePage() {
                         formData.append('frequency', editForm.frequency);
                         formData.append('category', editForm.category);
                         formData.append('hypothesis', editForm.notes);
+                        if (editForm.reminder_time) {
+                          formData.append('reminder_times', JSON.stringify([editForm.reminder_time]));
+                        }
+                        if (editForm.photo_file) {
+                          formData.append('photo', editForm.photo_file);
+                        }
 
                         const response = await fetch(`/api/health/interventions/${editingId}/`, {
                           method: 'PATCH',
@@ -1830,7 +1944,7 @@ export default function LifePage() {
                   <div className="text-xs font-semibold text-gray-700 mb-3">
                     🩸 {locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-3 gap-2 mb-3">
                     <Input
                       label={locale === 'bg' ? 'Систолно' : 'Systolic'}
                       type="number"
@@ -1853,8 +1967,98 @@ export default function LifePage() {
                       value={vitalsForm.pulse}
                       onChange={(e) => setVitalsForm({ ...vitalsForm, pulse: e.target.value })}
                       inputMode="numeric"
-                      placeholder="70"
+                      placeholder="72"
                     />
+                  </div>
+
+                  {/* Arm Selection */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      {locale === 'bg' ? 'Ръка' : 'Arm'}
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setVitalsForm({ ...vitalsForm, arm: 'left' })}
+                        className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                          vitalsForm.arm === 'left'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {locale === 'bg' ? 'Лява' : 'Left'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setVitalsForm({ ...vitalsForm, arm: 'right' })}
+                        className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                          vitalsForm.arm === 'right'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {locale === 'bg' ? 'Дясна' : 'Right'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Posture Selection */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      {locale === 'bg' ? 'Поза' : 'Posture'}
+                    </label>
+                    <div className="flex gap-2">
+                      {(['sitting', 'standing', 'lying'] as const).map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => setVitalsForm({ ...vitalsForm, posture: pos })}
+                          className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
+                            vitalsForm.posture === pos
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          {locale === 'bg'
+                            ? pos === 'sitting' ? 'Седнал' : pos === 'standing' ? 'Правостоящ' : 'Легнал'
+                            : pos.charAt(0).toUpperCase() + pos.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Context Tags */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                      {locale === 'bg' ? 'Контекст' : 'Context'}
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { key: 'is_after_caffeine', emoji: '☕', en: 'After coffee', bg: 'След кафе' },
+                        { key: 'is_after_exercise', emoji: '🏃', en: 'After exercise', bg: 'След упражнение' },
+                        { key: 'is_after_medication', emoji: '💊', en: 'After medication', bg: 'След лекарство' },
+                        { key: 'is_stressed', emoji: '😰', en: 'Stressed', bg: 'Стресиран' },
+                        { key: 'is_clinic_reading', emoji: '🏥', en: 'Clinical', bg: 'Клинично' },
+                        { key: 'is_fasting', emoji: '🍴', en: 'Fasting', bg: 'На гладно' },
+                      ].map((ctx) => (
+                        <button
+                          key={ctx.key}
+                          type="button"
+                          onClick={() => setVitalsForm({
+                            ...vitalsForm,
+                            [ctx.key]: !vitalsForm[ctx.key as keyof typeof vitalsForm],
+                          })}
+                          className={`px-3 py-2 rounded text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
+                            vitalsForm[ctx.key as keyof typeof vitalsForm]
+                              ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
+                              : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-150'
+                          }`}
+                        >
+                          <span>{ctx.emoji}</span>
+                          <span className="hidden sm:inline">{locale === 'bg' ? ctx.bg : ctx.en}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1909,6 +2113,14 @@ export default function LifePage() {
                         bp_systolic: '',
                         bp_diastolic: '',
                         pulse: '',
+                        arm: 'left',
+                        posture: 'sitting',
+                        is_after_caffeine: false,
+                        is_after_exercise: false,
+                        is_after_medication: false,
+                        is_stressed: false,
+                        is_clinic_reading: false,
+                        is_fasting: false,
                         weight: '',
                         waist_cm: '',
                         notes: '',
@@ -1921,39 +2133,8 @@ export default function LifePage() {
                   </Button>
                   <Button
                     variant="primary"
-                    onClick={async () => {
-                      if (!vitalsForm.bp_systolic && !vitalsForm.weight && !vitalsForm.waist_cm) {
-                        setError(locale === 'bg' ? 'Добавете поне едно измерване' : 'Add at least one measurement');
-                        return;
-                      }
-
-                      try {
-                        setAddingVitals(true);
-
-                        // TODO: Call API to save vitals
-                        // For now, just close the form
-                        setShowAddVitalsForm(false);
-                        setVitalsForm({
-                          bp_systolic: '',
-                          bp_diastolic: '',
-                          pulse: '',
-                          weight: '',
-                          waist_cm: '',
-                          notes: '',
-                        });
-                        setError('');
-
-                        // In a real scenario:
-                        // await saveBPReading({ systolic, diastolic, pulse })
-                        // await saveWeight({ weight })
-                        // await saveMeasurement({ waist_cm })
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
-                      } finally {
-                        setAddingVitals(false);
-                      }
-                    }}
-                    disabled={addingVitals}
+                    onClick={handleSaveVitals}
+                    disabled={addingVitals || (!vitalsForm.bp_systolic && !vitalsForm.weight)}
                     className="flex-1"
                   >
                     {addingVitals
