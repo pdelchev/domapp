@@ -679,13 +679,25 @@ export default function SupplementsPage() {
                                 {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
                               </td>
                               <td className="py-3 px-2 text-center">
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
-                                >
-                                  ✕
-                                </Button>
+                                <div className="flex items-center justify-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                      // Open edit form
+                                      alert(`Edit ${s.name} - edit form coming soon`);
+                                    }}
+                                  >
+                                    ✎
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="danger"
+                                    onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
+                                  >
+                                    ✕
+                                  </Button>
+                                </div>
                               </td>
                             </tr>
                           ))}

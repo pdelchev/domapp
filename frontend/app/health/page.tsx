@@ -693,11 +693,24 @@ export default function LifePage() {
                                   </div>
                                 </div>
                               </div>
-                              {iv.evidence_grade && (
-                                <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
-                                  {iv.evidence_grade}
-                                </Badge>
-                              )}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    // Open edit form
+                                    alert(`Edit ${iv.name} - edit form coming soon`);
+                                  }}
+                                  title={locale === 'bg' ? 'Редактирай' : 'Edit'}
+                                >
+                                  ✎
+                                </Button>
+                                {iv.evidence_grade && (
+                                  <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'B' ? 'blue' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                                    {iv.evidence_grade}
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
