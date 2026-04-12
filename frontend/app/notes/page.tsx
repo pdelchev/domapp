@@ -276,13 +276,13 @@ export default function NotesPage() {
           </div>
 
           {/* ═══ MIDDLE: NOTE LIST ═══ */}
-          <div className="w-64 flex flex-col gap-2 border-l border-r border-gray-200">
+          <div className="w-64 flex flex-col gap-1 border-l border-r border-gray-200">
             {/* Search */}
             <Input
               placeholder={locale === 'bg' ? 'Търси...' : 'Search...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="mx-2 mt-2 mb-1 h-8 text-xs"
+              className="mx-1 my-1 h-7 text-xs px-2"
             />
 
             {/* Note List */}
