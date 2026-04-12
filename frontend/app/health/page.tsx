@@ -883,12 +883,19 @@ export default function LifePage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2 flex-shrink-0">
-                                {iv.photo && (
-                                  <img
-                                    src={iv.photo}
-                                    alt={iv.name}
-                                    className="w-12 h-12 rounded object-cover bg-gray-100"
-                                  />
+                                {iv.photo ? (
+                                  <div className="relative group">
+                                    <img
+                                      src={iv.photo.startsWith('http') ? iv.photo : `/api/media/${iv.photo}`}
+                                      alt={iv.name}
+                                      className="w-12 h-12 rounded object-cover bg-gray-100 border border-indigo-200 cursor-pointer hover:shadow-md transition-shadow"
+                                      title={locale === 'bg' ? 'Щракнете за увеличение' : 'Click to enlarge'}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-400 border border-dashed border-gray-300">
+                                    📷
+                                  </div>
                                 )}
                                 <div className="flex items-center gap-1">
                                   <Button
@@ -1691,9 +1698,16 @@ export default function LifePage() {
                     className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
                   />
                   {editForm.photo_file && (
-                    <p className="text-xs text-gray-600 mt-2">
-                      ✓ {editForm.photo_file.name}
-                    </p>
+                    <div className="mt-3">
+                      <img
+                        src={URL.createObjectURL(editForm.photo_file)}
+                        alt="Preview"
+                        className="w-24 h-24 rounded object-cover border border-indigo-200 bg-indigo-50"
+                      />
+                      <p className="text-xs text-gray-600 mt-2 font-medium">
+                        ✓ {editForm.photo_file.name}
+                      </p>
+                    </div>
                   )}
                 </div>
 
