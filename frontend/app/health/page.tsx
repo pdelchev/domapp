@@ -649,11 +649,6 @@ export default function LifePage() {
                   🧬 {locale === 'bg' ? 'Гени' : 'Genes'}
                 </Button>
               </Link>
-              <Link href="/health/routine">
-                <Button variant="secondary">
-                  💊 {t('nav.daily_routine', locale)}
-                </Button>
-              </Link>
               <Button
                 variant="secondary"
                 onClick={() => setShowAddVitalsForm(true)}
