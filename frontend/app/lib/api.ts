@@ -1485,6 +1485,14 @@ export async function saveInterventionLogs(date: string, logs: { intervention: n
   return res.json();
 }
 
+// ─── Meal Timing (synchronized with supplements) ──────────────────
+export async function getMealTimings(profileId?: number) {
+  const query = profileId ? `?profile=${profileId}` : '';
+  const res = await apiFetch(`/api/health/meals/${query}`);
+  if (!res.ok) throw new Error('Failed to fetch meal timings');
+  return res.json();
+}
+
 export async function getLabOrder(profileId?: number) {
   const query = profileId ? `?profile=${profileId}` : '';
   const res = await apiFetch(`/api/health/lab-order/${query}`);
