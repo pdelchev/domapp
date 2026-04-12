@@ -257,6 +257,18 @@ export default function LifePage() {
   });
   const [editingMedication, setEditingMedication] = useState(false);
 
+  // Add vitals form state
+  const [showAddVitalsForm, setShowAddVitalsForm] = useState(false);
+  const [vitalsForm, setVitalsForm] = useState({
+    bp_systolic: '',
+    bp_diastolic: '',
+    pulse: '',
+    weight: '',
+    waist_cm: '',
+    notes: '',
+  });
+  const [addingVitals, setAddingVitals] = useState(false);
+
   // Add medication form state
   const [showAddMedicationForm, setShowAddMedicationForm] = useState(false);
   const [newMedicationForm, setNewMedicationForm] = useState({
@@ -540,6 +552,12 @@ export default function LifePage() {
                   💊 {t('nav.daily_routine', locale)}
                 </Button>
               </Link>
+              <Button
+                variant="secondary"
+                onClick={() => setShowAddVitalsForm(true)}
+              >
+                + {locale === 'bg' ? 'Добави измервания' : 'Add Vitals'}
+              </Button>
               <Link href="/health/checkin">
                 <Button variant="secondary">
                   + {t('nav.daily_checkin', locale)}
@@ -1773,6 +1791,158 @@ export default function LifePage() {
                     {addingMedication
                       ? (locale === 'bg' ? 'Добавяне...' : 'Adding...')
                       : (locale === 'bg' ? 'Добави' : 'Add')}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ADD VITALS Modal */}
+        {showAddVitalsForm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <Card className="w-full max-w-md my-8">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  ❤️ {locale === 'bg' ? 'Добави измервания' : 'Add Vitals'}
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {/* Blood Pressure Section */}
+                <div className="border-b pb-4">
+                  <div className="text-xs font-semibold text-gray-700 mb-3">
+                    🩸 {locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Input
+                      label={locale === 'bg' ? 'Систолно' : 'Systolic'}
+                      type="number"
+                      value={vitalsForm.bp_systolic}
+                      onChange={(e) => setVitalsForm({ ...vitalsForm, bp_systolic: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="120"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Диастолно' : 'Diastolic'}
+                      type="number"
+                      value={vitalsForm.bp_diastolic}
+                      onChange={(e) => setVitalsForm({ ...vitalsForm, bp_diastolic: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="80"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Пулс' : 'Pulse'}
+                      type="number"
+                      value={vitalsForm.pulse}
+                      onChange={(e) => setVitalsForm({ ...vitalsForm, pulse: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="70"
+                    />
+                  </div>
+                </div>
+
+                {/* Weight Section */}
+                <div className="border-b pb-4">
+                  <div className="text-xs font-semibold text-gray-700 mb-3">
+                    ⚖️ {locale === 'bg' ? 'Тегло' : 'Weight'}
+                  </div>
+                  <Input
+                    label={locale === 'bg' ? 'Килограми' : 'Kilograms'}
+                    type="number"
+                    step="0.1"
+                    value={vitalsForm.weight}
+                    onChange={(e) => setVitalsForm({ ...vitalsForm, weight: e.target.value })}
+                    inputMode="decimal"
+                    placeholder="70.5"
+                  />
+                </div>
+
+                {/* Body Measurements Section */}
+                <div className="border-b pb-4">
+                  <div className="text-xs font-semibold text-gray-700 mb-3">
+                    📏 {locale === 'bg' ? 'Обиколки' : 'Measurements'}
+                  </div>
+                  <Input
+                    label={locale === 'bg' ? 'Талия (см)' : 'Waist (cm)'}
+                    type="number"
+                    value={vitalsForm.waist_cm}
+                    onChange={(e) => setVitalsForm({ ...vitalsForm, waist_cm: e.target.value })}
+                    inputMode="numeric"
+                    placeholder="85"
+                  />
+                </div>
+
+                {/* Notes */}
+                <Textarea
+                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                  value={vitalsForm.notes}
+                  onChange={(e) => setVitalsForm({ ...vitalsForm, notes: e.target.value })}
+                  placeholder={locale === 'bg' ? 'Условия, време на ден, други...' : 'Conditions, time of day, other...'}
+                />
+
+                {error && <Alert type="error" message={error} />}
+
+                {/* Action buttons */}
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowAddVitalsForm(false);
+                      setVitalsForm({
+                        bp_systolic: '',
+                        bp_diastolic: '',
+                        pulse: '',
+                        weight: '',
+                        waist_cm: '',
+                        notes: '',
+                      });
+                    }}
+                    disabled={addingVitals}
+                    className="flex-1"
+                  >
+                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={async () => {
+                      if (!vitalsForm.bp_systolic && !vitalsForm.weight && !vitalsForm.waist_cm) {
+                        setError(locale === 'bg' ? 'Добавете поне едно измерване' : 'Add at least one measurement');
+                        return;
+                      }
+
+                      try {
+                        setAddingVitals(true);
+
+                        // TODO: Call API to save vitals
+                        // For now, just close the form
+                        setShowAddVitalsForm(false);
+                        setVitalsForm({
+                          bp_systolic: '',
+                          bp_diastolic: '',
+                          pulse: '',
+                          weight: '',
+                          waist_cm: '',
+                          notes: '',
+                        });
+                        setError('');
+
+                        // In a real scenario:
+                        // await saveBPReading({ systolic, diastolic, pulse })
+                        // await saveWeight({ weight })
+                        // await saveMeasurement({ waist_cm })
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
+                      } finally {
+                        setAddingVitals(false);
+                      }
+                    }}
+                    disabled={addingVitals}
+                    className="flex-1"
+                  >
+                    {addingVitals
+                      ? (locale === 'bg' ? 'Запазване...' : 'Saving...')
+                      : (locale === 'bg' ? 'Запази' : 'Save')}
                   </Button>
                 </div>
               </div>
