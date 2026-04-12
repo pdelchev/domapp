@@ -41,7 +41,7 @@ export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteE
     <textarea
       value={content}
       onChange={(e) => handleChange(e.target.value)}
-      className="w-full h-full p-4 border border-gray-200 rounded-lg font-mono text-sm"
+      className="w-full h-full p-4 border border-gray-200 rounded-lg font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
       placeholder="Enter note content (JSON format for blocks)..."
     />
   );
