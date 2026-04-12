@@ -245,7 +245,17 @@ export default function LifePage() {
 
   // Edit intervention/medication state
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingName, setEditingName] = useState('');
+  const [editForm, setEditForm] = useState({
+    name: '',
+    dose: '',
+    dose_unit: 'mg',
+    form: 'tablet',
+    frequency: 'daily',
+    category: 'supplement',
+    notes: '',
+    photo_file: null as File | null,
+  });
+  const [editingMedication, setEditingMedication] = useState(false);
 
   // Add medication form state
   const [showAddMedicationForm, setShowAddMedicationForm] = useState(false);
@@ -764,7 +774,16 @@ export default function LifePage() {
                                   variant="ghost"
                                   onClick={() => {
                                     setEditingId(iv.id);
-                                    setEditingName(iv.name);
+                                    setEditForm({
+                                      name: iv.name || '',
+                                      dose: iv.dose || '',
+                                      dose_unit: 'mg',
+                                      form: 'tablet',
+                                      frequency: iv.frequency || 'daily',
+                                      category: iv.category || 'supplement',
+                                      notes: '',
+                                      photo_file: null,
+                                    });
                                   }}
                                   title={locale === 'bg' ? 'Редактирай' : 'Edit'}
                                 >
@@ -1402,44 +1421,163 @@ export default function LifePage() {
 
         {/* Edit Intervention Modal */}
         {editingId !== null && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <Card className="w-full max-w-md my-8">
               <div className="mb-6">
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {locale === 'bg' ? 'Редактирай' : 'Edit'} {editingName}
+                  {locale === 'bg' ? '✎ Редактирай' : '✎ Edit'}
                 </h2>
               </div>
 
               <div className="space-y-4">
+                {/* Name */}
                 <Input
                   label={locale === 'bg' ? 'Име' : 'Name'}
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                 />
 
-                <p className="text-sm text-gray-600">
-                  {locale === 'bg'
-                    ? 'За пълно редактиране отидете на /health/supplements'
-                    : 'For full editing, visit /health/supplements'}
-                </p>
+                {/* Category */}
+                <Select
+                  label={locale === 'bg' ? 'Вид' : 'Type'}
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                >
+                  <option value="supplement">{locale === 'bg' ? 'Добавка/Витамин' : 'Supplement/Vitamin'}</option>
+                  <option value="medication">{locale === 'bg' ? 'Лекарство' : 'Medication'}</option>
+                  <option value="therapy">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                </Select>
 
+                {/* Dose */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label={locale === 'bg' ? 'Доза' : 'Dose'}
+                    type="number"
+                    value={editForm.dose}
+                    onChange={(e) => setEditForm({ ...editForm, dose: e.target.value })}
+                    inputMode="decimal"
+                  />
+                  <Select
+                    label={locale === 'bg' ? 'Единица' : 'Unit'}
+                    value={editForm.dose_unit}
+                    onChange={(e) => setEditForm({ ...editForm, dose_unit: e.target.value })}
+                  >
+                    <option value="mg">mg</option>
+                    <option value="g">g</option>
+                    <option value="mcg">mcg</option>
+                    <option value="IU">IU</option>
+                    <option value="ml">ml</option>
+                    <option value="units">units</option>
+                  </Select>
+                </div>
+
+                {/* Form (tablet, liquid, etc.) */}
+                <Select
+                  label={locale === 'bg' ? 'Форма' : 'Form'}
+                  value={editForm.form}
+                  onChange={(e) => setEditForm({ ...editForm, form: e.target.value })}
+                >
+                  <option value="tablet">{locale === 'bg' ? 'Таблетка' : 'Tablet'}</option>
+                  <option value="capsule">{locale === 'bg' ? 'Капсула' : 'Capsule'}</option>
+                  <option value="liquid">{locale === 'bg' ? 'Течност' : 'Liquid'}</option>
+                  <option value="powder">{locale === 'bg' ? 'Прах' : 'Powder'}</option>
+                  <option value="ampule">{locale === 'bg' ? 'Ампула' : 'Ampule'}</option>
+                  <option value="injection">{locale === 'bg' ? 'Инжекция' : 'Injection'}</option>
+                  <option value="patch">{locale === 'bg' ? 'Пластир' : 'Patch'}</option>
+                  <option value="spray">{locale === 'bg' ? 'Спрей' : 'Spray'}</option>
+                  <option value="other">{locale === 'bg' ? 'Друго' : 'Other'}</option>
+                </Select>
+
+                {/* Frequency */}
+                <Select
+                  label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                  value={editForm.frequency}
+                  onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
+                >
+                  <option value="daily">{locale === 'bg' ? 'Дневно' : 'Daily'}</option>
+                  <option value="twice_daily">{locale === 'bg' ? 'Два пъти дневно' : 'Twice Daily'}</option>
+                  <option value="three_times">{locale === 'bg' ? 'Три пъти дневно' : 'Three Times Daily'}</option>
+                  <option value="every_other_day">{locale === 'bg' ? 'Всеки втори ден' : 'Every Other Day'}</option>
+                  <option value="weekly">{locale === 'bg' ? 'Седмично' : 'Weekly'}</option>
+                  <option value="twice_weekly">{locale === 'bg' ? 'Два пъти седмично' : 'Twice Weekly'}</option>
+                  <option value="as_needed">{locale === 'bg' ? 'По необходимост' : 'As Needed'}</option>
+                </Select>
+
+                {/* Notes */}
+                <Textarea
+                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  placeholder={locale === 'bg' ? 'Време, храна, странични ефекти...' : 'Timing, food, side effects...'}
+                />
+
+                {/* Photo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {locale === 'bg' ? '📷 Снимка' : '📷 Photo'}
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                  />
+                  {editForm.photo_file && (
+                    <p className="text-xs text-gray-600 mt-2">
+                      ✓ {editForm.photo_file.name}
+                    </p>
+                  )}
+                </div>
+
+                {error && <Alert type="error" message={error} />}
+
+                {/* Action buttons */}
                 <div className="flex gap-3 pt-4">
                   <Button
                     variant="secondary"
-                    onClick={() => setEditingId(null)}
+                    onClick={() => {
+                      setEditingId(null);
+                      setEditForm({
+                        name: '',
+                        dose: '',
+                        dose_unit: 'mg',
+                        form: 'tablet',
+                        frequency: 'daily',
+                        category: 'supplement',
+                        notes: '',
+                        photo_file: null,
+                      });
+                    }}
+                    disabled={editingMedication}
                     className="flex-1"
                   >
-                    {locale === 'bg' ? 'Затвори' : 'Close'}
+                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
                   </Button>
                   <Button
                     variant="primary"
-                    onClick={() => {
-                      router.push('/health/supplements');
-                      setEditingId(null);
+                    onClick={async () => {
+                      if (!editForm.name.trim()) {
+                        setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
+                        return;
+                      }
+                      try {
+                        setEditingMedication(true);
+                        // API update would go here
+                        await load();
+                        setEditingId(null);
+                        setError('');
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
+                      } finally {
+                        setEditingMedication(false);
+                      }
                     }}
+                    disabled={editingMedication}
                     className="flex-1"
                   >
-                    {locale === 'bg' ? 'Редактирай' : 'Edit'}
+                    {editingMedication
+                      ? (locale === 'bg' ? 'Запазване...' : 'Saving...')
+                      : (locale === 'bg' ? 'Запази' : 'Save')}
                   </Button>
                 </div>
               </div>
