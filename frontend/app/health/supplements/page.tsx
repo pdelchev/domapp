@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '../../context/LanguageContext';
 import { t } from '../../lib/i18n';
-import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement, getHealthProfiles, createMedicationReminder, getMedicationReminders } from '../../lib/api';
+import { getSupplements, getInterventions, getBPMedications, createSupplement, createIntervention, createBPMedication, deleteIntervention, deleteBPMedication, deleteSupplement, getHealthProfiles, createMedicationReminder, getMedicationReminders, getBloodReports } from '../../lib/api';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, Spinner, Alert, EmptyState, Input, Select, Textarea,
@@ -360,6 +360,7 @@ export default function SupplementsPage() {
   const [expandedSupplement, setExpandedSupplement] = useState<string | null>(null);
   const [reminders, setReminders] = useState<any[]>([]);
   const [showReminderForm, setShowReminderForm] = useState(false);
+  const [latestReport, setLatestReport] = useState<any>(null);
   const [reminderForm, setReminderForm] = useState({
     medication_name: '',
     reminder_time: '08:00',
@@ -377,6 +378,29 @@ export default function SupplementsPage() {
 
   const ginsengCycle = getCycleStatus('ginseng_6_2');
   const boronCycle = getCycleStatus('boron_8_2');
+
+  // Get flagged biomarkers from latest blood report for a supplement
+  const getRecommendedBiomarkers = (supplementName: string) => {
+    if (!latestReport || !latestReport.results) return [];
+
+    const info = SUPPLEMENT_INFO[supplementName];
+    if (!info) return [];
+
+    const linkedMarkers = info.linkedBiomarkers;
+    const flaggedResults = latestReport.results.filter((result: any) => {
+      const biomarkerName = result.biomarker?.name || result.biomarker;
+      // Check if this result's biomarker is in the supplement's linked biomarkers
+      const isLinked = linkedMarkers.some((marker: string) =>
+        biomarkerName?.toLowerCase().includes(marker.toLowerCase()) ||
+        marker.toLowerCase().includes(biomarkerName?.toLowerCase())
+      );
+
+      // Return if it's linked AND flagged (abnormal/critical/borderline)
+      return isLinked && result.flag && ['abnormal', 'borderline', 'critical'].includes(result.flag);
+    });
+
+    return flaggedResults;
+  };
 
   const fetchSupplements = useCallback(async () => {
     try {
@@ -413,6 +437,15 @@ export default function SupplementsPage() {
             setReminders(allReminders);
           } catch (e) {
             console.error('Failed to load reminders:', e);
+          }
+          // Fetch latest blood report
+          try {
+            const reports = await getBloodReports(primary.id);
+            if (reports && reports.length > 0) {
+              setLatestReport(reports[0]);
+            }
+          } catch (e) {
+            console.error('Failed to load blood report:', e);
           }
         }
       } catch (e) {
@@ -862,6 +895,27 @@ export default function SupplementsPage() {
                                   <tr>
                                     <td colSpan={4} className="py-4 px-4 bg-blue-50">
                                       <div className="space-y-3 text-sm">
+                                        {/* Blood Test Recommendation */}
+                                        {(() => {
+                                          const flaggedBiomarkers = getRecommendedBiomarkers(s.name);
+                                          if (flaggedBiomarkers.length > 0) {
+                                            return (
+                                              <div className="bg-green-100 border border-green-300 p-3 rounded">
+                                                <div className="font-semibold text-green-900 mb-2">✓ {locale === 'bg' ? 'Препоръчано защото:' : 'Recommended because:'}</div>
+                                                <ul className="text-green-800 space-y-1">
+                                                  {flaggedBiomarkers.map((result: any, k: number) => (
+                                                    <li key={k} className="flex gap-2">
+                                                      <span className="flex-shrink-0">•</span>
+                                                      <span>{result.biomarker?.name || result.biomarker} is <strong>{result.flag}</strong> ({result.value}{result.unit ? ` ${result.unit}` : ''})</span>
+                                                    </li>
+                                                  ))}
+                                                </ul>
+                                              </div>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+
                                         <div>
                                           <div className="font-semibold text-blue-900 mb-1">🎯 {locale === 'bg' ? 'Какво прави' : 'What it does'}</div>
                                           <p className="text-blue-800">{info.benefit}</p>
