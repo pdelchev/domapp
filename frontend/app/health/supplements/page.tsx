@@ -797,10 +797,43 @@ export default function SupplementsPage() {
           <>
             {loading ? (
               <Spinner />
-            ) : supplements.length === 0 && reminders.length === 0 ? (
-              <EmptyState icon="💊" message={locale === 'bg' ? 'Няма добавки или напомняния' : 'No supplements or reminders'} />
             ) : (
               <div className="space-y-6">
+                {/* Quick Add Health Supplements - Show when empty */}
+                {supplements.length === 0 && reminders.length === 0 && (
+                  <Card className="bg-indigo-50 border-indigo-200">
+                    <h3 className="font-semibold mb-3 text-indigo-900">💊 {locale === 'bg' ? 'Бързо добави здравни добавки' : 'Quick Add Health Supplements'}</h3>
+                    <p className="text-sm text-indigo-800 mb-4">{locale === 'bg' ? 'Добави някоя от препоръчаните добавки:' : 'Add recommended health supplements:'}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {['Vitamin D3', 'Omega-3 Fish Oil', 'Milk Thistle (Silymarin)', 'Magnesium Glycinate', 'Zinc', 'Berberine', 'Cherry Extract', 'CoQ10 (Heart Formula)', 'Potassium'].map((suppName) => {
+                        const supp = SUPPLEMENT_INFO[suppName];
+                        return (
+                          <Button
+                            key={suppName}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => {
+                              setAddForm({
+                                name: suppName,
+                                dose: supp?.timing?.split(' ')[0] || '1',
+                                category: 'capsule',
+                                frequency: 'daily',
+                                time_slot: 'breakfast',
+                                notes: supp?.benefit || '',
+                              });
+                              setAddType('supplement');
+                              setActiveTab('add');
+                            }}
+                            className="text-left whitespace-normal"
+                          >
+                            <span>{supp?.emoji}</span> {suppName.split('(')[0].trim()}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                )}
+
                 {/* Supplements */}
                 {supplements.length > 0 && (
                   <div className="space-y-2">
