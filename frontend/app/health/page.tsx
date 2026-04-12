@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import NavBar from '../components/NavBar';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
-  Badge, EmptyState, Spinner, Alert,
+  Badge, EmptyState, Spinner, Alert, Input,
 } from '../components/ui';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
