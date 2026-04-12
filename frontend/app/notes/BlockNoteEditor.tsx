@@ -88,14 +88,15 @@ export default function BlockNoteEditor({ initialContent, onChange, contentType 
   const handleTextChange = (newText: string) => {
     setText(newText);
 
-    // Debounce the onChange call - wait 1 second after user stops typing
+    // Clear existing debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    // Debounce with longer delay (2 seconds) to reduce API calls
     debounceTimerRef.current = setTimeout(() => {
       sendChanges(newText);
-    }, 1000);
+    }, 2000);
   };
 
   const insertBlock = (type: 'heading' | 'bullet' | 'checklist') => {

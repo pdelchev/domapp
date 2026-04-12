@@ -136,23 +136,25 @@ export default function NotesPage() {
     }
   };
 
-  // Update note (with auto-save)
+  // Update note (with auto-save, non-blocking)
   const handleUpdateNote = useCallback(
-    async (updates: Partial<Note>) => {
+    (updates: Partial<Note>) => {
       if (!selectedNote) return;
       const updated = { ...selectedNote, ...updates };
       setSelectedNote(updated);
       setNotes(notes.map(n => (n.id === selectedNote.id ? updated : n)));
       setSaveStatus('saving');
 
-      try {
-        await updateNote(selectedNote.id, updates);
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to save note');
-        setSaveStatus('idle');
-      }
+      // Fire-and-forget: save in background without blocking UI
+      updateNote(selectedNote.id, updates)
+        .then(() => {
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 1500);
+        })
+        .catch((e) => {
+          setError(e instanceof Error ? e.message : 'Failed to save note');
+          setSaveStatus('idle');
+        });
     },
     [selectedNote, notes]
   );
