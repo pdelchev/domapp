@@ -644,3 +644,134 @@ class BPExportView(APIView):
             f'attachment; filename="bp_report_{profile.full_name}_{timezone.now():%Y%m%d}.txt"'
         )
         return response
+
+
+# ── BP per kg Correlation Metric ───────────────────────────────────────
+
+class BPPerKgMetricView(APIView):
+    """
+    §METRIC: Calculate how much systolic BP drops per kg of weight lost.
+
+    Requirements:
+    - Minimum 20 paired days (same day BP + weight measurements)
+    - Linear regression on (weight_kg, systolic_bp)
+
+    Returns:
+    {
+      "systolic_drop_per_kg": 2.3,  # mmHg per kg lost
+      "r_squared": 0.68,             # Correlation strength
+      "paired_days": 25,             # Days with both measurements
+      "message": "Strong correlation found"
+    }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Q
+        from datetime import timedelta
+
+        try:
+            profile_id = request.query_params.get('profile')
+            profile = HealthProfile.objects.get(user=request.user, id=profile_id) if profile_id else HealthProfile.objects.filter(user=request.user, is_primary=True).first()
+
+            if not profile:
+                return Response({'error': 'No health profile found'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Get all BP readings and weights for the user in last 6 months
+            from health.weight_models import WeightReading
+            six_months_ago = timezone.now() - timedelta(days=180)
+
+            bp_readings = (
+                BPReading.objects
+                .filter(user=request.user, profile=profile, measured_at__gte=six_months_ago)
+                .values('measured_at__date', 'systolic')
+                .distinct()
+            )
+
+            # Try to import weight readings
+            try:
+                weight_readings = (
+                    WeightReading.objects
+                    .filter(user=request.user, profile=profile, date__gte=six_months_ago.date())
+                    .values('date', 'weight_kg')
+                    .distinct()
+                )
+            except:
+                # If weight module doesn't exist, return error
+                return Response({
+                    'systolic_drop_per_kg': None,
+                    'r_squared': None,
+                    'paired_days': 0,
+                    'message': 'Weight readings not available'
+                })
+
+            # Create dict of weight by date
+            weight_by_date = {}
+            for w in weight_readings:
+                weight_by_date[w['date']] = w['weight_kg']
+
+            # Find paired measurements (same day)
+            paired_data = []
+            for bp in bp_readings:
+                bp_date = bp['measured_at__date']
+                if bp_date in weight_by_date:
+                    paired_data.append({
+                        'weight': weight_by_date[bp_date],
+                        'systolic': bp['systolic']
+                    })
+
+            paired_count = len(paired_data)
+
+            if paired_count < 20:
+                return Response({
+                    'systolic_drop_per_kg': None,
+                    'r_squared': None,
+                    'paired_days': paired_count,
+                    'message': f'Need {20 - paired_count} more paired measurements (current: {paired_count}/20)'
+                })
+
+            # Calculate linear regression: systolic = a + b*weight
+            import numpy as np
+            x = np.array([p['weight'] for p in paired_data])
+            y = np.array([p['systolic'] for p in paired_data])
+
+            # Fit line
+            coeffs = np.polyfit(x, y, 1)
+            poly = np.poly1d(coeffs)
+            y_pred = poly(x)
+
+            # Calculate R²
+            ss_res = np.sum((y - y_pred) ** 2)
+            ss_tot = np.sum((y - np.mean(y)) ** 2)
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
+
+            # coeffs[0] is slope: change in systolic per 1 kg change in weight
+            slope = float(coeffs[0])
+
+            # For interpretation: if slope is -2.3, then for each kg LOST,
+            # systolic drops by 2.3 mmHg (hence negate the slope)
+            drop_per_kg_lost = -slope
+
+            interpretation = ''
+            if abs(drop_per_kg_lost) < 0.5:
+                interpretation = 'Weak correlation'
+            elif r_squared < 0.5:
+                interpretation = 'Moderate correlation, high variability'
+            elif r_squared >= 0.7:
+                interpretation = 'Strong correlation found'
+            else:
+                interpretation = 'Moderate correlation'
+
+            return Response({
+                'systolic_drop_per_kg': round(drop_per_kg_lost, 2),
+                'r_squared': round(r_squared, 2),
+                'paired_days': paired_count,
+                'message': interpretation,
+                'interpretation': f'For each kg lost, systolic BP drops ~{abs(drop_per_kg_lost):.1f} mmHg (R²={r_squared:.2f})'
+            })
+
+        except Exception as e:
+            return Response(
+                {'error': str(e), 'paired_days': 0, 'systolic_drop_per_kg': None},
+                status=status.HTTP_400_BAD_REQUEST
+            )

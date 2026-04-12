@@ -22,6 +22,7 @@ urlpatterns = [
     path('statistics/', bp_views.BPStatisticsView.as_view(), name='bp-statistics'),
     path('cardiovascular-risk/', bp_views.CardiovascularRiskView.as_view(), name='bp-cardiovascular-risk'),
     path('medication-effectiveness/', bp_views.MedicationEffectivenessView.as_view(), name='bp-medication-effectiveness'),
+    path('metric/bp-per-kg/', bp_views.BPPerKgMetricView.as_view(), name='bp-per-kg-metric'),
     path('export/', bp_views.BPExportView.as_view(), name='bp-export'),
     path('', include(router.urls)),
 ]
