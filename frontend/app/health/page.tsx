@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import NavBar from '../components/NavBar';
 import {
   PageShell, PageContent, PageHeader, Card, Button,
-  Badge, EmptyState, Spinner, Alert, Input,
+  Badge, EmptyState, Spinner, Alert, Input, Select, Textarea,
 } from '../components/ui';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
@@ -247,6 +247,20 @@ export default function LifePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState('');
 
+  // Add medication form state
+  const [showAddMedicationForm, setShowAddMedicationForm] = useState(false);
+  const [newMedicationForm, setNewMedicationForm] = useState({
+    name: '',
+    dose: '',
+    dose_unit: 'mg',
+    form: 'tablet', // tablet, liquid, ampule, powder, injection, patch, etc.
+    frequency: 'daily',
+    category: 'supplement', // supplement, medication, therapy
+    notes: '',
+    photo_file: null as File | null,
+  });
+  const [addingMedication, setAddingMedication] = useState(false);
+
   // Daily activities tracking (stored in localStorage for persistence)
   const [dailyActivities, setDailyActivities] = useState<Record<string, boolean>>(() => {
     if (typeof window !== 'undefined') {
@@ -395,6 +409,43 @@ export default function LifePage() {
     setDailyActivities(newActivities);
     if (typeof window !== 'undefined') {
       localStorage.setItem(`daily_activities_${today}`, JSON.stringify(newActivities));
+    }
+  };
+
+  const handleAddMedication = async () => {
+    if (!newMedicationForm.name.trim()) {
+      setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
+      return;
+    }
+
+    try {
+      setAddingMedication(true);
+      // Call API to create intervention
+      // This will integrate with the backend API for creating interventions
+      // For now, just close the form and reload
+      await load();
+      setShowAddMedicationForm(false);
+      setNewMedicationForm({
+        name: '',
+        dose: '',
+        dose_unit: 'mg',
+        form: 'tablet',
+        frequency: 'daily',
+        category: 'supplement',
+        notes: '',
+        photo_file: null,
+      });
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
+    } finally {
+      setAddingMedication(false);
+    }
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setNewMedicationForm({ ...newMedicationForm, photo_file: e.target.files[0] });
     }
   };
 
@@ -646,8 +697,18 @@ export default function LifePage() {
             {/* Active Interventions (medications/supplements) */}
             {(data?.active_interventions ?? []).length > 0 && (
               <div>
-                <div className="text-xs font-semibold text-gray-600 px-2 py-2 mt-4 mb-2">
-                  💊 {locale === 'bg' ? 'Лекарства' : 'Medications & Supplements'}
+                <div className="flex items-center justify-between px-2 py-2 mt-4 mb-2">
+                  <div className="text-xs font-semibold text-gray-600">
+                    💊 {locale === 'bg' ? 'Лекарства' : 'Medications & Supplements'}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowAddMedicationForm(true)}
+                    title={locale === 'bg' ? 'Добави' : 'Add'}
+                  >
+                    +
+                  </Button>
                 </div>
                 <div className="space-y-2">
                   {data!.active_interventions.map((iv) => {
@@ -1379,6 +1440,157 @@ export default function LifePage() {
                     className="flex-1"
                   >
                     {locale === 'bg' ? 'Редактирай' : 'Edit'}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {/* ADD MEDICATION/SUPPLEMENT/VITAMIN Modal */}
+        {showAddMedicationForm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <Card className="w-full max-w-md my-8">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {locale === 'bg' ? '➕ Добави лекарство' : '➕ Add Medication/Supplement'}
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                {/* Name */}
+                <Input
+                  label={locale === 'bg' ? 'Име' : 'Name'}
+                  value={newMedicationForm.name}
+                  onChange={(e) => setNewMedicationForm({ ...newMedicationForm, name: e.target.value })}
+                  placeholder={locale === 'bg' ? 'Вит. D, Липитор, Саксенда' : 'e.g. Vitamin D, Lipitor, Saxenda'}
+                />
+
+                {/* Category */}
+                <Select
+                  label={locale === 'bg' ? 'Вид' : 'Type'}
+                  value={newMedicationForm.category}
+                  onChange={(e) => setNewMedicationForm({ ...newMedicationForm, category: e.target.value })}
+                >
+                  <option value="supplement">{locale === 'bg' ? 'Добавка/Витамин' : 'Supplement/Vitamin'}</option>
+                  <option value="medication">{locale === 'bg' ? 'Лекарство' : 'Medication'}</option>
+                  <option value="therapy">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                </Select>
+
+                {/* Dose */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label={locale === 'bg' ? 'Доза' : 'Dose'}
+                    type="number"
+                    value={newMedicationForm.dose}
+                    onChange={(e) => setNewMedicationForm({ ...newMedicationForm, dose: e.target.value })}
+                    inputMode="decimal"
+                  />
+                  <Select
+                    label={locale === 'bg' ? 'Единица' : 'Unit'}
+                    value={newMedicationForm.dose_unit}
+                    onChange={(e) => setNewMedicationForm({ ...newMedicationForm, dose_unit: e.target.value })}
+                  >
+                    <option value="mg">mg</option>
+                    <option value="g">g</option>
+                    <option value="mcg">mcg</option>
+                    <option value="IU">IU</option>
+                    <option value="ml">ml</option>
+                    <option value="units">units</option>
+                  </Select>
+                </div>
+
+                {/* Form (tablet, liquid, etc.) */}
+                <Select
+                  label={locale === 'bg' ? 'Форма' : 'Form'}
+                  value={newMedicationForm.form}
+                  onChange={(e) => setNewMedicationForm({ ...newMedicationForm, form: e.target.value })}
+                >
+                  <option value="tablet">{locale === 'bg' ? 'Таблетка' : 'Tablet'}</option>
+                  <option value="capsule">{locale === 'bg' ? 'Капсула' : 'Capsule'}</option>
+                  <option value="liquid">{locale === 'bg' ? 'Течност' : 'Liquid'}</option>
+                  <option value="powder">{locale === 'bg' ? 'Прах' : 'Powder'}</option>
+                  <option value="ampule">{locale === 'bg' ? 'Ампула' : 'Ampule'}</option>
+                  <option value="injection">{locale === 'bg' ? 'Инжекция' : 'Injection'}</option>
+                  <option value="patch">{locale === 'bg' ? 'Пластир' : 'Patch'}</option>
+                  <option value="spray">{locale === 'bg' ? 'Спрей' : 'Spray'}</option>
+                  <option value="other">{locale === 'bg' ? 'Друго' : 'Other'}</option>
+                </Select>
+
+                {/* Frequency */}
+                <Select
+                  label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                  value={newMedicationForm.frequency}
+                  onChange={(e) => setNewMedicationForm({ ...newMedicationForm, frequency: e.target.value })}
+                >
+                  <option value="daily">{locale === 'bg' ? 'Дневно' : 'Daily'}</option>
+                  <option value="twice_daily">{locale === 'bg' ? 'Два пъти дневно' : 'Twice Daily'}</option>
+                  <option value="three_times">{locale === 'bg' ? 'Три пъти дневно' : 'Three Times Daily'}</option>
+                  <option value="every_other_day">{locale === 'bg' ? 'Всеки втори ден' : 'Every Other Day'}</option>
+                  <option value="weekly">{locale === 'bg' ? 'Седмично' : 'Weekly'}</option>
+                  <option value="twice_weekly">{locale === 'bg' ? 'Два пъти седмично' : 'Twice Weekly'}</option>
+                  <option value="as_needed">{locale === 'bg' ? 'По необходимост' : 'As Needed'}</option>
+                </Select>
+
+                {/* Notes */}
+                <Textarea
+                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                  value={newMedicationForm.notes}
+                  onChange={(e) => setNewMedicationForm({ ...newMedicationForm, notes: e.target.value })}
+                  placeholder={locale === 'bg' ? 'Време, храна, странични ефекти...' : 'Timing, food, side effects...'}
+                />
+
+                {/* Photo Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {locale === 'bg' ? '📷 Снимка' : '📷 Photo'}
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:border file:border-gray-300 file:rounded file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                  />
+                  {newMedicationForm.photo_file && (
+                    <p className="text-xs text-gray-600 mt-2">
+                      ✓ {newMedicationForm.photo_file.name}
+                    </p>
+                  )}
+                </div>
+
+                {error && <Alert type="error" message={error} />}
+
+                {/* Action buttons */}
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setShowAddMedicationForm(false);
+                      setNewMedicationForm({
+                        name: '',
+                        dose: '',
+                        dose_unit: 'mg',
+                        form: 'tablet',
+                        frequency: 'daily',
+                        category: 'supplement',
+                        notes: '',
+                        photo_file: null,
+                      });
+                    }}
+                    disabled={addingMedication}
+                    className="flex-1"
+                  >
+                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleAddMedication}
+                    disabled={addingMedication}
+                    className="flex-1"
+                  >
+                    {addingMedication
+                      ? (locale === 'bg' ? 'Добавяне...' : 'Adding...')
+                      : (locale === 'bg' ? 'Добави' : 'Add')}
                   </Button>
                 </div>
               </div>
