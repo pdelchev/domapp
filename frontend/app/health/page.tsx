@@ -935,9 +935,11 @@ export default function LifePage() {
                                     ✎
                                   </Button>
                                   {iv.evidence_grade && iv.evidence_grade !== 'B' && (
-                                    <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'} title={locale === 'bg' ? 'Качество на доказателствата' : 'Evidence quality'}>
-                                      {iv.evidence_grade}
-                                    </Badge>
+                                    <div title={locale === 'bg' ? 'Качество на доказателствата' : 'Evidence quality'}>
+                                      <Badge color={iv.evidence_grade === 'A' ? 'green' : iv.evidence_grade === 'C' ? 'yellow' : 'gray'}>
+                                        {iv.evidence_grade}
+                                      </Badge>
+                                    </div>
                                   )}
                                 </div>
                               </div>
