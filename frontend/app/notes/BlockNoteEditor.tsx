@@ -13,16 +13,25 @@ interface BlockNoteEditorProps {
 export default function BlockNoteEditor({ initialContent, onChange }: BlockNoteEditorProps) {
   const [isClient, setIsClient] = useState(false);
 
-  const editor = useBlockNoteEditor({
-    initialContent: initialContent || undefined,
-    onEditorContentChange: (editor) => {
-      onChange(editor.topLevelBlocks);
-    },
-  });
+  const editor = useBlockNoteEditor();
 
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    // Set initial content after editor is ready
+    if (initialContent && Array.isArray(initialContent) && initialContent.length > 0) {
+      editor.replaceBlocks(editor.topLevelBlocks, initialContent);
+    }
+
+    // Hook up content change listener
+    editor.onEditorContentChange(() => {
+      onChange(editor.topLevelBlocks);
+    });
+  }, [editor, initialContent, onChange]);
 
   if (!isClient || !editor) {
     return <div className="w-full h-full bg-gray-50 rounded animate-pulse" />;
