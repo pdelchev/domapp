@@ -558,11 +558,6 @@ export default function LifePage() {
               >
                 + {locale === 'bg' ? 'Добави измервания' : 'Add Vitals'}
               </Button>
-              <Link href="/health/checkin">
-                <Button variant="secondary">
-                  + {t('nav.daily_checkin', locale)}
-                </Button>
-              </Link>
             </div>
           }
         />
@@ -991,6 +986,52 @@ export default function LifePage() {
                     </div>
                   </div>
                 </Card>
+
+                {/* DAILY LOG FORM — Compact grid layout */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="text-xs font-semibold text-gray-700 mb-3">
+                    📊 {locale === 'bg' ? 'Дневен дневник' : 'Daily Log'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Mood */}
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-600 block mb-1">😊 {locale === 'bg' ? 'Настроение' : 'Mood'}</label>
+                      <input type="range" min="1" max="10" defaultValue="5" className="w-full h-1.5 bg-gray-200 rounded" />
+                      <div className="text-[10px] text-gray-500 text-center mt-0.5">5/10</div>
+                    </div>
+
+                    {/* Energy */}
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-600 block mb-1">⚡ {locale === 'bg' ? 'Енергия' : 'Energy'}</label>
+                      <input type="range" min="1" max="10" defaultValue="5" className="w-full h-1.5 bg-gray-200 rounded" />
+                      <div className="text-[10px] text-gray-500 text-center mt-0.5">5/10</div>
+                    </div>
+
+                    {/* Sleep */}
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-600 block mb-1">😴 {locale === 'bg' ? 'Сън (ч)' : 'Sleep (h)'}</label>
+                      <input type="number" defaultValue="7" inputMode="decimal" className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                    </div>
+
+                    {/* Water */}
+                    <div>
+                      <label className="text-[11px] font-medium text-gray-600 block mb-1">💧 {locale === 'bg' ? 'Вода (мл)' : 'Water (ml)'}</label>
+                      <input type="number" defaultValue="2000" inputMode="numeric" className="w-full px-2 py-1 border border-gray-300 rounded text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI RECOMMENDATIONS */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="text-xs font-semibold text-gray-700 mb-2">
+                    🤖 {locale === 'bg' ? 'ИИ препоръки' : 'AI Tips'}
+                  </h4>
+                  <ul className="text-[11px] text-gray-600 space-y-1">
+                    <li>• {locale === 'bg' ? 'Продължи редовното приемане на лекарствата' : 'Keep meds consistent'}</li>
+                    <li>• {locale === 'bg' ? 'Целта: 8 часа сън' : 'Aim for 8 hours sleep'}</li>
+                    <li>• {locale === 'bg' ? 'Пий 2.5L+ вода дневно' : 'Drink 2.5L+ daily'}</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -1133,31 +1174,6 @@ export default function LifePage() {
         </div>
 
         {/* ═══ HEALTH PROTOCOLS ═══ */}
-        <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-          {locale === 'bg' ? 'Здравни протоколи' : 'Health Protocols'}
-        </div>
-        <Link href="/health/checkin" className="block">
-          <Card className="hover:shadow-md transition-shadow bg-gradient-to-br from-indigo-50 to-purple-50 border-l-4 border-indigo-500">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h3 className="text-sm font-semibold text-indigo-900 mb-1">
-                  {locale === 'bg' ? '🧬 Персонализиран протокол' : '🧬 Personalized Protocol'}
-                </h3>
-                <p className="text-xs text-gray-600 mb-3">
-                  {locale === 'bg'
-                    ? 'Дневния чек-ин с ИИ препоръки, основани на твоите данни'
-                    : 'Daily check-in with AI recommendations based on your data'}
-                </p>
-              </div>
-              <span className="text-xs text-gray-400">→</span>
-            </div>
-            <div className="inline-block">
-              <Badge color="indigo">
-                {locale === 'bg' ? 'Започни' : 'Start'}
-              </Badge>
-            </div>
-          </Card>
-        </Link>
 
         {/* ═══ BIOLOGICAL AGE ═══ */}
         {(data?.phenoage || cmAge) && (
