@@ -169,6 +169,23 @@ python manage.py fix_weekly_payments --fix
 - Automatically fixes any leases with disabled auto-generation
 - Generates missing payments retroactively
 
+### Always Implement Complete Features — NEVER Placeholder Code
+**RULE**: When a user asks for a feature, implement the ENTIRE feature end-to-end. NEVER generate placeholder code with `alert()` messages or "coming soon" stubs.
+
+**What this means:**
+- If user asks to "add an edit button", implement: button + state + form modal + save handler + error handling
+- If user asks for a form field, implement: input + validation + submission
+- If user asks to "add X", they mean the fully working feature, not a TODO
+
+**Why it matters:**
+- Placeholder code creates technical debt that wastes time later
+- Users expect working features when features are deployed, not stubs to fill in later
+- It's faster to build complete features upfront than to revisit them
+
+**Exception:**
+- If the feature requires backend API changes that don't exist yet, document what's needed in a comment
+- Still implement the full frontend side (form, state, error handling) ready for the API
+
 ## App Modules & Navigation (CRITICAL GUARDRAIL)
 
 DomApp is organized into **6 top-level modules**. Every module and sub-page MUST be accessible from the navigation. When adding new pages, you MUST update the NavBar MODULES array.
