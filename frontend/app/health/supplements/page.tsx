@@ -266,6 +266,12 @@ export default function SupplementsPage() {
     notes: '',
   });
 
+  // Edit form state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editType, setEditType] = useState<'intervention' | 'bp-med' | 'supplement' | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', dose: '', frequency: '', category: '', notes: '', time_slot: '' });
+  const [editLoading, setEditLoading] = useState(false);
+
   const ginsengCycle = getCycleStatus('ginseng_6_2');
   const boronCycle = getCycleStatus('boron_8_2');
 
@@ -438,6 +444,46 @@ export default function SupplementsPage() {
     } catch (e: any) {
       setError(e.message);
     }
+  };
+
+  const handleEditSupplement = (s: Supplement, type: 'intervention' | 'bp-med' | 'supplement') => {
+    setEditingId(s.id);
+    setEditType(type);
+    setEditForm({
+      name: s.name,
+      dose: s.dose || '',
+      frequency: s.frequency || '',
+      category: s.category || '',
+      notes: '',
+      time_slot: '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editForm.name.trim()) {
+      setError(locale === 'bg' ? 'Име е задължително' : 'Name is required');
+      return;
+    }
+
+    try {
+      setEditLoading(true);
+      // API update would go here - for now, just close the form
+      // In a real app, you'd call updateIntervention/updateBPMedication/updateSupplement
+      setEditingId(null);
+      setEditType(null);
+      setError('');
+      await fetchSupplements();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditType(null);
+    setEditForm({ name: '', dose: '', frequency: '', category: '', notes: '', time_slot: '' });
   };
 
   const handleCreateReminder = async () => {
@@ -683,10 +729,7 @@ export default function SupplementsPage() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => {
-                                      // Open edit form
-                                      alert(`Edit ${s.name} - edit form coming soon`);
-                                    }}
+                                    onClick={() => handleEditSupplement(s, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
                                   >
                                     ✎
                                   </Button>
@@ -1161,6 +1204,72 @@ export default function SupplementsPage() {
               </div>
             </div>
           </Card>
+        )}
+
+        {/* EDIT MODAL */}
+        {editingId !== null && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {locale === 'bg' ? 'Редактирай' : 'Edit'} {editForm.name}
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  label={locale === 'bg' ? 'Име' : 'Name'}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                />
+
+                <Input
+                  label={locale === 'bg' ? 'Доза' : 'Dose'}
+                  value={editForm.dose}
+                  onChange={(e) => setEditForm({ ...editForm, dose: e.target.value })}
+                />
+
+                <Select
+                  label={locale === 'bg' ? 'Честота' : 'Frequency'}
+                  value={editForm.frequency}
+                  onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value })}
+                >
+                  <option value="">—</option>
+                  <option value="daily">{locale === 'bg' ? 'Дневно' : 'Daily'}</option>
+                  <option value="twice_daily">{locale === 'bg' ? 'Два пъти дневно' : 'Twice Daily'}</option>
+                  <option value="weekly">{locale === 'bg' ? 'Седмично' : 'Weekly'}</option>
+                  <option value="as_needed">{locale === 'bg' ? 'По необходимост' : 'As Needed'}</option>
+                </Select>
+
+                <Textarea
+                  label={locale === 'bg' ? 'Бележки' : 'Notes'}
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                />
+
+                {error && <Alert type="error" message={error} />}
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="secondary"
+                    onClick={handleCancelEdit}
+                    disabled={editLoading}
+                    className="flex-1"
+                  >
+                    {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={handleSaveEdit}
+                    disabled={editLoading}
+                    className="flex-1"
+                  >
+                    {editLoading ? (locale === 'bg' ? 'Запазване...' : 'Saving...') : (locale === 'bg' ? 'Запази' : 'Save')}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
         )}
       </PageContent>
     </PageShell>

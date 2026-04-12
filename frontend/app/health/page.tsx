@@ -243,6 +243,10 @@ export default function LifePage() {
   const [today] = useState(() => new Date().toISOString().split('T')[0]);
   const [savingDose, setSavingDose] = useState<number | null>(null);
 
+  // Edit intervention/medication state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState('');
+
   // Daily activities tracking (stored in localStorage for persistence)
   const [dailyActivities, setDailyActivities] = useState<Record<string, boolean>>(() => {
     if (typeof window !== 'undefined') {
@@ -698,8 +702,8 @@ export default function LifePage() {
                                   size="sm"
                                   variant="ghost"
                                   onClick={() => {
-                                    // Open edit form
-                                    alert(`Edit ${iv.name} - edit form coming soon`);
+                                    setEditingId(iv.id);
+                                    setEditingName(iv.name);
                                   }}
                                   title={locale === 'bg' ? 'Редактирай' : 'Edit'}
                                 >
@@ -1334,6 +1338,53 @@ export default function LifePage() {
             </div>
           )}
         </Card>
+
+        {/* Edit Intervention Modal */}
+        {editingId !== null && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md">
+              <div className="mb-6">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {locale === 'bg' ? 'Редактирай' : 'Edit'} {editingName}
+                </h2>
+              </div>
+
+              <div className="space-y-4">
+                <Input
+                  label={locale === 'bg' ? 'Име' : 'Name'}
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                />
+
+                <p className="text-sm text-gray-600">
+                  {locale === 'bg'
+                    ? 'За пълно редактиране отидете на /health/supplements'
+                    : 'For full editing, visit /health/supplements'}
+                </p>
+
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setEditingId(null)}
+                    className="flex-1"
+                  >
+                    {locale === 'bg' ? 'Затвори' : 'Close'}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    onClick={() => {
+                      router.push('/health/supplements');
+                      setEditingId(null);
+                    }}
+                    className="flex-1"
+                  >
+                    {locale === 'bg' ? 'Редактирай' : 'Edit'}
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
 
         {/* RitualModal replaced by unified wizard at /health/checkin */}
       </PageContent>
