@@ -189,24 +189,24 @@ export default function NotesPage() {
       <PageContent size="lg">
         {error && <Alert type="error" message={error} />}
 
-        <div className="flex gap-4 h-[calc(100vh-120px)]">
+        <div className="flex gap-3 h-[calc(100vh-120px)]">
           {/* ═══ LEFT SIDEBAR ═══ */}
-          <div className="w-64 flex flex-col gap-4 overflow-y-auto pb-4">
+          <div className="w-48 flex flex-col gap-3 overflow-y-auto pb-4">
             {/* New Note Button */}
-            <Button variant="primary" onClick={handleNewNote} disabled={saving} className="w-full">
-              + {locale === 'bg' ? 'Нова бележка' : 'New Note'}
+            <Button variant="primary" onClick={handleNewNote} disabled={saving} className="w-full text-xs py-1 h-8">
+              + {locale === 'bg' ? 'Нова' : 'New'}
             </Button>
 
             {/* Filters */}
-            <div className="space-y-2">
-              <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-2">
+            <div className="space-y-1">
+              <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-2">
                 {locale === 'bg' ? 'Филтри' : 'Filters'}
               </div>
               {['all', 'pinned', 'archived', 'trashed'].map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f as any)}
-                  className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                  className={`w-full text-left px-2 py-1 rounded text-xs transition-colors ${
                     filter === f
                       ? 'bg-indigo-100 text-indigo-700 font-medium'
                       : 'text-gray-700 hover:bg-gray-100'
@@ -222,15 +222,15 @@ export default function NotesPage() {
 
             {/* Folders */}
             {folders.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-2">
+              <div className="space-y-1">
+                <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-2">
                   {locale === 'bg' ? 'Папки' : 'Folders'}
                 </div>
                 {folders.map((folder) => (
                   <button
                     key={folder.id}
                     onClick={() => setSelectedFolder(selectedFolder === folder.id ? null : folder.id)}
-                    className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
+                    className={`w-full text-left px-2 py-1 rounded text-xs transition-colors truncate ${
                       selectedFolder === folder.id
                         ? 'bg-indigo-100 text-indigo-700 font-medium'
                         : 'text-gray-700 hover:bg-gray-100'
@@ -244,11 +244,11 @@ export default function NotesPage() {
 
             {/* Tags */}
             {tags.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-semibold text-gray-600 uppercase tracking-wider px-2">
+              <div className="space-y-1">
+                <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-2">
                   {locale === 'bg' ? 'Етикети' : 'Tags'}
                 </div>
-                <div className="flex flex-wrap gap-2 px-2">
+                <div className="flex flex-wrap gap-1 px-2">
                   {tags.map((tag) => (
                     <button
                       key={tag.id}
@@ -274,13 +274,13 @@ export default function NotesPage() {
           </div>
 
           {/* ═══ MIDDLE: NOTE LIST ═══ */}
-          <div className="w-80 flex flex-col gap-2 border-l border-r border-gray-200">
+          <div className="w-64 flex flex-col gap-2 border-l border-r border-gray-200">
             {/* Search */}
             <Input
-              placeholder={locale === 'bg' ? 'Търси бележки...' : 'Search notes...'}
+              placeholder={locale === 'bg' ? 'Търси...' : 'Search...'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="m-2"
+              className="mx-2 mt-2 mb-1 h-8 text-xs"
             />
 
             {/* Note List */}
@@ -295,22 +295,18 @@ export default function NotesPage() {
                   <div
                     key={note.id}
                     onClick={() => setSelectedNote(note)}
-                    className={`p-3 rounded-lg cursor-pointer transition-all ${
+                    className={`p-2 rounded text-xs cursor-pointer transition-all ${
                       selectedNote?.id === note.id
-                        ? 'bg-indigo-50 border-l-4 border-indigo-600'
+                        ? 'bg-indigo-50 border-l-3 border-indigo-600'
                         : 'hover:bg-gray-50'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm text-gray-900 truncate">
-                          {note.is_pinned && '📌 '}
-                          {note.title}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(note.updated_at).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US')}
-                        </div>
-                      </div>
+                    <div className="font-semibold text-gray-900 truncate">
+                      {note.is_pinned && '📌 '}
+                      {note.title}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">
+                      {new Date(note.updated_at).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US')}
                     </div>
                   </div>
                 ))
