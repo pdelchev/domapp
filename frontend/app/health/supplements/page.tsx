@@ -164,6 +164,109 @@ const SUPPLEMENT_INFO: Record<string, {
     linkedNutrition: ['DO NOT use daily', 'Use only pre-training or pre-sex days', 'Empty stomach = better absorption', 'Mix with water only, no juice/food'],
     warnings: ['❌ DO NOT USE DAILY (tolerance buildup in 7-10 days)', 'Use only 2-3x per week MAX', 'Do NOT use on empty stomach with meals', 'May cause mild headache (vasodilation effect)'],
   },
+
+  // ============================================================
+  // HEALTH-FOCUSED BIOMARKER SUPPLEMENTS (Cabinet Reference)
+  // ============================================================
+  'Vitamin D3': {
+    emoji: '☀️',
+    benefit: 'Immune support + insulin sensitivity + liver health',
+    mechanism: 'Regulates calcium absorption, activates immune T-cells, improves glucose metabolism, supports liver detoxification, mood regulation',
+    studies: ['2000-4000 IU daily optimal for most adults', 'Improves insulin sensitivity (fasting glucose ↓5-10%)', 'Reduces infection risk by 40%', 'Supports ALT normalization'],
+    timing: '2000-4000 IU with breakfast (fat-soluble, requires food)',
+    linkedBiomarkers: ['Glucose', 'ALT', 'Immune markers', 'Mood'],
+    linkedGym: ['Supports immune function', 'Enhances muscle protein synthesis'],
+    linkedNutrition: ['MUST take with fat (olive oil, fish, eggs)', 'Absorption: 3-6x better with food', 'Pair with Zinc for immune synergy'],
+    warnings: ['Take with food for absorption', 'Don\'t exceed 4000 IU daily without monitoring', 'Pair with K2 to prevent arterial calcification'],
+  },
+  'Omega-3 Fish Oil': {
+    emoji: '🐟',
+    benefit: 'Anti-inflammatory + liver support + triglyceride control',
+    mechanism: 'EPA/DHA reduce inflammatory markers (CRP, IL-6), improve lipid metabolism, support liver function, reduce visceral fat',
+    studies: ['Reduces liver inflammation (ALT ↓10-20%)', 'Triglycerides ↓20-30%', 'Improves glucose control', 'Anti-inflammatory: CRP ↓30-40%'],
+    timing: '2g (≥1000mg EPA+DHA) with largest meal',
+    linkedBiomarkers: ['ALT', 'Glucose', 'Triglycerides', 'Inflammation markers (CRP)'],
+    linkedGym: ['Reduces post-workout inflammation', 'Improves recovery speed'],
+    linkedNutrition: ['Take with large meal (fat absorption)', 'Works synergistically with Milk Thistle', 'Complements Vitamin D3'],
+    warnings: ['MUST take with food (reflux risk)', 'Check for fish allergies', 'Choose quality brands (tested for heavy metals)'],
+  },
+  'Milk Thistle (Silymarin)': {
+    emoji: '🌿',
+    benefit: 'Liver detoxification + ALT/AST normalization',
+    mechanism: 'Active compound Silymarin protects hepatocytes from toxins, enhances liver protein synthesis, reduces inflammation, improves fatty liver metabolism',
+    studies: ['ALT ↓20-30%', 'AST ↓15-25%', 'GGT ↓10-15%', 'Improves liver function in fatty liver disease (NAFLD)', 'Standardized 140mg extract = therapeutic dose'],
+    timing: '140-280mg (140mg x2) with meals',
+    linkedBiomarkers: ['ALT', 'AST', 'GGT', 'Liver function'],
+    linkedGym: ['Supports liver recovery from intense training + supplements'],
+    linkedNutrition: ['Take with breakfast and dinner meals', 'Works best in 8-12 week cycles', 'Pairs with Omega-3 for liver healing'],
+    warnings: ['Choose standardized extract (140mg Silymarin)', 'May cause mild GI upset initially', 'Not for those allergic to ragweed family'],
+  },
+  'Magnesium Glycinate': {
+    emoji: '💤',
+    benefit: 'Blood pressure + insulin sensitivity + uric acid control',
+    mechanism: 'Relaxes smooth muscle in blood vessels, improves insulin signaling, reduces uric acid reabsorption, supports muscle relaxation',
+    studies: ['Systolic BP ↓3-5 mmHg', 'Improves insulin sensitivity (fasting glucose ↓5-8%)', 'Uric acid ↓0.5-1.5 mg/dL', 'Improves sleep quality'],
+    timing: '400mg with dinner (evening dose for sleep + BP control)',
+    linkedBiomarkers: ['Blood Pressure', 'Glucose', 'Uric Acid'],
+    linkedGym: ['Accelerates muscle recovery', 'Reduces muscle soreness (DOMS)'],
+    linkedNutrition: ['Take with dinner for best absorption', 'Glycinate form = gentle on GI tract', 'Supports sleep + next-morning recovery'],
+    warnings: ['Use Glycinate form (not citrate)', 'May cause mild relaxation/sedation (feature)', 'Do NOT exceed 400mg in single dose'],
+  },
+  'Zinc': {
+    emoji: '🧬',
+    benefit: 'Immune support + glucose metabolism + protein synthesis',
+    mechanism: 'Cofactor for 300+ enzymes, essential for insulin production, immune T-cell activation, protein synthesis, antioxidant defense',
+    studies: ['Improves glucose control (fasting glucose ↓5-10%)', 'T-cell count +30-40%', 'Accelerates immune response', 'Supports wound healing'],
+    timing: '25mg with breakfast or largest meal',
+    linkedBiomarkers: ['Glucose', 'ALT', 'Immune markers'],
+    linkedGym: ['Supports immune function during intense training', 'Accelerates recovery'],
+    linkedNutrition: ['Take with protein-rich meal (prevents nausea)', 'Works synergistically with Vitamin D3', 'Pair with Copper-containing foods to prevent depletion'],
+    warnings: ['NEVER take on empty stomach (nausea)', 'Do NOT exceed 50mg daily (copper depletion)', 'Bisglycinate form best for absorption'],
+  },
+  'Berberine': {
+    emoji: '💊',
+    benefit: 'Glucose control + metabolic improvement (natural metformin)',
+    mechanism: 'AMPK activator: enhances glucose uptake, improves insulin sensitivity, reduces hepatic glucose production, anti-inflammatory, supports lipid metabolism',
+    studies: ['Reduces fasting glucose by 20-30% (metformin-equivalent)', 'HbA1c ↓1.5-2%', 'Improves insulin sensitivity score by 30-40%', 'Weight ↓3-5 lbs in 12 weeks'],
+    timing: '500mg x2 with breakfast and dinner (with meals)',
+    linkedBiomarkers: ['Glucose', 'HbA1c', 'Insulin sensitivity'],
+    linkedGym: ['Improves metabolic capacity for training', 'Supports fat loss during caloric deficit'],
+    linkedNutrition: ['MUST take with meals (absorption 3x better)', 'Works synergistically with Magnesium + Vitamin D3', 'Supports sustained glucose control throughout day'],
+    warnings: ['Take with food ONLY (empty stomach = low absorption)', 'May cause GI upset first 2-3 weeks (use with meals)', 'Similar potency to metformin — monitor blood sugar'],
+  },
+  'Cherry Extract': {
+    emoji: '🍒',
+    benefit: 'Uric acid reduction + antioxidant + inflammation control',
+    mechanism: 'Anthocyanins reduce uric acid production and increase renal excretion, powerful antioxidant reduces inflammatory markers, inhibits xanthine oxidase',
+    studies: ['Uric acid ↓0.8-1.2 mg/dL in 2-4 weeks', 'Reduces gout attack frequency by 50-75%', 'CRP (inflammation) ↓25-35%', 'Antioxidant capacity ↑40%'],
+    timing: '500mg daily with meal (morning or afternoon)',
+    linkedBiomarkers: ['Uric Acid', 'CRP (inflammation)'],
+    linkedGym: ['Reduces post-workout inflammation', 'Supports recovery from intense training'],
+    linkedNutrition: ['Take with meal for consistency', 'Pairs well with Magnesium for uric acid control', 'Complements Omega-3 for overall inflammation'],
+    warnings: ['Choose tart cherry extract (highest anthocyanin content)', 'Results visible in 2-4 weeks', 'Safe long-term supplementation'],
+  },
+  'CoQ10 (Heart Formula)': {
+    emoji: '❤️',
+    benefit: 'Blood pressure + cardiovascular + heart function',
+    mechanism: 'Electron transport chain cofactor, supports ATP production in heart mitochondria, improves endothelial function (nitric oxide), reduces arterial stiffness',
+    studies: ['Reduces systolic BP by 11-17 mmHg in hypertension', 'Improves endothelial function by 30%', 'Heart ejection fraction +5% in compromised hearts', 'Reduces arterial stiffness'],
+    timing: '100-200mg with breakfast (fat-soluble, MUST have fat)',
+    linkedBiomarkers: ['Blood Pressure', 'Cardiovascular function', 'Endothelial health'],
+    linkedGym: ['Improves cardiovascular capacity (VO2 max)', 'Better endurance performance'],
+    linkedNutrition: ['MUST take with fat (olive oil, fish, eggs)', 'Absorption ↓60% without food', 'Pairs with Potassium for BP control'],
+    warnings: ['DO NOT take fasted (absorption critical)', 'Choose Ubiquinone form (better absorption than Ubiquinol for most)', 'May slightly lower BP (monitor first week)'],
+  },
+  'Potassium': {
+    emoji: '🍌',
+    benefit: 'Blood pressure + electrolyte balance + sodium counterbalance',
+    mechanism: 'Essential electrolyte: counteracts sodium-induced BP elevation, supports vascular function, maintains fluid balance, critical for heart function',
+    studies: ['Reduces systolic BP by 5-10 mmHg', 'Improves arterial compliance', 'Reduces sodium sensitivity', 'Supports normal heart rhythm'],
+    timing: '3500-5000mg daily from food (primary source)',
+    linkedBiomarkers: ['Blood Pressure', 'Electrolytes', 'Cardiovascular function'],
+    linkedGym: ['Essential for electrolyte balance during training', 'Supports muscle function and recovery'],
+    linkedNutrition: ['Primary sources: leafy greens, fish, avocado, potatoes, coconut water', 'Supplement only if dietary intake insufficient', 'Balance with CoQ10 for maximum BP benefit'],
+    warnings: ['Food sources preferred (safer than supplements)', 'Do NOT supplement if on BP meds (consult doctor)', 'Excess can be dangerous if not monitored'],
+  },
 };
 
 const DAILY_SCHEDULE = [
@@ -711,37 +814,131 @@ export default function SupplementsPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {supplements.map((s) => (
-                            <tr key={s.id} className="border-b border-gray-200 hover:bg-gray-50">
-                              <td className="py-3 px-2">
-                                <div className="font-medium text-gray-900">{s.name}</div>
-                              </td>
-                              <td className="py-3 px-2 text-sm text-gray-600">{s.dose || '—'}</td>
-                              <td className="py-3 px-2">
-                                {s._from_intervention && <Badge color="red">Therapy</Badge>}
-                                {s._from_bp && <Badge color="blue">BP Med</Badge>}
-                                {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
-                              </td>
-                              <td className="py-3 px-2 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => handleEditSupplement(s, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
-                                  >
-                                    ✎
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="danger"
-                                    onClick={() => handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement')}
-                                  >
-                                    ✕
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {supplements.map((s) => {
+                            const info = SUPPLEMENT_INFO[s.name];
+                            const isExpanded = expandedSupplement === `cabinet-${s.id}`;
+                            return (
+                              <>
+                                <tr className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedSupplement(isExpanded ? null : `cabinet-${s.id}`)}>
+                                  <td className="py-3 px-2">
+                                    <div className="flex items-center gap-2">
+                                      <span>{info?.emoji || '💊'}</span>
+                                      <div className="font-medium text-gray-900">{s.name}</div>
+                                    </div>
+                                  </td>
+                                  <td className="py-3 px-2 text-sm text-gray-600">{(s as any).strength || s.dose || '—'}</td>
+                                  <td className="py-3 px-2">
+                                    {s._from_intervention && <Badge color="red">Therapy</Badge>}
+                                    {s._from_bp && <Badge color="blue">BP Med</Badge>}
+                                    {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
+                                  </td>
+                                  <td className="py-3 px-2 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      {info && <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>}
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleEditSupplement(s, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
+                                        }}
+                                      >
+                                        ✎
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="danger"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
+                                        }}
+                                      >
+                                        ✕
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                                {isExpanded && info && (
+                                  <tr>
+                                    <td colSpan={4} className="py-4 px-4 bg-blue-50">
+                                      <div className="space-y-3 text-sm">
+                                        <div>
+                                          <div className="font-semibold text-blue-900 mb-1">🎯 {locale === 'bg' ? 'Какво прави' : 'What it does'}</div>
+                                          <p className="text-blue-800">{info.benefit}</p>
+                                        </div>
+
+                                        <div>
+                                          <div className="font-semibold text-blue-900 mb-1">⚙️ {locale === 'bg' ? 'Как работи' : 'How it works'}</div>
+                                          <p className="text-blue-800">{info.mechanism}</p>
+                                        </div>
+
+                                        <div>
+                                          <div className="font-semibold text-blue-900 mb-1">📊 {locale === 'bg' ? 'Изследвания' : 'Studies'}</div>
+                                          <ul className="text-blue-800 space-y-1">
+                                            {info.studies.map((study, k) => (
+                                              <li key={k} className="flex gap-2">
+                                                <span className="flex-shrink-0">✓</span>
+                                                <span>{study}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+
+                                        <div>
+                                          <div className="font-semibold text-blue-900 mb-1">⏰ {locale === 'bg' ? 'Време и абсорбция' : 'Timing & Absorption'}</div>
+                                          <p className="text-blue-800">{info.timing}</p>
+                                        </div>
+
+                                        {info.linkedBiomarkers.length > 0 && (
+                                          <div>
+                                            <div className="font-semibold text-blue-900 mb-1">📈 {locale === 'bg' ? 'Свързани биомаркери' : 'Linked Biomarkers'}</div>
+                                            <div className="flex flex-wrap gap-1">
+                                              {info.linkedBiomarkers.map((marker) => (
+                                                <Badge key={marker} color="blue">{marker}</Badge>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+
+                                        {info.linkedGym.length > 0 && (
+                                          <div>
+                                            <div className="font-semibold text-blue-900 mb-1">💪 {locale === 'bg' ? 'Тренировка' : 'Gym Benefits'}</div>
+                                            <ul className="text-blue-800 space-y-1">
+                                              {info.linkedGym.map((benefit, k) => (
+                                                <li key={k}>• {benefit}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+
+                                        {info.linkedNutrition.length > 0 && (
+                                          <div>
+                                            <div className="font-semibold text-blue-900 mb-1">🍽️ {locale === 'bg' ? 'Питание и хранене' : 'Nutrition Timing'}</div>
+                                            <ul className="text-blue-800 space-y-1">
+                                              {info.linkedNutrition.map((timing, k) => (
+                                                <li key={k}>• {timing}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+
+                                        {info.warnings.length > 0 && (
+                                          <div className="bg-red-100 border border-red-300 p-2 rounded">
+                                            <div className="font-semibold text-red-900 mb-1">⚠️ {locale === 'bg' ? 'Предупреждения' : 'Warnings'}</div>
+                                            <ul className="text-red-900 space-y-1">
+                                              {info.warnings.map((warning, k) => (
+                                                <li key={k}>• {warning}</li>
+                                              ))}
+                                            </ul>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                              </>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
