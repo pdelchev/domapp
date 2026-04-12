@@ -53,6 +53,14 @@ interface LogData {
   symptoms: string[];
 }
 
+interface LastMeasurements {
+  weight_kg: { value: number | null; date: string };
+  systolic_bp: { value: number | null; date: string };
+  diastolic_bp: { value: number | null; date: string };
+  pulse: { value: number | null; date: string };
+  bp_per_kg: { value: number | null; days_tracked: number };
+}
+
 export default function ProtocolCheckin() {
   const { locale } = useLanguage();
   const [loading, setLoading] = useState(true);
@@ -87,6 +95,13 @@ export default function ProtocolCheckin() {
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
   const [aiInsights, setAiInsights] = useState<any[]>([]);
+  const [lastMeasurements, setLastMeasurements] = useState<LastMeasurements>({
+    weight_kg: { value: null, date: '' },
+    systolic_bp: { value: null, date: '' },
+    diastolic_bp: { value: null, date: '' },
+    pulse: { value: null, date: '' },
+    bp_per_kg: { value: null, days_tracked: 0 },
+  });
 
   // Form section states
   const [openSections, setOpenSections] = useState({
@@ -129,6 +144,58 @@ export default function ProtocolCheckin() {
     };
 
     loadProtocols();
+  }, []);
+
+  // Fetch last measurements for comparison
+  useEffect(() => {
+    const fetchLastMeasurements = async () => {
+      try {
+        // Fetch last BP reading
+        const bpRes = await apiFetch('/api/health/bp/readings/?limit=1');
+        if (bpRes.ok) {
+          const bpData = await bpRes.json();
+          const lastBP = bpData.results?.[0];
+          if (lastBP) {
+            setLastMeasurements(prev => ({
+              ...prev,
+              systolic_bp: { value: lastBP.systolic, date: lastBP.measured_at?.split('T')[0] || '' },
+              diastolic_bp: { value: lastBP.diastolic, date: lastBP.measured_at?.split('T')[0] || '' },
+              pulse: { value: lastBP.pulse, date: lastBP.measured_at?.split('T')[0] || '' },
+            }));
+          }
+        }
+
+        // Fetch last weight
+        const weightRes = await apiFetch('/api/health/weight/?limit=1');
+        if (weightRes.ok) {
+          const weightData = await weightRes.json();
+          const lastWeight = weightData.results?.[0];
+          if (lastWeight) {
+            setLastMeasurements(prev => ({
+              ...prev,
+              weight_kg: { value: lastWeight.weight_kg, date: lastWeight.date },
+            }));
+          }
+        }
+
+        // Fetch BP per kg metric (if 20+ paired days exist)
+        const bpPerKgRes = await apiFetch('/api/health/bp/metric/bp-per-kg/');
+        if (bpPerKgRes.ok) {
+          const bpPerKgData = await bpPerKgRes.json();
+          setLastMeasurements(prev => ({
+            ...prev,
+            bp_per_kg: {
+              value: bpPerKgData.systolic_drop_per_kg || null,
+              days_tracked: bpPerKgData.paired_days || 0,
+            },
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to fetch last measurements:', err);
+      }
+    };
+
+    fetchLastMeasurements();
   }, []);
 
   // Load fields for selected protocol
@@ -308,6 +375,76 @@ export default function ProtocolCheckin() {
     </div>
   );
 
+  // Component to display biometric with last value comparison
+  const BiometricWithComparison = ({
+    label,
+    value,
+    onChange,
+    type = 'number',
+    lastValue,
+    lastDate,
+    unit = '',
+    isBPImprovement = false, // for BP: lower is better
+    isWeightImprovement = false, // for weight: lower is better
+  }: any) => {
+    let delta = null;
+    let deltaColor = 'text-gray-500';
+    let deltaArrow = '';
+
+    if (lastValue !== null && value !== null && value !== '') {
+      const numValue = parseFloat(value);
+      const diff = numValue - lastValue;
+
+      if (Math.abs(diff) > 0.5) {
+        if (isBPImprovement || isWeightImprovement) {
+          // Lower is better
+          if (diff < 0) {
+            deltaColor = 'text-green-600 font-semibold';
+            deltaArrow = '↓';
+          } else {
+            deltaColor = 'text-red-600 font-semibold';
+            deltaArrow = '↑';
+          }
+        } else {
+          // Higher is better
+          if (diff > 0) {
+            deltaColor = 'text-green-600 font-semibold';
+            deltaArrow = '↑';
+          } else {
+            deltaColor = 'text-red-600 font-semibold';
+            deltaArrow = '↓';
+          }
+        }
+        delta = `${deltaArrow} ${Math.abs(diff).toFixed(1)}${unit}`;
+      }
+    }
+
+    return (
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold text-gray-700">{label}</label>
+          {lastValue !== null && lastDate && (
+            <span className="text-[10px] text-gray-500">
+              Last: {lastValue}{unit} ({lastDate})
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type={type}
+            step={type === 'number' ? '0.1' : '1'}
+            inputMode={type === 'number' ? 'decimal' : 'numeric'}
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value ? parseFloat(e.target.value) : null)}
+            className="flex-1 px-2 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            placeholder="Enter value"
+          />
+          {delta && <span className={`text-sm ${deltaColor}`}>{delta}</span>}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <PageShell>
       <NavBar />
@@ -383,34 +520,79 @@ export default function ProtocolCheckin() {
             {/* Biometrics */}
             {todaysFields.some(f => ['weight_kg', 'systolic_bp', 'diastolic_bp'].includes(f)) && (
               <FormSection title="Biometrics" icon="⚡" open={openSections.biometrics} onToggle={() => toggleSection('biometrics')}>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-4">
                   {todaysFields.includes('weight_kg') && (
-                    <Input
+                    <BiometricWithComparison
                       label="Weight (kg)"
                       type="number"
-                      step="0.1"
-                      inputMode="decimal"
-                      value={formData.weight_kg || ''}
-                      onChange={(e) => handleFieldChange('weight_kg', e.target.value ? parseFloat(e.target.value) : null)}
+                      value={formData.weight_kg}
+                      onChange={(val: number) => handleFieldChange('weight_kg', val)}
+                      lastValue={lastMeasurements.weight_kg.value}
+                      lastDate={lastMeasurements.weight_kg.date}
+                      unit="kg"
+                      isWeightImprovement={true}
                     />
                   )}
-                  {todaysFields.includes('systolic_bp') && (
-                    <Input
-                      label="Systolic BP"
-                      type="number"
-                      inputMode="numeric"
-                      value={formData.systolic_bp || ''}
-                      onChange={(e) => handleFieldChange('systolic_bp', e.target.value ? parseInt(e.target.value) : null)}
-                    />
+
+                  {(todaysFields.includes('systolic_bp') || todaysFields.includes('diastolic_bp')) && (
+                    <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                      <div className="text-xs font-semibold text-blue-900 mb-2">🩸 Blood Pressure Pair</div>
+                      <div className="grid grid-cols-1 gap-3">
+                        {todaysFields.includes('systolic_bp') && (
+                          <BiometricWithComparison
+                            label="Systolic BP (mmHg)"
+                            type="number"
+                            value={formData.systolic_bp}
+                            onChange={(val: number) => handleFieldChange('systolic_bp', val)}
+                            lastValue={lastMeasurements.systolic_bp.value}
+                            lastDate={lastMeasurements.systolic_bp.date}
+                            unit="mmHg"
+                            isBPImprovement={true}
+                          />
+                        )}
+                        {todaysFields.includes('diastolic_bp') && (
+                          <BiometricWithComparison
+                            label="Diastolic BP (mmHg)"
+                            type="number"
+                            value={formData.diastolic_bp}
+                            onChange={(val: number) => handleFieldChange('diastolic_bp', val)}
+                            lastValue={lastMeasurements.diastolic_bp.value}
+                            lastDate={lastMeasurements.diastolic_bp.date}
+                            unit="mmHg"
+                            isBPImprovement={true}
+                          />
+                        )}
+                      </div>
+                    </div>
                   )}
-                  {todaysFields.includes('diastolic_bp') && (
-                    <Input
-                      label="Diastolic BP"
-                      type="number"
-                      inputMode="numeric"
-                      value={formData.diastolic_bp || ''}
-                      onChange={(e) => handleFieldChange('diastolic_bp', e.target.value ? parseInt(e.target.value) : null)}
-                    />
+
+                  {/* BP per kg metric - show when we have 20+ paired days */}
+                  {lastMeasurements.bp_per_kg.days_tracked >= 20 && lastMeasurements.bp_per_kg.value !== null && (
+                    <div className="bg-green-50 p-3 rounded-lg border border-green-200">
+                      <div className="text-xs font-semibold text-green-900">📊 BP per kg metric</div>
+                      <div className="text-sm font-bold text-green-700 mt-1">
+                        {lastMeasurements.bp_per_kg.value.toFixed(2)} mmHg/kg
+                      </div>
+                      <div className="text-[10px] text-green-600 mt-1">
+                        Based on {lastMeasurements.bp_per_kg.days_tracked} paired measurements
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show progress towards 20 paired days */}
+                  {lastMeasurements.bp_per_kg.days_tracked > 0 && lastMeasurements.bp_per_kg.days_tracked < 20 && (
+                    <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                      <div className="text-xs font-semibold text-amber-900">⏳ Tracking BP/Weight correlation</div>
+                      <div className="text-sm text-amber-700 mt-1">
+                        {lastMeasurements.bp_per_kg.days_tracked}/20 paired days
+                      </div>
+                      <div className="w-full bg-amber-200 rounded-full h-2 mt-2">
+                        <div
+                          className="bg-amber-600 h-2 rounded-full transition-all"
+                          style={{ width: `${(lastMeasurements.bp_per_kg.days_tracked / 20) * 100}%` }}
+                        />
+                      </div>
+                    </div>
                   )}
                 </div>
               </FormSection>
