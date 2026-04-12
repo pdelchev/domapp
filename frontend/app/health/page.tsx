@@ -49,6 +49,7 @@ type Intervention = {
   is_active: boolean;
   last_taken_date: string | null;
   taken_today: boolean | null;
+  photo?: string | null;
 };
 
 type PhenoAge = {
