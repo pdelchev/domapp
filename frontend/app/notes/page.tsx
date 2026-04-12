@@ -18,7 +18,7 @@ import {
   getNotes, getNoteFolders, getNoteTags, createNote, updateNote, deleteNote,
   createNoteFolder, updateNoteFolder, deleteNoteFolder,
 } from '../lib/api';
-import BlockNoteEditor from './BlockNoteEditor';
+import TiptapEditor from './TiptapEditor';
 
 interface Note {
   id: number;
@@ -123,8 +123,8 @@ export default function NotesPage() {
       setSaving(true);
       const newNote = await createNote({
         title: locale === 'bg' ? 'Нова бележка' : 'New Note',
-        content: [],
-        content_type: 'blocks',
+        content: '<p></p>',
+        content_type: 'richtext',
         folder_id: selectedFolder,
       });
       setNotes([newNote, ...notes]);
@@ -352,13 +352,13 @@ export default function NotesPage() {
                 </div>
               </div>
 
-              {/* BlockNote Editor */}
+              {/* Tiptap Editor */}
               <div className="flex-1 overflow-hidden">
-                <BlockNoteEditor
-                  initialContent={selectedNote.content}
-                  onChange={(content) => handleUpdateNote({
-                    content,
-                    content_type: selectedNote.content_type || 'blocks'
+                <TiptapEditor
+                  initialContent={selectedNote.content as string || ''}
+                  onChange={(html) => handleUpdateNote({
+                    content: html,
+                    content_type: 'richtext'
                   })}
                 />
               </div>
