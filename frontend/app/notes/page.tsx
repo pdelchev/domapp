@@ -122,7 +122,8 @@ export default function NotesPage() {
       setSaving(true);
       const newNote = await createNote({
         title: locale === 'bg' ? 'Нова бележка' : 'New Note',
-        content: { blocks: [] },
+        content: [],
+        content_type: 'blocks',
         folder_id: selectedFolder,
       });
       setNotes([newNote, ...notes]);
