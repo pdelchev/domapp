@@ -695,10 +695,6 @@ export default function LifePage() {
           </button>
         )}
 
-        {/* ═══ UNIFIED DAILY ROUTINE ═══ */}
-        <div className="mt-6 mb-4 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
-          📅 {locale === 'bg' ? 'Дневен режим' : 'Daily Routine'}
-        </div>
         {todaySchedules.length === 0 && (data?.active_interventions ?? []).length === 0 ? (
           <Card>
             <EmptyState
