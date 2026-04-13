@@ -275,9 +275,9 @@ const DAILY_SCHEDULE = [
     icon: '🌅',
     title: 'MORNING - FASTED',
     items: [
-      { name: 'Saxenda Injection', category: 'Saxenda Injection' },
-      { name: 'NMN', category: 'NMN (Nicotinamide Mononucleotide)' },
-      { name: 'Panax Ginseng', category: 'Panax Ginseng', note: '(1 cap fasted, or 2 caps on training days)' },
+      { name: 'Saxenda Injection', category: 'Saxenda Injection', dose: '1.2', timeSlot: 'breakfast' },
+      { name: 'NMN', category: 'NMN (Nicotinamide Mononucleotide)', dose: '500mg', timeSlot: 'breakfast' },
+      { name: 'Panax Ginseng', category: 'Panax Ginseng', dose: '1-2 caps', timeSlot: 'breakfast', note: '(1 cap fasted, or 2 caps on training days)' },
     ],
   },
   {
@@ -285,12 +285,11 @@ const DAILY_SCHEDULE = [
     icon: '🍽️',
     title: 'FIRST MEAL - WITH FAT',
     items: [
-      { name: 'Your Meal', description: 'Olive oil, eggs, fish, meat, avocado — all fat-soluble items below taken WITH this meal' },
-      { name: 'Vitamin D3 + K2', category: 'Vitamin D3 + K2' },
-      { name: 'Zinc Bisglycinate', category: 'Zinc Bisglycinate' },
-      { name: 'Boron', category: 'Boron', note: '(3mg only)' },
-      { name: 'CoQ10', category: 'CoQ10 (Ubiquinone)' },
-      { name: 'Omega-3', category: 'Omega-3 (Fish Oil + Astaxanthin)' },
+      { name: 'Vitamin D3 + K2', category: 'Vitamin D3 + K2', dose: '5000 IU', timeSlot: 'lunch' },
+      { name: 'Zinc Bisglycinate', category: 'Zinc Bisglycinate', dose: '25-30mg', timeSlot: 'lunch' },
+      { name: 'Boron', category: 'Boron', dose: '3mg', timeSlot: 'lunch', note: '(3mg only)' },
+      { name: 'CoQ10', category: 'CoQ10 (Ubiquinone)', dose: '200mg', timeSlot: 'lunch' },
+      { name: 'Omega-3', category: 'Omega-3 (Fish Oil + Astaxanthin)', dose: '2000mg', timeSlot: 'lunch' },
     ],
   },
   {
@@ -298,7 +297,7 @@ const DAILY_SCHEDULE = [
     icon: '🍽️',
     title: 'LAST MEAL',
     items: [
-      { name: 'Magnesium Taurate', category: 'Magnesium Taurate', note: '(1 capsule with meal)' },
+      { name: 'Magnesium Taurate', category: 'Magnesium Taurate', dose: '1 cap', timeSlot: 'dinner', note: '(1 capsule with meal)' },
     ],
   },
   {
@@ -306,7 +305,7 @@ const DAILY_SCHEDULE = [
     icon: '🌙',
     title: 'BEFORE SLEEP',
     items: [
-      { name: 'Magnesium Taurate', category: 'Magnesium Taurate', note: '(1 capsule with water)' },
+      { name: 'Magnesium Taurate (Evening)', category: 'Magnesium Taurate', dose: '1 cap', timeSlot: 'sleep', note: '(1 capsule with water)' },
     ],
   },
   {
@@ -314,10 +313,23 @@ const DAILY_SCHEDULE = [
     icon: '⚡',
     title: 'OPTIONAL - TRAINING OR SEX DAYS ONLY',
     items: [
-      { name: 'L-Citrulline', category: 'L-Citrulline', note: '(45-60 min before, empty stomach, 6g powder)' },
+      { name: 'L-Citrulline', category: 'L-Citrulline', dose: '6g', timeSlot: 'workout', note: '(45-60 min before, empty stomach)' },
     ],
   },
 ];
+
+// Flatten all protocol supplements for easy access
+const getAllProtocolSupplements = () => {
+  const all: any[] = [];
+  DAILY_SCHEDULE.forEach(slot => {
+    slot.items.forEach(item => {
+      if (item.category) { // Skip non-supplement items like "Your Meal"
+        all.push({ ...item, timeSlot: item.timeSlot });
+      }
+    });
+  });
+  return all;
+};
 
 function getCycleStatus(cycleType: 'ginseng_6_2' | 'boron_8_2') {
   const startDate = new Date('2026-04-10');
@@ -750,66 +762,67 @@ export default function SupplementsPage() {
                   </div>
                 </Card>
 
-                {/* Daily Schedule Timeline */}
+                {/* Protocol Supplements Table */}
                 <div className="space-y-3">
-                  {DAILY_SCHEDULE.map((slot, i) => (
-                    <Card key={i} className="border-l-4 border-l-indigo-500">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span className="text-2xl">{slot.icon}</span>
-                        <div>
-                          <div className="text-xs font-medium text-gray-600">{slot.time}</div>
-                          <div className="font-semibold text-gray-900">{slot.title}</div>
-                        </div>
-                      </div>
-                      <div className="space-y-2 ml-11">
-                        {slot.items.map((item, j) => {
-                          const info = item.category ? SUPPLEMENT_INFO[item.category] : undefined;
-                          const isExpanded = expandedSupplement === `protocol-${i}-${j}`;
+                  <h3 className="font-semibold text-gray-900">{locale === 'bg' ? 'Всички добавки' : 'All Supplements'}</h3>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-gray-300">
+                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Име' : 'Name'}</th>
+                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Доза' : 'Dose'}</th>
+                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Тип' : 'Type'}</th>
+                        <th className="text-center py-2 px-2">{locale === 'bg' ? 'Действие' : 'Action'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getAllProtocolSupplements().map((item, idx) => {
+                        const isAdded = supplements.some(s => s.name === item.name);
+                        const info = SUPPLEMENT_INFO[item.category];
 
-                          return (
-                            <div key={j}>
-                              <button
-                                onClick={() => setExpandedSupplement(isExpanded ? null : `protocol-${i}-${j}`)}
-                                className="w-full text-left p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors text-sm"
-                              >
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <h4 className="font-medium text-gray-900">{item.name}</h4>
-                                    {item.description && <p className="text-xs text-gray-600 mt-0.5">{item.description}</p>}
-                                    {item.note && <p className="text-xs text-amber-700 mt-0.5">{item.note}</p>}
-                                  </div>
-                                  <span className="text-gray-400 ml-2 text-xs">{isExpanded ? '▼' : '▶'}</span>
+                        return (
+                          <tr key={idx} className={`border-b border-gray-200 ${isAdded ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                            <td className="py-3 px-2">
+                              <div className="flex items-center gap-2">
+                                <span>{info?.emoji || '💊'}</span>
+                                <div>
+                                  <div className="font-medium text-gray-900">{item.name}</div>
+                                  {item.note && <div className="text-xs text-amber-700">{item.note}</div>}
                                 </div>
-                              </button>
-
-                              {isExpanded && info && (
-                                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2 text-xs">
-                                  <div>
-                                    <div className="font-semibold text-blue-900">🎯 {locale === 'bg' ? 'Какво прави' : 'What it does'}</div>
-                                    <p className="text-blue-800">{info.benefit}</p>
-                                  </div>
-                                  <div>
-                                    <div className="font-semibold text-blue-900">⏰ {locale === 'bg' ? 'Време' : 'Timing'}</div>
-                                    <p className="text-blue-800">{info.timing}</p>
-                                  </div>
-                                  {info.warnings.length > 0 && (
-                                    <div className="bg-red-100 border border-red-300 p-2 rounded">
-                                      <div className="font-semibold text-red-900 mb-0.5">⚠️ {locale === 'bg' ? 'Предупреждения' : 'Warnings'}</div>
-                                      <ul className="text-red-900 space-y-0.5">
-                                        {info.warnings.map((warning, k) => (
-                                          <li key={k}>• {warning}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3 px-2 text-sm text-gray-600">{item.dose || '—'}</td>
+                            <td className="py-3 px-2">
+                              <Badge color="indigo">{locale === 'bg' ? 'Добавка' : 'Supplement'}</Badge>
+                            </td>
+                            <td className="py-3 px-2 text-center">
+                              {isAdded ? (
+                                <Badge color="green">{locale === 'bg' ? '✓ Добавена' : '✓ Added'}</Badge>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => {
+                                    setAddForm({
+                                      name: item.name,
+                                      dose: item.dose || '',
+                                      category: 'capsule',
+                                      frequency: 'daily',
+                                      time_slot: item.timeSlot || 'breakfast',
+                                      notes: '',
+                                    });
+                                    setAddType('supplement');
+                                    setActiveTab('add');
+                                  }}
+                                >
+                                  {locale === 'bg' ? '➕ Добави' : '➕ Add'}
+                                </Button>
                               )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </Card>
-                  ))}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
 
                 {/* Cabinet Supplements Management */}
