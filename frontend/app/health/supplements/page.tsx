@@ -23,7 +23,7 @@ import {
 } from '../../components/ui';
 import NavBar from '../../components/NavBar';
 
-type TabType = 'schedule' | 'cabinet' | 'cycling' | 'gym' | 'nutrition' | 'add';
+type TabType = 'cabinet' | 'cycling' | 'gym' | 'nutrition' | 'add';
 
 interface Supplement {
   id: number;
@@ -349,7 +349,7 @@ export default function SupplementsPage() {
   const { locale } = useLanguage();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<TabType>('schedule');
+  const [activeTab, setActiveTab] = useState<TabType>('cabinet');
   const [supplements, setSupplements] = useState<Supplement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -450,14 +450,20 @@ export default function SupplementsPage() {
         getInterventions({ active: true }).catch(() => []),
       ]);
 
+      console.log('DEBUG: supps from API:', supps);
+      console.log('DEBUG: bpMeds from API:', bpMeds);
+      console.log('DEBUG: interventions from API:', interventions);
+
       const combined = [
         ...supps,
         ...bpMeds.map((m: any) => ({ ...m, _from_bp: true, category: 'medication' })),
         ...interventions.map((i: any) => ({ ...i, _from_intervention: true, category: 'medication' })),
       ];
 
+      console.log('DEBUG: combined supplements:', combined);
       setSupplements(combined);
     } catch (e: any) {
+      console.error('DEBUG: Error in fetchSupplements:', e);
       setError(e.message);
     } finally {
       setLoading(false);
@@ -709,7 +715,7 @@ export default function SupplementsPage() {
 
         {/* TAB NAVIGATION */}
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {(['schedule', 'cabinet', 'cycling', 'gym', 'nutrition', 'add'] as const).map((tab) => (
+          {(['cabinet', 'cycling', 'gym', 'nutrition', 'add'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -719,7 +725,6 @@ export default function SupplementsPage() {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              {tab === 'schedule' && '📋 Schedule'}
               {tab === 'cabinet' && '💊 Cabinet'}
               {tab === 'cycling' && '🔄 Cycling'}
               {tab === 'gym' && '💪 Gym Support'}
@@ -729,152 +734,88 @@ export default function SupplementsPage() {
           ))}
         </div>
 
-        {/* TAB 1: DAILY PROTOCOL WITH DETAILED INFO */}
-        {activeTab === 'schedule' && (
-          <div className="space-y-4">
-            <Card className="bg-indigo-50 border-indigo-200 mb-4">
-              <div className="text-sm">
-                <span className="font-semibold text-gray-900">Complete Daily Protocol</span>
-                <div className="text-xs text-gray-600 mt-1">Total daily pills: 8-9 | Fasting: ~18 hours | All supplements science-backed and gout/BP-safe</div>
-              </div>
-            </Card>
 
-            {DAILY_SCHEDULE.map((slot, i) => (
-              <div key={i} className="space-y-2">
-                <Card>
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-2xl">{slot.icon}</span>
-                    <div>
-                      <div className="text-sm font-medium text-gray-700">{slot.time}</div>
-                      <div className="font-semibold text-gray-900">{slot.title}</div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {slot.items.map((item, j) => {
-                      const info = item.category ? SUPPLEMENT_INFO[item.category] : undefined;
-                      const isExpanded = expandedSupplement === `${i}-${j}`;
-
-                      return (
-                        <div key={j}>
-                          <button
-                            onClick={() => setExpandedSupplement(isExpanded ? null : `${i}-${j}`)}
-                            className="w-full text-left p-3 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <h4 className="font-medium text-gray-900">{item.name}</h4>
-                                {item.description && <p className="text-xs text-gray-600 mt-1">{item.description}</p>}
-                                {item.note && <p className="text-xs text-amber-700 mt-1">{item.note}</p>}
-                              </div>
-                              <span className="text-gray-400 ml-2">{isExpanded ? '▼' : '▶'}</span>
-                            </div>
-                          </button>
-
-                          {isExpanded && info && (
-                            <div className="mt-2 p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3 text-sm">
-                              <div>
-                                <div className="font-semibold text-blue-900 mb-1">🎯 What it does</div>
-                                <p className="text-blue-800">{info.benefit}</p>
-                              </div>
-
-                              <div>
-                                <div className="font-semibold text-blue-900 mb-1">⚙️ How it works</div>
-                                <p className="text-blue-800">{info.mechanism}</p>
-                              </div>
-
-                              <div>
-                                <div className="font-semibold text-blue-900 mb-1">📊 Studies</div>
-                                <ul className="text-blue-800 space-y-1">
-                                  {info.studies.map((study, k) => (
-                                    <li key={k} className="flex gap-2">
-                                      <span className="flex-shrink-0">✓</span>
-                                      <span>{study}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-
-                              <div>
-                                <div className="font-semibold text-blue-900 mb-1">⏰ Timing & Absorption</div>
-                                <p className="text-blue-800">{info.timing}</p>
-                              </div>
-
-                              {info.linkedBiomarkers.length > 0 && (
-                                <div>
-                                  <div className="font-semibold text-blue-900 mb-1">📈 Linked Biomarkers</div>
-                                  <div className="flex flex-wrap gap-1">
-                                    {info.linkedBiomarkers.map((marker) => (
-                                      <Badge key={marker} color="blue">{marker}</Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {info.linkedGym.length > 0 && (
-                                <div>
-                                  <div className="font-semibold text-blue-900 mb-1">💪 Gym Benefits</div>
-                                  <ul className="text-blue-800 space-y-1">
-                                    {info.linkedGym.map((benefit, k) => (
-                                      <li key={k}>• {benefit}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {info.linkedNutrition.length > 0 && (
-                                <div>
-                                  <div className="font-semibold text-blue-900 mb-1">🍽️ Nutrition Timing</div>
-                                  <ul className="text-blue-800 space-y-1">
-                                    {info.linkedNutrition.map((timing, k) => (
-                                      <li key={k}>• {timing}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {info.warnings.length > 0 && (
-                                <div className="bg-red-100 border border-red-300 p-2 rounded">
-                                  <div className="font-semibold text-red-900 mb-1">⚠️ Warnings & Contraindications</div>
-                                  <ul className="text-red-900 space-y-1">
-                                    {info.warnings.map((warning, k) => (
-                                      <li key={k}>• {warning}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {info.cycling && (
-                                <div className="bg-amber-100 border border-amber-300 p-2 rounded">
-                                  <div className="font-semibold text-amber-900 mb-1">🔄 Cycling Schedule</div>
-                                  <p className="text-amber-900">
-                                    {info.cycling === 'ginseng_6_2' ? '6 weeks ON / 2 weeks OFF' : '8 weeks ON / 2 weeks OFF'}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Card>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* TAB 2: MY CABINET */}
+        {/* TAB 1: MY CABINET - Complete Daily Protocol + Management */}
         {activeTab === 'cabinet' && (
           <>
             {loading ? (
               <Spinner />
             ) : (
               <div className="space-y-6">
-                {/* Supplements */}
+                {/* Daily Protocol Overview */}
+                <Card className="bg-indigo-50 border-indigo-200">
+                  <div className="text-sm">
+                    <span className="font-semibold text-gray-900">{locale === 'bg' ? 'Пълен ежедневен протокол' : 'Complete Daily Protocol'}</span>
+                    <div className="text-xs text-gray-600 mt-1">{locale === 'bg' ? 'Общо ежедневни таблетки: 8-9 | Постене: ~18 часа | Всички добавки са научно доказани и безопасни при подагра/BP' : 'Total daily pills: 8-9 | Fasting: ~18 hours | All supplements science-backed and gout/BP-safe'}</div>
+                  </div>
+                </Card>
+
+                {/* Daily Schedule Timeline */}
+                <div className="space-y-3">
+                  {DAILY_SCHEDULE.map((slot, i) => (
+                    <Card key={i} className="border-l-4 border-l-indigo-500">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">{slot.icon}</span>
+                        <div>
+                          <div className="text-xs font-medium text-gray-600">{slot.time}</div>
+                          <div className="font-semibold text-gray-900">{slot.title}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-2 ml-11">
+                        {slot.items.map((item, j) => {
+                          const info = item.category ? SUPPLEMENT_INFO[item.category] : undefined;
+                          const isExpanded = expandedSupplement === `protocol-${i}-${j}`;
+
+                          return (
+                            <div key={j}>
+                              <button
+                                onClick={() => setExpandedSupplement(isExpanded ? null : `protocol-${i}-${j}`)}
+                                className="w-full text-left p-2 bg-gray-50 hover:bg-gray-100 rounded border border-gray-200 transition-colors text-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-gray-900">{item.name}</h4>
+                                    {item.description && <p className="text-xs text-gray-600 mt-0.5">{item.description}</p>}
+                                    {item.note && <p className="text-xs text-amber-700 mt-0.5">{item.note}</p>}
+                                  </div>
+                                  <span className="text-gray-400 ml-2 text-xs">{isExpanded ? '▼' : '▶'}</span>
+                                </div>
+                              </button>
+
+                              {isExpanded && info && (
+                                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-2 text-xs">
+                                  <div>
+                                    <div className="font-semibold text-blue-900">🎯 {locale === 'bg' ? 'Какво прави' : 'What it does'}</div>
+                                    <p className="text-blue-800">{info.benefit}</p>
+                                  </div>
+                                  <div>
+                                    <div className="font-semibold text-blue-900">⏰ {locale === 'bg' ? 'Време' : 'Timing'}</div>
+                                    <p className="text-blue-800">{info.timing}</p>
+                                  </div>
+                                  {info.warnings.length > 0 && (
+                                    <div className="bg-red-100 border border-red-300 p-2 rounded">
+                                      <div className="font-semibold text-red-900 mb-0.5">⚠️ {locale === 'bg' ? 'Предупреждения' : 'Warnings'}</div>
+                                      <ul className="text-red-900 space-y-0.5">
+                                        {info.warnings.map((warning, k) => (
+                                          <li key={k}>• {warning}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Cabinet Supplements Management */}
                 {supplements.length > 0 && (
-                  <div className="space-y-2">
-                    <h3 className="font-semibold text-gray-900">💊 {locale === 'bg' ? 'Добавки' : 'Supplements'}</h3>
+                  <div className="space-y-2 border-t pt-6 mt-6">
+                    <h3 className="font-semibold text-gray-900">💊 {locale === 'bg' ? 'Управление на добавки' : 'Supplement Management'}</h3>
                     <div className="space-y-3">
                       <table className="w-full text-sm">
                         <thead>
