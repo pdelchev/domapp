@@ -375,6 +375,7 @@ export default function SupplementsPage() {
   const [reminders, setReminders] = useState<any[]>([]);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [latestReport, setLatestReport] = useState<any>(null);
+  const [protocolAdded, setProtocolAdded] = useState(false);
   const [reminderForm, setReminderForm] = useState({
     medication_name: '',
     reminder_time: '08:00',
@@ -484,13 +485,19 @@ export default function SupplementsPage() {
     }
   }, []);
 
-  const autoAddProtocolSupplements = useCallback(async (profileId: number) => {
+  const autoAddProtocolSupplements = useCallback(async (profileId: number, existingSupplements: Supplement[]) => {
+    // Guard: check localStorage to prevent running multiple times
+    if (localStorage.getItem('protocol_supplements_added')) {
+      setProtocolAdded(true);
+      return;
+    }
+
     try {
       const protocolSupps = getAllProtocolSupplements();
-      const existingSupps = supplements.map(s => s.name);
+      const existingSuppsNames = existingSupplements.map(s => s.name);
 
       for (const item of protocolSupps) {
-        if (!existingSupps.includes(item.name)) {
+        if (!existingSuppsNames.includes(item.name)) {
           try {
             // Create supplement
             const suppRes = await fetch('/api/health/supplements/', {
@@ -535,12 +542,13 @@ export default function SupplementsPage() {
         }
       }
 
-      // Refresh supplements after adding
-      await fetchSupplements();
+      // Mark as added in localStorage
+      localStorage.setItem('protocol_supplements_added', 'true');
+      setProtocolAdded(true);
     } catch (e) {
       console.error('Error in autoAddProtocolSupplements:', e);
     }
-  }, [supplements, fetchSupplements]);
+  }, []);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -564,9 +572,6 @@ export default function SupplementsPage() {
           } catch (e) {
             console.error('Failed to load blood report:', e);
           }
-
-          // Auto-add protocol supplements on first load
-          await autoAddProtocolSupplements(primary.id);
         }
       } catch (e) {
         console.error('Failed to load profiles:', e);
@@ -575,7 +580,14 @@ export default function SupplementsPage() {
 
     loadProfiles();
     fetchSupplements();
-  }, [fetchSupplements, autoAddProtocolSupplements]);
+  }, [fetchSupplements]);
+
+  // Separate effect for auto-adding protocol supplements (only on first load)
+  useEffect(() => {
+    if (primaryProfileId && !protocolAdded && supplements.length > 0) {
+      autoAddProtocolSupplements(primaryProfileId, supplements);
+    }
+  }, [primaryProfileId]);
 
   const handleAddSupplement = async () => {
     if (!addForm.name.trim()) {
