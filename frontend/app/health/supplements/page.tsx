@@ -33,8 +33,10 @@ interface Supplement {
   category: string;
   is_active: boolean;
   photo?: string;
+  notes?: string;
   _from_intervention?: boolean;
   _from_bp?: boolean;
+  _is_protocol?: boolean;
 }
 
 // ============================================================
@@ -467,7 +469,7 @@ export default function SupplementsPage() {
       console.log('DEBUG: interventions from API:', interventions);
 
       const combined = [
-        ...supps,
+        ...supps.map((s: any) => ({ ...s, _is_protocol: s.notes?.includes('[PROTOCOL]') })),
         ...bpMeds.map((m: any) => ({ ...m, _from_bp: true, category: 'medication' })),
         ...interventions.map((i: any) => ({ ...i, _from_intervention: true, category: 'medication' })),
       ];
@@ -481,6 +483,64 @@ export default function SupplementsPage() {
       setLoading(false);
     }
   }, []);
+
+  const autoAddProtocolSupplements = useCallback(async (profileId: number) => {
+    try {
+      const protocolSupps = getAllProtocolSupplements();
+      const existingSupps = supplements.map(s => s.name);
+
+      for (const item of protocolSupps) {
+        if (!existingSupps.includes(item.name)) {
+          try {
+            // Create supplement
+            const suppRes = await fetch('/api/health/supplements/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+              },
+              body: JSON.stringify({
+                name: item.name,
+                category: 'supplement',
+                is_active: true,
+                notes: `[PROTOCOL] ${item.note || 'System supplement'}`,
+              }),
+            });
+
+            if (suppRes.ok) {
+              const supplement = await suppRes.json();
+
+              // Create schedule for this supplement
+              await fetch('/api/health/schedules/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+                },
+                body: JSON.stringify({
+                  supplement: supplement.id,
+                  profile: profileId,
+                  time_slot: item.timeSlot || 'breakfast',
+                  dose_amount: item.dose || '1',
+                  dose_unit: 'dose',
+                  take_with_food: ['lunch', 'dinner'].includes(item.timeSlot) ? true : false,
+                  is_active: true,
+                  days_of_week: [0, 1, 2, 3, 4, 5, 6],
+                }),
+              });
+            }
+          } catch (e) {
+            console.error(`Failed to auto-add ${item.name}:`, e);
+          }
+        }
+      }
+
+      // Refresh supplements after adding
+      await fetchSupplements();
+    } catch (e) {
+      console.error('Error in autoAddProtocolSupplements:', e);
+    }
+  }, [supplements, fetchSupplements]);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -504,6 +564,9 @@ export default function SupplementsPage() {
           } catch (e) {
             console.error('Failed to load blood report:', e);
           }
+
+          // Auto-add protocol supplements on first load
+          await autoAddProtocolSupplements(primary.id);
         }
       } catch (e) {
         console.error('Failed to load profiles:', e);
@@ -512,7 +575,7 @@ export default function SupplementsPage() {
 
     loadProfiles();
     fetchSupplements();
-  }, [fetchSupplements]);
+  }, [fetchSupplements, autoAddProtocolSupplements]);
 
   const handleAddSupplement = async () => {
     if (!addForm.name.trim()) {
@@ -626,7 +689,12 @@ export default function SupplementsPage() {
     }
   };
 
-  const handleDeleteSupplement = async (id: number, type: string) => {
+  const handleDeleteSupplement = async (id: number, type: string, isProtocol?: boolean) => {
+    if (isProtocol) {
+      setError(locale === 'bg' ? 'Системните добавки не могат да бъдат изтрити' : 'System supplements cannot be deleted');
+      return;
+    }
+
     if (!confirm(locale === 'bg' ? 'Сигурни ли сте?' : 'Are you sure?')) return;
 
     try {
@@ -762,69 +830,6 @@ export default function SupplementsPage() {
                   </div>
                 </Card>
 
-                {/* Protocol Supplements Table */}
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-900">{locale === 'bg' ? 'Всички добавки' : 'All Supplements'}</h3>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b-2 border-gray-300">
-                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Име' : 'Name'}</th>
-                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Доза' : 'Dose'}</th>
-                        <th className="text-left py-2 px-2">{locale === 'bg' ? 'Тип' : 'Type'}</th>
-                        <th className="text-center py-2 px-2">{locale === 'bg' ? 'Действие' : 'Action'}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getAllProtocolSupplements().map((item, idx) => {
-                        const isAdded = supplements.some(s => s.name === item.name);
-                        const info = SUPPLEMENT_INFO[item.category];
-
-                        return (
-                          <tr key={idx} className={`border-b border-gray-200 ${isAdded ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
-                            <td className="py-3 px-2">
-                              <div className="flex items-center gap-2">
-                                <span>{info?.emoji || '💊'}</span>
-                                <div>
-                                  <div className="font-medium text-gray-900">{item.name}</div>
-                                  {item.note && <div className="text-xs text-amber-700">{item.note}</div>}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-2 text-sm text-gray-600">{item.dose || '—'}</td>
-                            <td className="py-3 px-2">
-                              <Badge color="indigo">{locale === 'bg' ? 'Добавка' : 'Supplement'}</Badge>
-                            </td>
-                            <td className="py-3 px-2 text-center">
-                              {isAdded ? (
-                                <Badge color="green">{locale === 'bg' ? '✓ Добавена' : '✓ Added'}</Badge>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => {
-                                    setAddForm({
-                                      name: item.name,
-                                      dose: item.dose || '',
-                                      category: 'capsule',
-                                      frequency: 'daily',
-                                      time_slot: item.timeSlot || 'breakfast',
-                                      notes: '',
-                                    });
-                                    setAddType('supplement');
-                                    setActiveTab('add');
-                                  }}
-                                >
-                                  {locale === 'bg' ? '➕ Добави' : '➕ Add'}
-                                </Button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
                 {/* Cabinet Supplements Management */}
                 {supplements.length > 0 && (
                   <div className="space-y-2 border-t pt-6 mt-6">
@@ -833,10 +838,10 @@ export default function SupplementsPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b-2 border-gray-300">
-                            <th className="text-left py-2 px-2">Name</th>
-                            <th className="text-left py-2 px-2">Dose</th>
-                            <th className="text-left py-2 px-2">Type</th>
-                            <th className="text-center py-2 px-2">Action</th>
+                            <th className="text-left py-2 px-2">{locale === 'bg' ? 'Име' : 'Name'}</th>
+                            <th className="text-left py-2 px-2">{locale === 'bg' ? 'Доза' : 'Dose'}</th>
+                            <th className="text-left py-2 px-2">{locale === 'bg' ? 'Тип' : 'Type'}</th>
+                            <th className="text-center py-2 px-2">{locale === 'bg' ? 'Действие' : 'Action'}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -845,42 +850,52 @@ export default function SupplementsPage() {
                             const isExpanded = expandedSupplement === `cabinet-${s.id}`;
                             return (
                               <>
-                                <tr className="border-b border-gray-200 hover:bg-gray-50 cursor-pointer" onClick={() => setExpandedSupplement(isExpanded ? null : `cabinet-${s.id}`)}>
+                                <tr className={`border-b border-gray-200 cursor-pointer ${s._is_protocol ? 'bg-blue-50' : 'hover:bg-gray-50'}`} onClick={() => setExpandedSupplement(isExpanded ? null : `cabinet-${s.id}`)}>
                                   <td className="py-3 px-2">
                                     <div className="flex items-center gap-2">
                                       <span>{info?.emoji || '💊'}</span>
-                                      <div className="font-medium text-gray-900">{s.name}</div>
+                                      <div>
+                                        <div className="font-medium text-gray-900">{s.name}</div>
+                                        {s._is_protocol && <div className="text-xs text-blue-600 font-semibold">🔒 {locale === 'bg' ? 'Система' : 'System'}</div>}
+                                      </div>
                                     </div>
                                   </td>
                                   <td className="py-3 px-2 text-sm text-gray-600">{(s as any).strength || s.dose || '—'}</td>
                                   <td className="py-3 px-2">
-                                    {s._from_intervention && <Badge color="red">Therapy</Badge>}
-                                    {s._from_bp && <Badge color="blue">BP Med</Badge>}
-                                    {!s._from_intervention && !s._from_bp && <Badge color="green">Supplement</Badge>}
+                                    {s._from_intervention && <Badge color="red">{locale === 'bg' ? 'Терапия' : 'Therapy'}</Badge>}
+                                    {s._from_bp && <Badge color="blue">{locale === 'bg' ? 'BP Мед' : 'BP Med'}</Badge>}
+                                    {!s._from_intervention && !s._from_bp && <Badge color={s._is_protocol ? 'blue' : 'green'}>{locale === 'bg' ? 'Добавка' : 'Supplement'}</Badge>}
                                   </td>
                                   <td className="py-3 px-2 text-center">
                                     <div className="flex items-center justify-center gap-2">
                                       {info && <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>}
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditSupplement(s, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
-                                        }}
-                                      >
-                                        ✎
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="danger"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
-                                        }}
-                                      >
-                                        ✕
-                                      </Button>
+                                      {!s._is_protocol && (
+                                        <>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleEditSupplement(s, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
+                                            }}
+                                          >
+                                            ✎
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="danger"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
+                                            }}
+                                          >
+                                            ✕
+                                          </Button>
+                                        </>
+                                      )}
+                                      {s._is_protocol && (
+                                        <span className="text-xs text-blue-600 font-semibold">🔒</span>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
