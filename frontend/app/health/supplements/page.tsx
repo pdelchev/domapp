@@ -36,7 +36,6 @@ interface Supplement {
   notes?: string;
   _from_intervention?: boolean;
   _from_bp?: boolean;
-  _is_protocol?: boolean;
 }
 
 // ============================================================
@@ -333,6 +332,17 @@ const getAllProtocolSupplements = () => {
   return all;
 };
 
+// Check if a supplement is part of the protocol
+const isProtocolSupplement = (name: string) => {
+  return getAllProtocolSupplements().some(item => item.name === name);
+};
+
+// Get protocol supplement dose
+const getProtocolSupplementDose = (name: string) => {
+  const item = getAllProtocolSupplements().find(item => item.name === name);
+  return item?.dose || '';
+};
+
 function getCycleStatus(cycleType: 'ginseng_6_2' | 'boron_8_2') {
   const startDate = new Date('2026-04-10');
   const today = new Date();
@@ -470,7 +480,7 @@ export default function SupplementsPage() {
       console.log('DEBUG: interventions from API:', interventions);
 
       const combined = [
-        ...supps.map((s: any) => ({ ...s, _is_protocol: s.notes?.includes('[PROTOCOL]') })),
+        ...supps,
         ...bpMeds.map((m: any) => ({ ...m, _from_bp: true, category: 'medication' })),
         ...interventions.map((i: any) => ({ ...i, _from_intervention: true, category: 'medication' })),
       ];
@@ -485,69 +495,9 @@ export default function SupplementsPage() {
     }
   }, []);
 
+  // Disabled auto-add to prevent duplicates - user adds manually
   const autoAddProtocolSupplements = useCallback(async (profileId: number, existingSupplements: Supplement[]) => {
-    // Guard: check localStorage to prevent running multiple times
-    if (localStorage.getItem('protocol_supplements_added')) {
-      setProtocolAdded(true);
-      return;
-    }
-
-    try {
-      const protocolSupps = getAllProtocolSupplements();
-      const existingSuppsNames = existingSupplements.map(s => s.name);
-
-      for (const item of protocolSupps) {
-        if (!existingSuppsNames.includes(item.name)) {
-          try {
-            // Create supplement
-            const suppRes = await fetch('/api/health/supplements/', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-              },
-              body: JSON.stringify({
-                name: item.name,
-                category: 'supplement',
-                is_active: true,
-                notes: `[PROTOCOL] ${item.note || 'System supplement'}`,
-              }),
-            });
-
-            if (suppRes.ok) {
-              const supplement = await suppRes.json();
-
-              // Create schedule for this supplement
-              await fetch('/api/health/schedules/', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-                },
-                body: JSON.stringify({
-                  supplement: supplement.id,
-                  profile: profileId,
-                  time_slot: item.timeSlot || 'breakfast',
-                  dose_amount: item.dose || '1',
-                  dose_unit: 'dose',
-                  take_with_food: ['lunch', 'dinner'].includes(item.timeSlot) ? true : false,
-                  is_active: true,
-                  days_of_week: [0, 1, 2, 3, 4, 5, 6],
-                }),
-              });
-            }
-          } catch (e) {
-            console.error(`Failed to auto-add ${item.name}:`, e);
-          }
-        }
-      }
-
-      // Mark as added in localStorage
-      localStorage.setItem('protocol_supplements_added', 'true');
-      setProtocolAdded(true);
-    } catch (e) {
-      console.error('Error in autoAddProtocolSupplements:', e);
-    }
+    setProtocolAdded(true);
   }, []);
 
   useEffect(() => {
@@ -701,9 +651,9 @@ export default function SupplementsPage() {
     }
   };
 
-  const handleDeleteSupplement = async (id: number, type: string, isProtocol?: boolean) => {
-    if (isProtocol) {
-      setError(locale === 'bg' ? 'Системните добавки не могат да бъдат изтрити' : 'System supplements cannot be deleted');
+  const handleDeleteSupplement = async (id: number, type: string, name?: string) => {
+    if (name && isProtocolSupplement(name)) {
+      setError(locale === 'bg' ? 'Протокол добавки не могат да бъдат изтрити' : 'Protocol supplements cannot be deleted');
       return;
     }
 
@@ -834,13 +784,6 @@ export default function SupplementsPage() {
               <Spinner />
             ) : (
               <div className="space-y-6">
-                {/* Daily Protocol Overview */}
-                <Card className="bg-indigo-50 border-indigo-200">
-                  <div className="text-sm">
-                    <span className="font-semibold text-gray-900">{locale === 'bg' ? 'Пълен ежедневен протокол' : 'Complete Daily Protocol'}</span>
-                    <div className="text-xs text-gray-600 mt-1">{locale === 'bg' ? 'Общо ежедневни таблетки: 8-9 | Постене: ~18 часа | Всички добавки са научно доказани и безопасни при подагра/BP' : 'Total daily pills: 8-9 | Fasting: ~18 hours | All supplements science-backed and gout/BP-safe'}</div>
-                  </div>
-                </Card>
 
                 {/* Cabinet Supplements Management */}
                 {supplements.length > 0 && (
@@ -862,26 +805,31 @@ export default function SupplementsPage() {
                             const isExpanded = expandedSupplement === `cabinet-${s.id}`;
                             return (
                               <>
-                                <tr className={`border-b border-gray-200 cursor-pointer ${s._is_protocol ? 'bg-blue-50' : 'hover:bg-gray-50'}`} onClick={() => setExpandedSupplement(isExpanded ? null : `cabinet-${s.id}`)}>
+                                <tr className={`border-b border-gray-200 cursor-pointer ${isProtocolSupplement(s.name) ? 'bg-blue-50' : 'hover:bg-gray-50'}`} onClick={() => setExpandedSupplement(isExpanded ? null : `cabinet-${s.id}`)}>
                                   <td className="py-3 px-2">
                                     <div className="flex items-center gap-2">
                                       <span>{info?.emoji || '💊'}</span>
                                       <div>
                                         <div className="font-medium text-gray-900">{s.name}</div>
-                                        {s._is_protocol && <div className="text-xs text-blue-600 font-semibold">🔒 {locale === 'bg' ? 'Система' : 'System'}</div>}
+                                        {isProtocolSupplement(s.name) && <div className="text-xs text-blue-600 font-semibold">📋 {locale === 'bg' ? 'Протокол' : 'Protocol'}</div>}
                                       </div>
                                     </div>
                                   </td>
-                                  <td className="py-3 px-2 text-sm text-gray-600">{(s as any).strength || s.dose || '—'}</td>
+                                  <td className="py-3 px-2 text-sm text-gray-600">{(s as any).strength || getProtocolSupplementDose(s.name) || s.dose || '—'}</td>
                                   <td className="py-3 px-2">
                                     {s._from_intervention && <Badge color="red">{locale === 'bg' ? 'Терапия' : 'Therapy'}</Badge>}
                                     {s._from_bp && <Badge color="blue">{locale === 'bg' ? 'BP Мед' : 'BP Med'}</Badge>}
-                                    {!s._from_intervention && !s._from_bp && <Badge color={s._is_protocol ? 'blue' : 'green'}>{locale === 'bg' ? 'Добавка' : 'Supplement'}</Badge>}
+                                    {!s._from_intervention && !s._from_bp && (
+                                      <>
+                                        {isProtocolSupplement(s.name) && <Badge color="blue">{locale === 'bg' ? 'Протокол' : 'Protocol'}</Badge>}
+                                        {!isProtocolSupplement(s.name) && <Badge color="green">{locale === 'bg' ? 'Добавка' : 'Supplement'}</Badge>}
+                                      </>
+                                    )}
                                   </td>
                                   <td className="py-3 px-2 text-center">
                                     <div className="flex items-center justify-center gap-2">
                                       {info && <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>}
-                                      {!s._is_protocol && (
+                                      {!isProtocolSupplement(s.name) && (
                                         <>
                                           <Button
                                             size="sm"
@@ -898,15 +846,15 @@ export default function SupplementsPage() {
                                             variant="danger"
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement');
+                                              handleDeleteSupplement(s.id, s._from_intervention ? 'intervention' : s._from_bp ? 'bp-med' : 'supplement', s.name);
                                             }}
                                           >
                                             ✕
                                           </Button>
                                         </>
                                       )}
-                                      {s._is_protocol && (
-                                        <span className="text-xs text-blue-600 font-semibold">🔒</span>
+                                      {isProtocolSupplement(s.name) && (
+                                        <span className="text-xs text-blue-600 font-semibold">📋</span>
                                       )}
                                     </div>
                                   </td>
