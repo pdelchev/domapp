@@ -47,6 +47,8 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [primaryProfileId, setPrimaryProfileId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Add form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -149,13 +151,50 @@ export default function SchedulePage() {
   const handleDelete = async (id: number, type: string) => {
     if (!confirm(locale === 'bg' ? 'Сигурни ли сте?' : 'Are you sure?')) return;
 
+    // Optimistic update: remove immediately from UI
+    const oldMedicines = medicines;
+    setMedicines(medicines.filter(m => m.id !== id));
+
     try {
       if (type === 'supplement') await deleteSupplement(id);
       else if (type === 'intervention') await deleteIntervention(id);
       else await deleteBPMedication(id);
-      await fetchMedicines();
+      setError('');
     } catch (e: any) {
       setError(e.message);
+      // Revert on error
+      setMedicines(oldMedicines);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(locale === 'bg' ? `Изтрийте ${selectedIds.length} елемента?` : `Delete ${selectedIds.length} items?`)) return;
+
+    setIsBulkDeleting(true);
+    const toDelete = medicines.filter(m => selectedIds.includes(m.id));
+
+    // Optimistic update
+    const oldMedicines = medicines;
+    setMedicines(medicines.filter(m => !selectedIds.includes(m.id)));
+    setSelectedIds([]);
+
+    try {
+      // Delete all in parallel
+      await Promise.all(
+        toDelete.map(m => {
+          if (m.type === 'supplement') return deleteSupplement(m.id);
+          else if (m.type === 'intervention') return deleteIntervention(m.id);
+          else return deleteBPMedication(m.id);
+        })
+      );
+      setError('');
+    } catch (e: any) {
+      setError(e.message);
+      // Revert on error
+      setMedicines(oldMedicines);
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -172,12 +211,25 @@ export default function SchedulePage() {
         <PageHeader
           title={locale === 'bg' ? '⏰ График с хранене' : '⏰ Schedule'}
           action={
-            <Button
-              variant="primary"
-              onClick={() => setShowAddForm(true)}
-            >
-              {locale === 'bg' ? '+ Добави' : '+ Add'}
-            </Button>
+            <div className="flex gap-2">
+              {selectedIds.length > 0 && (
+                <Button
+                  variant="danger"
+                  disabled={isBulkDeleting}
+                  onClick={handleBulkDelete}
+                >
+                  {isBulkDeleting
+                    ? (locale === 'bg' ? 'Изтриване...' : 'Deleting...')
+                    : (locale === 'bg' ? `🗑️ Изтрий ${selectedIds.length}` : `🗑️ Delete ${selectedIds.length}`)}
+                </Button>
+              )}
+              <Button
+                variant="primary"
+                onClick={() => setShowAddForm(true)}
+              >
+                {locale === 'bg' ? '+ Добави' : '+ Add'}
+              </Button>
+            </div>
           }
           onBack={() => router.push('/health')}
         />
@@ -203,17 +255,35 @@ export default function SchedulePage() {
                     {timeSlot.items.map((medicine) => (
                       <div
                         key={medicine.id}
-                        className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200"
+                        className={`flex items-center justify-between p-2 rounded border transition-colors ${
+                          selectedIds.includes(medicine.id)
+                            ? 'bg-indigo-100 border-indigo-400'
+                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        }`}
                       >
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-900">{medicine.name}</div>
-                          <div className="text-sm text-gray-600">
-                            {medicine.dose && <span>{medicine.dose}</span>}
-                            {medicine.frequency && <span> • {medicine.frequency}</span>}
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(medicine.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedIds([...selectedIds, medicine.id]);
+                              } else {
+                                setSelectedIds(selectedIds.filter(id => id !== medicine.id));
+                              }
+                            }}
+                            className="w-4 h-4 cursor-pointer"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{medicine.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {medicine.dose && <span>{medicine.dose}</span>}
+                              {medicine.frequency && <span> • {medicine.frequency}</span>}
+                            </div>
+                            {medicine.notes && (
+                              <div className="text-xs text-gray-500 italic mt-1">{medicine.notes}</div>
+                            )}
                           </div>
-                          {medicine.notes && (
-                            <div className="text-xs text-gray-500 italic mt-1">{medicine.notes}</div>
-                          )}
                         </div>
 
                         <div className="flex items-center gap-2 ml-2">
