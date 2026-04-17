@@ -106,6 +106,10 @@ export default function SchedulePage() {
       setError(locale === 'bg' ? 'Име е задължително' : 'Name required');
       return;
     }
+    if (!addForm.time_slot) {
+      setError(locale === 'bg' ? 'Време на ден е задължително' : 'Time of day is required');
+      return;
+    }
 
     setAddLoading(true);
     try {
@@ -114,6 +118,7 @@ export default function SchedulePage() {
           name: addForm.name,
           category: 'other',
           is_active: true,
+          time_slot: addForm.time_slot,
         });
       } else if (addForm.type === 'intervention') {
         await createIntervention({
@@ -123,6 +128,7 @@ export default function SchedulePage() {
           category: 'medication',
           hypothesis: addForm.notes,
           is_active: true,
+          time_slot: addForm.time_slot,
         });
       } else if (addForm.type === 'bp-med') {
         if (!primaryProfileId) throw new Error('No health profile');
@@ -134,6 +140,7 @@ export default function SchedulePage() {
           started_at: new Date().toISOString().split('T')[0],
           notes: addForm.notes,
           is_active: true,
+          time_slot: addForm.time_slot,
         });
       }
 
@@ -206,10 +213,10 @@ export default function SchedulePage() {
     return true;
   });
 
-  // Group medicines by time slot
+  // Group medicines by time slot (only show in matching slot)
   const medicinesByTime = TIME_SLOTS.map(slot => ({
     ...slot,
-    items: uniqueMedicines.filter(m => m.time_slot === slot.value || !m.time_slot),
+    items: uniqueMedicines.filter(m => m.time_slot === slot.value),
   }));
 
   return (
