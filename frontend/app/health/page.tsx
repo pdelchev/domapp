@@ -856,7 +856,16 @@ export default function LifePage() {
         <PageHeader
           title={t('nav.health_hub', locale)}
           action={
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              {emergencyCard && (
+                <button
+                  onClick={() => router.push('/health/emergency')}
+                  className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                  title={locale === 'bg' ? 'Екстрено' : 'Emergency Card'}
+                >
+                  🚨 {locale === 'bg' ? 'Екстрено' : 'Emergency'}
+                </button>
+              )}
               <Link href="/health/genetic">
                 <Button>
                   🧬 {locale === 'bg' ? 'Гени' : 'Genes'}
@@ -876,56 +885,6 @@ export default function LifePage() {
         />
 
         {error && <Alert type="error" message={error} />}
-
-        {/* EMERGENCY CARD PREVIEW */}
-        {emergencyCard && (
-          <button
-            onClick={() => router.push('/health/emergency')}
-            className="w-full text-left mb-4 hover:opacity-90 transition-opacity"
-          >
-            <Card className="bg-gradient-to-r from-red-500 to-red-600 text-white border-red-600">
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Име' : 'Name'}</div>
-                  <div className="font-semibold text-sm">{emergencyCard.profile_full_name}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Възраст' : 'Age'}</div>
-                  <div className="font-semibold">
-                    {emergencyCard.profile_dob
-                      ? Math.floor((Date.now() - new Date(emergencyCard.profile_dob).getTime()) / 31557600000)
-                      : '—'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Пол' : 'Sex'}</div>
-                  <div className="font-semibold">
-                    {emergencyCard.profile_sex === 'female' ? (locale === 'bg' ? 'Ж' : 'F') : (locale === 'bg' ? 'М' : 'M')}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Кръв' : 'Blood'}</div>
-                  <div className="font-bold text-base">{emergencyCard.blood_type}</div>
-                </div>
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Условия' : 'Conditions'}</div>
-                  <div className="font-semibold text-[11px] truncate">
-                    {emergencyCard.chronic_conditions?.split('\n')[0] || '—'}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[11px] opacity-75">{locale === 'bg' ? 'Лекар' : 'Doctor'}</div>
-                  <div className="font-semibold text-[11px] truncate">
-                    {emergencyCard.primary_doctor_name || '—'}
-                  </div>
-                </div>
-              </div>
-              <div className="text-right text-[11px] opacity-75 mt-2">
-                🚨 {locale === 'bg' ? 'Кликнете за редактиране →' : 'Click to edit →'}
-              </div>
-            </Card>
-          </button>
-        )}
 
         {todaySchedules.length === 0 && (data?.active_interventions ?? []).length === 0 ? (
           <Card>
@@ -1052,22 +1011,22 @@ export default function LifePage() {
             )}
 
             {/* Medicine Schedule by Time Slot */}
-            {todaySchedules.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between px-2 py-2 mb-3">
-                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    💊 {locale === 'bg' ? 'График с лекарства' : 'Medicine Schedule'}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setShowAddMedicationForm(true)}
-                    title={locale === 'bg' ? 'Добави' : 'Add'}
-                  >
-                    +
-                  </Button>
+            <div>
+              <div className="flex items-center justify-between px-2 py-2 mb-3">
+                <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  💊 {locale === 'bg' ? 'График с лекарства' : 'Medicine Schedule'}
                 </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAddMedicationForm(true)}
+                  title={locale === 'bg' ? 'Добави' : 'Add'}
+                >
+                  +
+                </Button>
+              </div>
 
+              {todaySchedules.length > 0 ? (
                 <div className="space-y-3">
                   {(todaySchedules as any[]).map((group) => {
                     // Each group from API is { time_slot, items[], taken, total }
@@ -1166,8 +1125,15 @@ export default function LifePage() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  <div className="mb-3">💊</div>
+                  {locale === 'bg'
+                    ? 'Няма планирани лекарства. Кликнете + за добавяне.'
+                    : 'No medicines scheduled. Click + to add one.'}
+                </div>
+              )}
+            </div>
 
             {/* Undo Delete Toast */}
             {undoingScheduleId !== null && (
