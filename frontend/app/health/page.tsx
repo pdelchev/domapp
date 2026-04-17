@@ -1356,6 +1356,214 @@ export default function LifePage() {
           />
         </div>
 
+        {/* ═══ CONSOLIDATED HEALTH METRICS DASHBOARD ═══ */}
+        <Card className="mt-6 bg-gradient-to-br from-gray-50 to-white border-indigo-100">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              📊 {locale === 'bg' ? 'Здравни показатели' : 'Health Metrics Dashboard'}
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* BMI Card */}
+            {vitals?.latest_weight && (
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      📏 {locale === 'bg' ? 'BMI показател' : 'BMI Index'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Съотношение на теглото към височина (нормално: 18.5-24.9)'
+                        : 'Weight-to-height ratio (normal: 18.5-24.9)'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-2">
+                  {vitals.latest_weight?.bmi != null ? vitals.latest_weight.bmi.toFixed(1) : '—'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {vitals.latest_weight?.weight_kg && `${vitals.latest_weight.weight_kg} kg`}
+                </div>
+              </div>
+            )}
+
+            {/* Muscle Mass Card */}
+            {measurements.muscle_mass_kg && (
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      💪 {locale === 'bg' ? 'Мускулна маса' : 'Muscle Mass'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Чем по-висока - тем по-добре. Цел: 35-45% за жени'
+                        : 'Higher is better. Target: 35-45% for women'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-green-600 mb-2">
+                  {measurements.muscle_mass_kg}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {locale === 'bg' ? 'килограми' : 'kg'}
+                </div>
+              </div>
+            )}
+
+            {/* Body Fat Card */}
+            {measurements.body_fat_percent && (
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      🔥 {locale === 'bg' ? 'Телесна мазнина' : 'Body Fat %'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Здравословна норма: 20-32% за жени, 10-20% за мъже'
+                        : 'Healthy range: 20-32% women, 10-20% men'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-orange-600 mb-2">
+                  {measurements.body_fat_percent}%
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+                  <div
+                    className="bg-orange-500 h-2 rounded-full"
+                    style={{ width: `${Math.min(parseInt(measurements.body_fat_percent) / 0.4, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Biological Age Card */}
+            {data?.phenoage?.phenoage != null && (
+              <div className={`bg-white rounded-lg p-4 border transition-colors ${
+                (data.phenoage.age_accel ?? 0) < 0
+                  ? 'border-green-300 hover:border-green-500'
+                  : 'border-red-300 hover:border-red-500'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      🧬 {locale === 'bg' ? 'Биологична възраст' : 'Biological Age'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Истинската скорост на стареене (9 кръвни маркера)'
+                        : 'True aging rate (9 blood markers)'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-end gap-4 mb-3">
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">
+                      {locale === 'bg' ? 'Био' : 'Bio'}
+                    </div>
+                    <div className="text-4xl font-bold text-indigo-600">
+                      {data.phenoage.phenoage}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">
+                      {locale === 'bg' ? 'Хрон' : 'Chrono'}
+                    </div>
+                    <div className="text-2xl text-gray-600">
+                      {data.phenoage.chronological_age}
+                    </div>
+                  </div>
+                  <div className="ml-auto">
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Δ</div>
+                    <div className={`text-3xl font-bold ${(data.phenoage.age_accel ?? 0) < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {(data.phenoage.age_accel ?? 0) >= 0 ? '+' : ''}{data.phenoage.age_accel}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Cardiometabolic Age Card */}
+            {cmAge && (
+              <div className={`bg-white rounded-lg p-4 border transition-colors ${
+                cmAge.delta_years > 10
+                  ? 'border-red-300 hover:border-red-500'
+                  : cmAge.delta_years > 5
+                  ? 'border-yellow-300 hover:border-yellow-500'
+                  : 'border-green-300 hover:border-green-500'
+              }`}>
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      ❤️ {locale === 'bg' ? 'Кардиомета възраст' : 'Cardiometabolic Age'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Риск от инфаркт, инсулт, диабет'
+                        : 'Heart attack, stroke, diabetes risk'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-end gap-4 mb-3">
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">
+                      {locale === 'bg' ? 'Риск' : 'Risk'}
+                    </div>
+                    <div className={`text-4xl font-bold ${cmAge.delta_years > 10 ? 'text-red-600' : cmAge.delta_years > 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {cmAge.cardiometabolic_age}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">
+                      {locale === 'bg' ? 'Хрон' : 'Actual'}
+                    </div>
+                    <div className="text-2xl text-gray-600">
+                      {cmAge.chronological_age}
+                    </div>
+                  </div>
+                  <div className="ml-auto">
+                    <div className="text-xs text-gray-500 uppercase font-semibold mb-1">Δ</div>
+                    <div className={`text-3xl font-bold ${cmAge.delta_years > 10 ? 'text-red-600' : cmAge.delta_years > 5 ? 'text-yellow-600' : 'text-green-600'}`}>
+                      {cmAge.delta_years > 0 ? '+' : ''}{cmAge.delta_years}
+                    </div>
+                  </div>
+                </div>
+                {cmAge.delta_years > 0 && (
+                  <div className="mt-2 p-2 bg-red-50 rounded text-xs text-red-700">
+                    {locale === 'bg'
+                      ? `⚠️ ${cmAge.delta_years > 10 ? 'Критично!' : 'Висок риск'} Сигнали: ${cmAge.signals_present}/4`
+                      : `⚠️ ${cmAge.delta_years > 10 ? 'Critical!' : 'High Risk'} Signals: ${cmAge.signals_present}/4`}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Waist-Hip Ratio Card */}
+            {vitals?.latest_weight?.waist_hip_ratio && (
+              <div className="bg-white rounded-lg p-4 border border-gray-200 hover:border-indigo-300 transition-colors">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-[11px] font-semibold text-gray-600 uppercase tracking-wide">
+                      📐 {locale === 'bg' ? 'Съотношение Т/Б' : 'Waist-Hip Ratio'}
+                    </div>
+                    <div className="text-[10px] text-gray-500 mt-1">
+                      {locale === 'bg'
+                        ? 'Индикатор за разпределение на мазнина (норма <0.95 ж, <1.0 м)'
+                        : 'Fat distribution indicator (normal <0.95 W, <1.0 M)'}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 mb-2">
+                  {vitals.latest_weight?.waist_hip_ratio?.toFixed(2) ?? '—'}
+                </div>
+              </div>
+            )}
+          </div>
+        </Card>
+
         {/* ═══ QUICK TOOLS ═══ */}
         <div className="mt-6 mb-2 text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
           {locale === 'bg' ? 'Бързи инструменти' : 'Quick Tools'}
