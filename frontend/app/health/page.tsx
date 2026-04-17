@@ -11,6 +11,25 @@ import {
   PageShell, PageContent, PageHeader, Card, Button,
   Badge, EmptyState, Spinner, Alert, Input, Select, Textarea,
 } from '../components/ui';
+
+interface Measurements {
+  // Blood Pressure
+  systolic?: string;
+  diastolic?: string;
+  pulse?: string;
+  arm?: 'left' | 'right';
+  posture?: 'sitting' | 'standing' | 'lying';
+  context_tags?: string[];
+
+  // Weight & Circumferences
+  weight_kg?: string;
+  waist_cm?: string;
+  hip_cm?: string;
+  chest_cm?: string;
+
+  // Notes
+  notes?: string;
+}
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import {
@@ -277,6 +296,16 @@ export default function LifePage() {
     photo_file: null as File | null,
   });
   const [editingMedication, setEditingMedication] = useState(false);
+
+  // Measurements modal state
+  const [showMeasurementModal, setShowMeasurementModal] = useState(false);
+  const [measurementStep, setMeasurementStep] = useState(1);
+  const [measurements, setMeasurements] = useState<Measurements>({
+    arm: 'left',
+    posture: 'sitting',
+    context_tags: [],
+  });
+  const [savingMeasurement, setSavingMeasurement] = useState(false);
 
   // Add vitals form state (BP + Weight + Measurements)
   const [showAddVitalsForm, setShowAddVitalsForm] = useState(false);
@@ -592,6 +621,86 @@ export default function LifePage() {
     }
   };
 
+  const handleNextStep = () => {
+    if (measurementStep < 4) {
+      setMeasurementStep(measurementStep + 1);
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (measurementStep > 1) {
+      setMeasurementStep(measurementStep - 1);
+    }
+  };
+
+  const handleSkipStep = () => {
+    if (measurementStep < 4) {
+      setMeasurementStep(measurementStep + 1);
+    }
+  };
+
+  const handleSaveMeasurements = async () => {
+    try {
+      setSavingMeasurement(true);
+      const pid = data?.profile?.id;
+      if (!pid) throw new Error('Profile not found');
+
+      // Save BP reading if provided
+      if (measurements.systolic && measurements.diastolic) {
+        const bpRes = await fetch('/api/health/bp/readings/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+          },
+          body: JSON.stringify({
+            profile: pid,
+            systolic: parseInt(measurements.systolic),
+            diastolic: parseInt(measurements.diastolic),
+            pulse: measurements.pulse ? parseInt(measurements.pulse) : null,
+            measured_at: new Date().toISOString(),
+            arm: measurements.arm,
+            posture: measurements.posture,
+            is_after_caffeine: measurements.context_tags?.includes('caffeine'),
+            is_after_exercise: measurements.context_tags?.includes('exercise'),
+            is_after_medication: measurements.context_tags?.includes('medication'),
+            is_stressed: measurements.context_tags?.includes('stressed'),
+            is_clinic_reading: measurements.context_tags?.includes('clinic'),
+            is_fasting: measurements.context_tags?.includes('fasting'),
+            notes: measurements.notes,
+          }),
+        });
+        if (!bpRes.ok) {
+          const errorData = await bpRes.json().catch(() => ({}));
+          throw new Error(errorData.detail || 'Failed to save BP reading');
+        }
+      }
+
+      // TODO: Save weight and circumferences if provided
+
+      setShowMeasurementModal(false);
+      setMeasurementStep(1);
+      setMeasurements({ arm: 'left', posture: 'sitting', context_tags: [] });
+      setError('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка' : 'Error'));
+    } finally {
+      setSavingMeasurement(false);
+    }
+  };
+
+  const toggleContextTag = (tag: string) => {
+    setMeasurements((prev) => {
+      const tags = prev.context_tags || [];
+      if (tags.includes(tag)) {
+        return { ...prev, context_tags: tags.filter((t) => t !== tag) };
+      } else {
+        return { ...prev, context_tags: [...tags, tag] };
+      }
+    });
+  };
+
   if (loading) {
     return (
       <PageShell>
@@ -651,9 +760,12 @@ export default function LifePage() {
               </Link>
               <Button
                 variant="primary"
-                onClick={() => setShowAddVitalsForm(true)}
+                onClick={() => {
+                  setShowMeasurementModal(true);
+                  setMeasurementStep(1);
+                }}
               >
-                ❤️ {locale === 'bg' ? 'Добави измервания' : 'Add Measurements'}
+                📏 {locale === 'bg' ? 'Добави измервания' : 'Add Measurements'}
               </Button>
             </div>
           }
@@ -2302,6 +2414,253 @@ export default function LifePage() {
                 />
               </div>
               </Card>
+            </div>
+          </div>
+        )}
+
+        {/* MEASUREMENTS MODAL */}
+        {showMeasurementModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50">
+            <div className="bg-white rounded-t-3xl md:rounded-xl w-full md:w-2xl max-h-[90vh] overflow-y-auto md:shadow-xl">
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-3xl md:rounded-t-xl">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  {locale === 'bg' ? '📏 Добави измервания' : '📏 Add Measurements'}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowMeasurementModal(false);
+                    setMeasurementStep(1);
+                    setMeasurements({ arm: 'left', posture: 'sitting', context_tags: [] });
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-6">
+                {/* Step Indicator */}
+                <div className="flex gap-2 mb-6">
+                  {[1, 2, 3, 4].map((step) => (
+                    <div
+                      key={step}
+                      className={`flex-1 h-2 rounded-full transition-colors ${
+                        step <= measurementStep ? 'bg-indigo-600' : 'bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* STEP 1: BLOOD PRESSURE */}
+                {measurementStep === 1 && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 mb-4">🩸 {locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input
+                        label={locale === 'bg' ? 'Систолно' : 'Systolic'}
+                        type="number"
+                        value={measurements.systolic || ''}
+                        onChange={(e) => setMeasurements({ ...measurements, systolic: e.target.value })}
+                        inputMode="numeric"
+                        placeholder="120"
+                      />
+                      <Input
+                        label={locale === 'bg' ? 'Диастолно' : 'Diastolic'}
+                        type="number"
+                        value={measurements.diastolic || ''}
+                        onChange={(e) => setMeasurements({ ...measurements, diastolic: e.target.value })}
+                        inputMode="numeric"
+                        placeholder="80"
+                      />
+                    </div>
+
+                    <Input
+                      label={locale === 'bg' ? 'Пулс' : 'Pulse (bpm)'}
+                      type="number"
+                      value={measurements.pulse || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, pulse: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="72"
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Select
+                        label={locale === 'bg' ? 'Ръка' : 'Arm'}
+                        value={measurements.arm || 'left'}
+                        onChange={(e) => setMeasurements({ ...measurements, arm: e.target.value as 'left' | 'right' })}
+                      >
+                        <option value="left">{locale === 'bg' ? 'Лява' : 'Left'}</option>
+                        <option value="right">{locale === 'bg' ? 'Дясна' : 'Right'}</option>
+                      </Select>
+                      <Select
+                        label={locale === 'bg' ? 'Поза' : 'Posture'}
+                        value={measurements.posture || 'sitting'}
+                        onChange={(e) => setMeasurements({ ...measurements, posture: e.target.value as 'sitting' | 'standing' | 'lying' })}
+                      >
+                        <option value="sitting">{locale === 'bg' ? 'Седнал' : 'Sitting'}</option>
+                        <option value="standing">{locale === 'bg' ? 'Правостоящ' : 'Standing'}</option>
+                        <option value="lying">{locale === 'bg' ? 'Легнал' : 'Lying'}</option>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-3">
+                        {locale === 'bg' ? 'Контекст' : 'Context'}
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { tag: 'caffeine', emoji: '☕', label: locale === 'bg' ? 'След кафе' : 'After coffee' },
+                          { tag: 'exercise', emoji: '🏃', label: locale === 'bg' ? 'След упражнение' : 'After exercise' },
+                          { tag: 'medication', emoji: '💊', label: locale === 'bg' ? 'След лекарство' : 'After meds' },
+                          { tag: 'stressed', emoji: '😰', label: locale === 'bg' ? 'Стресиран' : 'Stressed' },
+                          { tag: 'clinic', emoji: '🏥', label: locale === 'bg' ? 'Клинично' : 'Clinical' },
+                          { tag: 'fasting', emoji: '🍴', label: locale === 'bg' ? 'На гладно' : 'Fasting' },
+                        ].map(({ tag, emoji, label }) => (
+                          <button
+                            key={tag}
+                            onClick={() => toggleContextTag(tag)}
+                            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              measurements.context_tags?.includes(tag)
+                                ? 'bg-indigo-100 text-indigo-700'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                            }`}
+                          >
+                            {emoji} {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: WEIGHT */}
+                {measurementStep === 2 && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 mb-4">⚖️ {locale === 'bg' ? 'Тегло' : 'Weight'}</h3>
+                    <Input
+                      label={locale === 'bg' ? 'Килограми' : 'Kilograms'}
+                      type="number"
+                      step="0.1"
+                      value={measurements.weight_kg || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, weight_kg: e.target.value })}
+                      inputMode="decimal"
+                      placeholder="70.5"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {locale === 'bg'
+                        ? 'Можеш да пропуснеш тази стъпка, ако не си претеглена днес'
+                        : 'You can skip this step if you haven\'t weighed yourself'}
+                    </p>
+                  </div>
+                )}
+
+                {/* STEP 3: CIRCUMFERENCES */}
+                {measurementStep === 3 && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 mb-4">📏 {locale === 'bg' ? 'Обиколки' : 'Circumferences'}</h3>
+                    <Input
+                      label={locale === 'bg' ? 'Талия (см)' : 'Waist (cm)'}
+                      type="number"
+                      value={measurements.waist_cm || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, waist_cm: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="85"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Бедро (см)' : 'Hip (cm)'}
+                      type="number"
+                      value={measurements.hip_cm || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, hip_cm: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="100"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Гърди (см)' : 'Chest (cm)'}
+                      type="number"
+                      value={measurements.chest_cm || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, chest_cm: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="98"
+                    />
+                    <p className="text-xs text-gray-500">
+                      {locale === 'bg'
+                        ? 'Всички полета са опционални. Попълни само това, което искаш да проследиш'
+                        : 'All fields are optional. Fill in only what you want to track'}
+                    </p>
+                  </div>
+                )}
+
+                {/* STEP 4: NOTES */}
+                {measurementStep === 4 && (
+                  <div className="space-y-4">
+                    <h3 className="font-semibold text-gray-900 mb-4">📝 {locale === 'bg' ? 'Бележки' : 'Notes'}</h3>
+                    <textarea
+                      value={measurements.notes || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, notes: e.target.value })}
+                      placeholder={locale === 'bg' ? 'Условия, време на ден, други наблюдения...' : 'Time of day, conditions, other observations...'}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none h-24"
+                    />
+                  </div>
+                )}
+
+                {/* Modal Actions */}
+                <div className="flex gap-3 mt-8 pt-6 border-t border-gray-200">
+                  {measurementStep > 1 && (
+                    <Button
+                      variant="secondary"
+                      onClick={handlePrevStep}
+                      className="flex-1"
+                    >
+                      {locale === 'bg' ? '← Назад' : '← Back'}
+                    </Button>
+                  )}
+                  {measurementStep < 4 && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        onClick={handleSkipStep}
+                        className="flex-1"
+                      >
+                        {locale === 'bg' ? 'Пропусни' : 'Skip'}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleNextStep}
+                        className="flex-1"
+                      >
+                        {locale === 'bg' ? 'Напред →' : 'Next →'}
+                      </Button>
+                    </>
+                  )}
+                  {measurementStep === 4 && (
+                    <>
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          setShowMeasurementModal(false);
+                          setMeasurementStep(1);
+                          setMeasurements({ arm: 'left', posture: 'sitting', context_tags: [] });
+                        }}
+                        className="flex-1"
+                      >
+                        {locale === 'bg' ? 'Отмени' : 'Cancel'}
+                      </Button>
+                      <Button
+                        variant="primary"
+                        onClick={handleSaveMeasurements}
+                        disabled={savingMeasurement}
+                        className="flex-1"
+                      >
+                        {savingMeasurement
+                          ? (locale === 'bg' ? 'Запазване...' : 'Saving...')
+                          : (locale === 'bg' ? '✓ Запази' : '✓ Save')}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
