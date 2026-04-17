@@ -27,7 +27,6 @@ const MODULES: ModuleItem[] = [
       { href: '/health', key: 'nav.hub' },
       { href: '/health/tests', key: 'nav.tests' },
       { href: '/health/genetic', key: 'nav.genetic_profile' },
-      { href: '/health/supplements', key: 'nav.supplements' },
       { href: '/health/symptoms', key: 'nav.symptoms' },
       { href: '/health/weather', key: 'nav.weather' },
       { href: '/health/caregivers', key: 'nav.caregivers' },

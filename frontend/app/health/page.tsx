@@ -3,7 +3,7 @@
 // Unified Life landing page — one HealthScore + sub-scores + deltas + history sparkline
 // + active interventions + blood test results + recommendations (merged from lifestyle).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import NavBar from '../components/NavBar';
@@ -43,7 +43,7 @@ interface Measurements {
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import {
-  getLifeSummary, deleteIntervention,
+  getLifeSummary, deleteIntervention, deleteSupplement, deleteSchedule,
   getVitalsDashboard, getCardiometabolicAge, getBPPerKgSlope,
   getStageRegressionForecast, saveInterventionLogs, getEmergencyCard,
   getMealTimings,
@@ -360,6 +360,13 @@ export default function LifePage() {
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState('');
   const [previewPhotoName, setPreviewPhotoName] = useState('');
 
+  // Undo delete medicine timer
+  const [undoingScheduleId, setUndoingScheduleId] = useState<number | null>(null);
+  const [undoSeconds, setUndoSeconds] = useState(0);
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const deletedMedicineRef = useRef<any | null>(null);
+  const deletedSchedulesRef = useRef<any[] | null>(null);
+
   // Daily activities tracking (stored in localStorage for persistence)
   const [dailyActivities, setDailyActivities] = useState<Record<string, boolean>>(() => {
     if (typeof window !== 'undefined') {
@@ -567,6 +574,68 @@ export default function LifePage() {
     if (e.target.files?.[0]) {
       setNewMedicationForm({ ...newMedicationForm, photo_file: e.target.files[0] });
     }
+  };
+
+  const handleDeleteMedicine = async (scheduleItem: any) => {
+    // Store old schedules for undo
+    deletedSchedulesRef.current = JSON.parse(JSON.stringify(todaySchedules));
+
+    // Optimistic delete: remove from UI immediately
+    const timeSlotKey = scheduleItem.time_slot;
+    const newSchedules = todaySchedules
+      .map(ts =>
+        ts.time_slot === timeSlotKey
+          ? { ...ts, items: ts.items.filter((item: any) => item.schedule_id !== scheduleItem.schedule_id) }
+          : ts
+      )
+      .filter(ts => ts.items && ts.items.length > 0);
+
+    setTodaySchedules(newSchedules);
+
+    // Store deleted item and ID for undo
+    setUndoingScheduleId(scheduleItem.schedule_id);
+    setUndoSeconds(600); // 10 minutes
+    deletedMedicineRef.current = scheduleItem;
+
+    // Start countdown timer
+    if (undoTimerRef.current) clearInterval(undoTimerRef.current);
+
+    undoTimerRef.current = setInterval(() => {
+      setUndoSeconds((s) => {
+        if (s <= 1) {
+          // Timer expired, confirm deletion
+          clearInterval(undoTimerRef.current!);
+          confirmDeleteMedicine(scheduleItem);
+          setUndoingScheduleId(null);
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+  };
+
+  const confirmDeleteMedicine = async (scheduleItem: any) => {
+    try {
+      // Delete the schedule (not the supplement/intervention itself)
+      await deleteSchedule(scheduleItem.schedule_id);
+      setError('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (locale === 'bg' ? 'Грешка при изтриване' : 'Failed to delete'));
+      // Reload to restore state on error
+      await load();
+    }
+  };
+
+  const handleUndoDeleteMedicine = () => {
+    if (undoTimerRef.current) {
+      clearInterval(undoTimerRef.current);
+    }
+    // Restore from saved state
+    if (deletedSchedulesRef.current) {
+      setTodaySchedules(deletedSchedulesRef.current);
+    }
+    setUndoingScheduleId(null);
+    deletedMedicineRef.current = null;
   };
 
   const handleSaveVitals = async () => {
@@ -1081,6 +1150,14 @@ export default function LifePage() {
                                     <div className="text-xs text-gray-500 mt-1">{item.notes}</div>
                                   )}
                                 </div>
+                                <Button
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() => handleDeleteMedicine(item)}
+                                  title={locale === 'bg' ? 'Изтрий' : 'Delete'}
+                                >
+                                  ✕
+                                </Button>
                               </div>
                             );
                           })}
@@ -1089,6 +1166,24 @@ export default function LifePage() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Undo Delete Toast */}
+            {undoingScheduleId !== null && (
+              <div className="fixed bottom-20 left-4 right-4 bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-center justify-between z-40 shadow-lg">
+                <div className="text-sm text-amber-900">
+                  {locale === 'bg'
+                    ? `Изтриване за ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}`
+                    : `Deleting in ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}`}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleUndoDeleteMedicine}
+                >
+                  {locale === 'bg' ? 'Отмени' : 'Undo'}
+                </Button>
               </div>
             )}
 
