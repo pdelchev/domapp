@@ -982,12 +982,12 @@ export default function LifePage() {
               </div>
             )}
 
-            {/* UNIFIED: Meals + Supplements Schedule by Time */}
-            {(meals.length > 0 || (data?.active_interventions ?? []).length > 0) && (
+            {/* Medicine Schedule by Time Slot */}
+            {todaySchedules.length > 0 && (
               <div>
                 <div className="flex items-center justify-between px-2 py-2 mb-3">
                   <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    ⏰ {locale === 'bg' ? 'График с хранене' : 'Daily Schedule'}
+                    💊 {locale === 'bg' ? 'График с лекарства' : 'Medicine Schedule'}
                   </div>
                   <Button
                     size="sm"
@@ -999,119 +999,94 @@ export default function LifePage() {
                   </Button>
                 </div>
 
-                <div className="space-y-4">
-                  {meals.length > 0 ? (
-                    // Display organized by meal times
-                    meals.map((meal) => {
-                      const supplementsForThisTime = (data?.active_interventions ?? []).filter(iv =>
-                        meal.supplement_ids.includes(iv.id)
-                      );
-                      const mealText = locale === 'bg' ? meal.meal_name_bg : meal.meal_name;
-                      const descText = locale === 'bg' ? meal.description_bg : meal.description;
-                      const foodsText = locale === 'bg' ? meal.suggested_foods_bg : meal.suggested_foods;
+                <div className="space-y-3">
+                  {(todaySchedules as any[]).map((group) => {
+                    // Each group from API is { time_slot, items[], taken, total }
+                    const timeSlot = group.time_slot;
+                    const items = group.items || [];
+                    if (items.length === 0) return null; // Only show time slots with medicines
 
-                      return (
-                        <Card key={meal.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 border-l-4 border-blue-500">
-                          {/* Meal Header */}
-                          <div className="mb-3 pb-3 border-b border-blue-200">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <div className="text-sm font-bold text-blue-900">
-                                  ⏰ {meal.time_slot} — {mealText}
+                    const timeIcon = TIME_SLOTS[timeSlot] || '⏰';
+                    const timeLabel = locale === 'bg'
+                      ? {
+                          morning: 'Сутрин',
+                          fasted: 'Гладна',
+                          breakfast: 'Закуска',
+                          midday: 'Преди обяд',
+                          lunch: 'Обяд',
+                          afternoon: 'Следобед',
+                          dinner: 'Вечеря',
+                          evening: 'Вечер',
+                          bedtime: 'Преди сън',
+                          as_needed: 'По необходимост',
+                        }[timeSlot] || timeSlot
+                      : {
+                          morning: 'Morning',
+                          fasted: 'Fasted',
+                          breakfast: 'Breakfast',
+                          midday: 'Mid-morning',
+                          lunch: 'Lunch',
+                          afternoon: 'Afternoon',
+                          dinner: 'Dinner',
+                          evening: 'Evening',
+                          bedtime: 'Bedtime',
+                          as_needed: 'As Needed',
+                        }[timeSlot] || timeSlot;
+
+                    return (
+                      <Card key={timeSlot} className="border-l-4 border-indigo-500">
+                        <div className="mb-3 pb-3 border-b border-gray-200">
+                          <div className="text-sm font-bold text-gray-900">
+                            {timeIcon} {timeLabel}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          {items.map((item: any) => {
+                            const isMed = item.category === 'medication';
+                            const icon = isMed ? '💊' : item.category === 'supplement' ? '🧬' : '⚡';
+                            const isTaken = item.taken === true;
+                            const doseStr = item.dose_amount && item.dose_unit
+                              ? `${item.dose_amount}${item.dose_unit}`.replace(/1$/, '')
+                              : '';
+
+                            return (
+                              <div key={item.schedule_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleDose(item.schedule_id, isTaken)}
+                                  disabled={savingDose === item.schedule_id}
+                                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded transition-colors text-sm font-medium ${
+                                    isTaken
+                                      ? 'bg-green-100 text-green-700'
+                                      : 'bg-white text-gray-400 border border-gray-300 hover:bg-indigo-50 hover:text-indigo-600'
+                                  }`}
+                                  title={isTaken ? (locale === 'bg' ? 'Отмени' : 'Undo') : (locale === 'bg' ? 'Маркирай' : 'Mark')}
+                                >
+                                  {savingDose === item.schedule_id ? '⏳' : isTaken ? '✓' : '○'}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium text-sm text-gray-900">
+                                      {icon} {locale === 'bg' ? item.name_bg : item.name}
+                                    </span>
+                                    {doseStr && (
+                                      <span className="text-xs text-gray-600 bg-white px-2 py-0.5 rounded">
+                                        {doseStr}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.notes && (
+                                    <div className="text-xs text-gray-500 mt-1">{item.notes}</div>
+                                  )}
                                 </div>
-                                {descText && (
-                                  <div className="text-xs text-blue-700 mt-1">
-                                    {descText}
-                                  </div>
-                                )}
                               </div>
-                              {meal.water_ml && (
-                                <Badge color="blue">💧 {meal.water_ml}ml</Badge>
-                              )}
-                            </div>
-
-                            {/* Foods */}
-                            {foodsText && foodsText.length > 0 && (
-                              <div className="text-xs text-blue-600 mt-2">
-                                🥗 {foodsText.join(', ')}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Supplements for this meal */}
-                          {supplementsForThisTime.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold text-blue-700 uppercase">
-                                💊 {locale === 'bg' ? 'Добавки' : 'Supplements'}
-                              </div>
-                              {supplementsForThisTime.map((iv) => {
-                                const takenToday = iv.taken_today === true;
-                                const isMed = iv.category === 'medication';
-                                const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : '⚡';
-                                return (
-                                  <div key={iv.id} className="flex items-center gap-2 p-2 bg-white rounded border border-blue-100">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMarkTaken(iv)}
-                                      className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded transition-colors text-sm font-medium ${
-                                        takenToday
-                                          ? 'bg-green-100 text-green-700'
-                                          : 'bg-gray-100 text-gray-400 hover:bg-indigo-100 hover:text-indigo-600'
-                                      }`}
-                                      title={takenToday ? (locale === 'bg' ? 'Отмени' : 'Undo') : (locale === 'bg' ? 'Маркирай' : 'Mark')}
-                                    >
-                                      {takenToday ? '✓' : '○'}
-                                    </button>
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1.5">
-                                        <span>{icon} {iv.name}</span>
-                                        {iv.dose && (
-                                          <span className="text-[11px] text-gray-500">{iv.dose}</span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </Card>
-                      );
-                    })
-                  ) : (
-                    // Fallback: show just the supplements
-                    (data?.active_interventions ?? []).map((iv) => {
-                      const isMed = iv.category === 'medication';
-                      const icon = isMed ? '💊' : iv.category === 'supplement' ? '🧬' : '⚡';
-                      const takenToday = iv.taken_today === true;
-                      return (
-                        <Card key={iv.id} className="!p-0 overflow-hidden">
-                          <div className="flex">
-                            <button
-                              type="button"
-                              onClick={() => handleMarkTaken(iv)}
-                              className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
-                                takenToday
-                                  ? 'bg-green-50 text-green-600'
-                                  : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
-                              }`}
-                            >
-                              <span className="text-xl">{takenToday ? '✓' : '○'}</span>
-                            </button>
-                            <div className="flex-1 p-3">
-                              <div className="font-semibold text-sm text-gray-900">{icon} {iv.name}</div>
-                              {iv.dose && (
-                                <span className="text-xs text-gray-600">{iv.dose}</span>
-                              )}
-                              {iv.reminder_times && iv.reminder_times.length > 0 && (
-                                <span className="text-xs text-gray-400 ml-1">⏰ {iv.reminder_times.join(', ')}</span>
-                              )}
-                            </div>
-                          </div>
-                        </Card>
-                      );
-                    })
-                  )}
+                            );
+                          })}
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
               </div>
             )}
