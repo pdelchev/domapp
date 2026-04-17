@@ -262,7 +262,7 @@ export default function CheckinPage() {
               </div>
 
               <div className="p-6">
-                {/* Step Indicator */}
+                {/* Step Progress Indicator */}
                 <div className="flex gap-2 mb-6">
                   {[1, 2, 3, 4].map((step) => (
                     <div
