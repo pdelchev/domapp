@@ -886,17 +886,86 @@ export default function LifePage() {
 
         {error && <Alert type="error" message={error} />}
 
-        {todaySchedules.length === 0 && (data?.active_interventions ?? []).length === 0 ? (
-          <Card>
-            <EmptyState
-              icon="💊"
-              message={locale === 'bg'
-                ? 'Няма планирани лекарства за днес'
-                : 'No medications scheduled for today'}
-            />
-          </Card>
-        ) : (
-          <div className="space-y-4">
+        <div className="space-y-4">
+            {/* Medicine Schedule by Time Slot — MOVED TO TOP */}
+            <div>
+              <div className="flex items-center justify-between px-2 py-2 mb-3">
+                <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  💊 {locale === 'bg' ? 'График с лекарства' : 'Medicine Schedule'}
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowAddMedicationForm(true)}
+                  title={locale === 'bg' ? 'Добави' : 'Add'}
+                >
+                  +
+                </Button>
+              </div>
+
+              {todaySchedules.length > 0 ? (
+                <div className="space-y-3">
+                  {(todaySchedules as any[]).map((group) => {
+                    const timeSlot = group.time_slot as string;
+                    const items = group.items || [];
+                    if (items.length === 0) return null;
+                    const timeIcon = TIME_SLOTS[timeSlot] || '⏰';
+                    const timeLabels: Record<string, string> = locale === 'bg'
+                      ? { morning: 'Сутрин', fasted: 'Гладна', breakfast: 'Закуска', midday: 'Преди обяд', lunch: 'Обяд', afternoon: 'Следобед', dinner: 'Вечеря', evening: 'Вечер', bedtime: 'Преди сън', as_needed: 'По необходимост' }
+                      : { morning: 'Morning', fasted: 'Fasted', breakfast: 'Breakfast', midday: 'Mid-morning', lunch: 'Lunch', afternoon: 'Afternoon', dinner: 'Dinner', evening: 'Evening', bedtime: 'Bedtime', as_needed: 'As needed' };
+                    const timeLabel = timeLabels[timeSlot] || timeSlot;
+                    return (
+                      <Card key={timeSlot} className="border-l-4 border-indigo-500">
+                        <div className="mb-3 pb-3 border-b border-gray-200">
+                          <div className="text-sm font-bold text-gray-900">{timeIcon} {timeLabel}</div>
+                        </div>
+                        <div className="space-y-2">
+                          {items.map((item: any) => {
+                            const isMed = item.category === 'medication';
+                            const icon = isMed ? '💊' : item.category === 'supplement' ? '🧬' : '⚡';
+                            const isTaken = item.taken === true;
+                            const doseStr = item.dose_amount && item.dose_unit ? `${item.dose_amount}${item.dose_unit}`.replace(/1$/, '') : '';
+                            return (
+                              <div key={item.schedule_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+                                <button type="button" onClick={() => handleToggleDose(item.schedule_id, isTaken)} disabled={savingDose === item.schedule_id} className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded transition-colors text-sm font-medium ${isTaken ? 'bg-green-100 text-green-700' : 'bg-white text-gray-400 border border-gray-300 hover:bg-indigo-50 hover:text-indigo-600'}`} title={isTaken ? (locale === 'bg' ? 'Отмени' : 'Undo') : (locale === 'bg' ? 'Маркирай' : 'Mark')}>
+                                  {savingDose === item.schedule_id ? '⏳' : isTaken ? '✓' : '○'}
+                                </button>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-medium text-sm text-gray-900">{icon} {locale === 'bg' ? item.name_bg : item.name}</span>
+                                    {doseStr && <span className="text-xs text-gray-600 bg-white px-2 py-0.5 rounded">{doseStr}</span>}
+                                  </div>
+                                  {item.notes && <div className="text-xs text-gray-500 mt-1">{item.notes}</div>}
+                                </div>
+                                <Button size="sm" variant="danger" onClick={() => handleDeleteMedicine(item)} title={locale === 'bg' ? 'Изтрий' : 'Delete'}>✕</Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-gray-500 text-sm">
+                  <div className="mb-3">💊</div>
+                  {locale === 'bg' ? 'Няма планирани лекарства. Кликнете + за добавяне.' : 'No medicines scheduled. Click + to add one.'}
+                </div>
+              )}
+            </div>
+
+            {/* Undo Delete Toast */}
+            {undoingScheduleId !== null && (
+              <div className="fixed bottom-20 left-4 right-4 bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-center justify-between z-40 shadow-lg">
+                <div className="text-sm text-amber-900">
+                  {locale === 'bg' ? `Изтриване за ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}` : `Deleting in ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}`}
+                </div>
+                <Button size="sm" variant="ghost" onClick={handleUndoDeleteMedicine}>
+                  {locale === 'bg' ? 'Отмени' : 'Undo'}
+                </Button>
+              </div>
+            )}
+
             {/* Progress Summary — includes supplements, medications, AND daily activities */}
             {(() => {
               const DAILY_ACTIVITIES = ['breakfast', 'lunch', 'dinner', 'gym', 'bp_check', 'water'];
@@ -928,230 +997,6 @@ export default function LifePage() {
               );
             })()}
 
-
-            {/* Supplements/Schedules organized by time slot */}
-            {Object.entries(groupedByTime).length > 0 && (
-              <div>
-                <div className="text-xs font-semibold text-gray-700 px-2 py-2 mb-2">
-                  💊 {locale === 'bg' ? 'График' : 'Schedule'}
-                </div>
-                <div className="space-y-3">
-                  {Object.entries(groupedByTime).map(([timeSlot, items]) => (
-                    <div key={timeSlot}>
-                      <div className="text-xs font-medium text-gray-600 px-2 py-1 mb-2">
-                        {TIME_SLOTS[timeSlot]} {locale === 'bg' ? timeSlot : timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1)}
-                      </div>
-                <div className="space-y-2">
-                  {items.map((schedule) => {
-                    const log = doseLogs[schedule.id];
-                    const taken = log?.taken;
-                    return (
-                      <Card key={schedule.id} className="!p-0 overflow-hidden">
-                        <div className="flex">
-                          {/* Take button — left strip */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleDose(schedule.id, taken)}
-                            disabled={savingDose === schedule.id}
-                            className={`flex-shrink-0 w-16 flex flex-col items-center justify-center gap-1 transition-colors ${
-                              taken === true
-                                ? 'bg-green-50 text-green-600 hover:bg-green-100'
-                                : taken === false
-                                  ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                                  : 'bg-gray-50 text-gray-400 hover:bg-indigo-50 hover:text-indigo-600'
-                            } ${savingDose === schedule.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            title={taken === true
-                              ? (locale === 'bg' ? 'Отмени' : 'Undo taken')
-                              : taken === false
-                                ? (locale === 'bg' ? 'Маркирай като взето' : 'Mark as taken')
-                                : (locale === 'bg' ? 'Маркирай като взето' : 'Mark as taken')}
-                          >
-                            <span className="text-xl">
-                              {taken === true ? '✓' : taken === false ? '✗' : '○'}
-                            </span>
-                            <span className="text-[9px] font-medium leading-tight">
-                              {taken === true
-                                ? (locale === 'bg' ? 'Взето' : 'Taken')
-                                : taken === false
-                                  ? (locale === 'bg' ? 'Пропуск' : 'Skip')
-                                  : (locale === 'bg' ? 'Вземи' : 'Take')}
-                            </span>
-                          </button>
-
-                          {/* Content */}
-                          <div className="flex-1 min-w-0 p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-lg flex-shrink-0">💊</span>
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-sm text-gray-900 truncate">{schedule.supplement_name}</div>
-                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                    {schedule.dose_amount && (
-                                      <span className="text-xs font-medium text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                                        {schedule.dose_amount} {schedule.dose_unit}
-                                      </span>
-                                    )}
-                                    {schedule.time_slot && (
-                                      <span className="text-xs text-gray-500">⏰ {schedule.time_slot}</span>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                    </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Medicine Schedule by Time Slot */}
-            <div>
-              <div className="flex items-center justify-between px-2 py-2 mb-3">
-                <div className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                  💊 {locale === 'bg' ? 'График с лекарства' : 'Medicine Schedule'}
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setShowAddMedicationForm(true)}
-                  title={locale === 'bg' ? 'Добави' : 'Add'}
-                >
-                  +
-                </Button>
-              </div>
-
-              {todaySchedules.length > 0 ? (
-                <div className="space-y-3">
-                  {(todaySchedules as any[]).map((group) => {
-                    // Each group from API is { time_slot, items[], taken, total }
-                    const timeSlot = group.time_slot as string;
-                    const items = group.items || [];
-                    if (items.length === 0) return null; // Only show time slots with medicines
-
-                    const timeIcon = TIME_SLOTS[timeSlot] || '⏰';
-                    const timeLabels: Record<string, string> = locale === 'bg'
-                      ? {
-                          morning: 'Сутрин',
-                          fasted: 'Гладна',
-                          breakfast: 'Закуска',
-                          midday: 'Преди обяд',
-                          lunch: 'Обяд',
-                          afternoon: 'Следобед',
-                          dinner: 'Вечеря',
-                          evening: 'Вечер',
-                          bedtime: 'Преди сън',
-                          as_needed: 'По необходимост',
-                        }
-                      : {
-                          morning: 'Morning',
-                          fasted: 'Fasted',
-                          breakfast: 'Breakfast',
-                          midday: 'Mid-morning',
-                          lunch: 'Lunch',
-                          afternoon: 'Afternoon',
-                          dinner: 'Dinner',
-                          evening: 'Evening',
-                          bedtime: 'Bedtime',
-                          as_needed: 'As needed',
-                        };
-                    const timeLabel = timeLabels[timeSlot] || timeSlot;
-
-                    return (
-                      <Card key={timeSlot} className="border-l-4 border-indigo-500">
-                        <div className="mb-3 pb-3 border-b border-gray-200">
-                          <div className="text-sm font-bold text-gray-900">
-                            {timeIcon} {timeLabel}
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          {items.map((item: any) => {
-                            const isMed = item.category === 'medication';
-                            const icon = isMed ? '💊' : item.category === 'supplement' ? '🧬' : '⚡';
-                            const isTaken = item.taken === true;
-                            const doseStr = item.dose_amount && item.dose_unit
-                              ? `${item.dose_amount}${item.dose_unit}`.replace(/1$/, '')
-                              : '';
-
-                            return (
-                              <div key={item.schedule_id} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleDose(item.schedule_id, isTaken)}
-                                  disabled={savingDose === item.schedule_id}
-                                  className={`flex-shrink-0 w-10 h-10 flex items-center justify-center rounded transition-colors text-sm font-medium ${
-                                    isTaken
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-white text-gray-400 border border-gray-300 hover:bg-indigo-50 hover:text-indigo-600'
-                                  }`}
-                                  title={isTaken ? (locale === 'bg' ? 'Отмени' : 'Undo') : (locale === 'bg' ? 'Маркирай' : 'Mark')}
-                                >
-                                  {savingDose === item.schedule_id ? '⏳' : isTaken ? '✓' : '○'}
-                                </button>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-medium text-sm text-gray-900">
-                                      {icon} {locale === 'bg' ? item.name_bg : item.name}
-                                    </span>
-                                    {doseStr && (
-                                      <span className="text-xs text-gray-600 bg-white px-2 py-0.5 rounded">
-                                        {doseStr}
-                                      </span>
-                                    )}
-                                  </div>
-                                  {item.notes && (
-                                    <div className="text-xs text-gray-500 mt-1">{item.notes}</div>
-                                  )}
-                                </div>
-                                <Button
-                                  size="sm"
-                                  variant="danger"
-                                  onClick={() => handleDeleteMedicine(item)}
-                                  title={locale === 'bg' ? 'Изтрий' : 'Delete'}
-                                >
-                                  ✕
-                                </Button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-gray-500 text-sm">
-                  <div className="mb-3">💊</div>
-                  {locale === 'bg'
-                    ? 'Няма планирани лекарства. Кликнете + за добавяне.'
-                    : 'No medicines scheduled. Click + to add one.'}
-                </div>
-              )}
-            </div>
-
-            {/* Undo Delete Toast */}
-            {undoingScheduleId !== null && (
-              <div className="fixed bottom-20 left-4 right-4 bg-amber-50 border border-amber-300 rounded-lg p-3 flex items-center justify-between z-40 shadow-lg">
-                <div className="text-sm text-amber-900">
-                  {locale === 'bg'
-                    ? `Изтриване за ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}`
-                    : `Deleting in ${Math.floor(undoSeconds / 60)}:${String(undoSeconds % 60).padStart(2, '0')}`}
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleUndoDeleteMedicine}
-                >
-                  {locale === 'bg' ? 'Отмени' : 'Undo'}
-                </Button>
-              </div>
-            )}
 
             {/* Additional Activities (Gym, BP Check, Water) */}
             <div>
@@ -1305,8 +1150,7 @@ export default function LifePage() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+        </div>
 
         {/* MORNING BRIEFING */}
         {data?.briefing && (
