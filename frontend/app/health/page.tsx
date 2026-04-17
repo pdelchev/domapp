@@ -1002,12 +1002,12 @@ export default function LifePage() {
                 <div className="space-y-3">
                   {(todaySchedules as any[]).map((group) => {
                     // Each group from API is { time_slot, items[], taken, total }
-                    const timeSlot = group.time_slot;
+                    const timeSlot = group.time_slot as string;
                     const items = group.items || [];
                     if (items.length === 0) return null; // Only show time slots with medicines
 
                     const timeIcon = TIME_SLOTS[timeSlot] || '⏰';
-                    const timeLabel = locale === 'bg'
+                    const timeLabels: Record<string, string> = locale === 'bg'
                       ? {
                           morning: 'Сутрин',
                           fasted: 'Гладна',
@@ -1019,7 +1019,7 @@ export default function LifePage() {
                           evening: 'Вечер',
                           bedtime: 'Преди сън',
                           as_needed: 'По необходимост',
-                        }[timeSlot] || timeSlot
+                        }
                       : {
                           morning: 'Morning',
                           fasted: 'Fasted',
@@ -1030,8 +1030,9 @@ export default function LifePage() {
                           dinner: 'Dinner',
                           evening: 'Evening',
                           bedtime: 'Bedtime',
-                          as_needed: 'As Needed',
-                        }[timeSlot] || timeSlot;
+                          as_needed: 'As needed',
+                        };
+                    const timeLabel = timeLabels[timeSlot] || timeSlot;
 
                     return (
                       <Card key={timeSlot} className="border-l-4 border-indigo-500">
