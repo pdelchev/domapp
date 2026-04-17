@@ -24,7 +24,7 @@ from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404
 from datetime import timedelta
 
 from .models import Vehicle, VehicleObligation, ObligationFile
@@ -40,9 +40,34 @@ from .services import (
 from .calendar_export import export_calendar_for_vehicle, export_calendar_for_user
 
 
-class VehicleViewSet(viewsets.ModelViewSet):
+class ObjectPermissionMixin:
+    """Mixin to filter querysets by per-object permissions."""
+
+    def filter_by_object_permissions(self, qs, object_type: str):
+        """Filter queryset by user's per-object permissions."""
+        user = self.request.user
+        if user.role == 'admin':
+            return qs
+        allowed_ids = getattr(user, f'allowed_{object_type}_ids', [])
+        if not allowed_ids:
+            return qs
+        return qs.filter(id__in=allowed_ids)
+
+    def check_object_permission(self, obj, object_type: str):
+        """Check if user has access to a specific object."""
+        user = self.request.user
+        if user.role == 'admin':
+            return
+        allowed_ids = getattr(user, f'allowed_{object_type}_ids', [])
+        if not allowed_ids:
+            return
+        if obj.id not in allowed_ids:
+            raise Http404(f'You do not have access to this {object_type}')
+
+
+class VehicleViewSet(ObjectPermissionMixin, viewsets.ModelViewSet):
     """
-    CRUD for vehicles. Scoped to authenticated user.
+    CRUD for vehicles. Scoped to authenticated user + per-object permissions.
     Filters: ?property=<id>, ?active=true/false
     """
     permission_classes = [IsAuthenticated]
@@ -69,7 +94,16 @@ class VehicleViewSet(viewsets.ModelViewSet):
         elif active == 'false':
             qs = qs.filter(is_active=False)
 
+        # Filter by per-object permissions
+        qs = self.filter_by_object_permissions(qs, 'vehicle')
         return qs
+
+    def retrieve(self, request, *args, **kwargs):
+        """Check permission before returning object."""
+        response = super().retrieve(request, *args, **kwargs)
+        obj = self.get_object()
+        self.check_object_permission(obj, 'vehicle')
+        return response
 
     def perform_create(self, serializer):
         # Check for duplicate plate number
