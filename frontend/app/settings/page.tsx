@@ -112,6 +112,10 @@ export default function SettingsPage() {
       first_name: sub.first_name, username: sub.username, email: sub.email,
       phone: sub.phone || '', password: '', role: sub.role,
       allowed_modules: sub.allowed_modules || [],
+      allowed_property_ids: sub.allowed_property_ids || [],
+      allowed_vehicle_ids: sub.allowed_vehicle_ids || [],
+      allowed_tenant_ids: sub.allowed_tenant_ids || [],
+      allowed_lease_ids: sub.allowed_lease_ids || [],
       own_health_data: sub.own_health_data, avatar_color: sub.avatar_color || 'blue',
     });
     setEditingSubId(sub.id);
