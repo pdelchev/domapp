@@ -650,10 +650,10 @@ export default function LifePage() {
                 </Button>
               </Link>
               <Button
-                variant="secondary"
+                variant="primary"
                 onClick={() => setShowAddVitalsForm(true)}
               >
-                + {locale === 'bg' ? 'Добави измервания' : 'Add Vitals'}
+                ❤️ {locale === 'bg' ? 'Добави измервания' : 'Add Measurements'}
               </Button>
             </div>
           }
@@ -1559,16 +1559,6 @@ export default function LifePage() {
               </Card>
             )}
 
-            {/* Add Measurements Button */}
-            <div className="mt-4">
-              <Button
-                variant="primary"
-                onClick={() => setShowAddVitalsForm(true)}
-                className="w-full"
-              >
-                {locale === 'bg' ? '❤️ Добави измервания' : '❤️ Add Measurements'}
-              </Button>
-            </div>
           </>
         )}
 
