@@ -198,10 +198,18 @@ export default function SchedulePage() {
     }
   };
 
+  // Deduplicate medicines (keep only first occurrence of each ID)
+  const seen = new Set<number>();
+  const uniqueMedicines = medicines.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+
   // Group medicines by time slot
   const medicinesByTime = TIME_SLOTS.map(slot => ({
     ...slot,
-    items: medicines.filter(m => m.time_slot === slot.value || !m.time_slot),
+    items: uniqueMedicines.filter(m => m.time_slot === slot.value || !m.time_slot),
   }));
 
   return (
