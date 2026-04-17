@@ -2236,7 +2236,7 @@ export default function LifePage() {
                 >
                   <option value="supplement">{locale === 'bg' ? 'Добавка/Витамин' : 'Supplement/Vitamin'}</option>
                   <option value="medication">{locale === 'bg' ? 'Лекарство' : 'Medication'}</option>
-                  <option value="therapy">{locale === 'bg' ? 'Терапия' : 'Therapy'}</option>
+                  <option value="other">{locale === 'bg' ? 'Друго' : 'Other'}</option>
                 </Select>
 
                 {/* Dose */}

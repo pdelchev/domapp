@@ -411,13 +411,26 @@ class ScheduleViewSet(viewsets.ModelViewSet):
 # §VIEW: Dose logging
 # ──────────────────────────────────────────────────────────────
 
-class DoseLogView(generics.CreateAPIView):
+class DoseLogView(generics.ListCreateAPIView):
     """
-    §API: POST /api/health/doses/
-    Log a single dose taken/skipped.
+    §API: GET/POST /api/health/doses/
+    GET: Retrieve dose logs for a specific date (?date=YYYY-MM-DD)
+    POST: Log a single dose taken/skipped.
     """
     serializer_class = DoseLogSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Filter by date from query param
+        query_date = self.request.query_params.get('date')
+        qs = DoseLog.objects.filter(
+            schedule__supplement__user=self.request.user
+        ).select_related('schedule', 'schedule__supplement')
+
+        if query_date:
+            qs = qs.filter(date=query_date)
+
+        return qs.order_by('-date', 'schedule__supplement__name')
 
     def perform_create(self, serializer):
         # §SECURITY: Validate schedule ownership
