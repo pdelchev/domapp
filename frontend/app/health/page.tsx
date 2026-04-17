@@ -20,12 +20,22 @@ interface Measurements {
   arm?: 'left' | 'right';
   posture?: 'sitting' | 'standing' | 'lying';
   context_tags?: string[];
+  useBPSequence?: boolean;
+  bp_reading_1?: { systolic: string; diastolic: string; pulse: string };
+  bp_reading_2?: { systolic: string; diastolic: string; pulse: string };
+  bp_reading_3?: { systolic: string; diastolic: string; pulse: string };
 
-  // Weight & Circumferences
+  // Weight & Body Composition
   weight_kg?: string;
+  body_fat_percent?: string;
+  muscle_mass_kg?: string;
+
+  // Circumferences
   waist_cm?: string;
   hip_cm?: string;
   chest_cm?: string;
+  arm_cm?: string;
+  foot_cm?: string;
 
   // Notes
   notes?: string;
@@ -304,6 +314,10 @@ export default function LifePage() {
     arm: 'left',
     posture: 'sitting',
     context_tags: [],
+    useBPSequence: false,
+    bp_reading_1: { systolic: '', diastolic: '', pulse: '' },
+    bp_reading_2: { systolic: '', diastolic: '', pulse: '' },
+    bp_reading_3: { systolic: '', diastolic: '', pulse: '' },
   });
   const [savingMeasurement, setSavingMeasurement] = useState(false);
 
@@ -645,42 +659,63 @@ export default function LifePage() {
       const pid = data?.profile?.id;
       if (!pid) throw new Error('Profile not found');
 
-      // Save BP reading if provided
-      if (measurements.systolic && measurements.diastolic) {
-        const bpRes = await fetch('/api/health/bp/readings/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
-          },
-          body: JSON.stringify({
-            profile: pid,
-            systolic: parseInt(measurements.systolic),
-            diastolic: parseInt(measurements.diastolic),
-            pulse: measurements.pulse ? parseInt(measurements.pulse) : null,
-            measured_at: new Date().toISOString(),
-            arm: measurements.arm,
-            posture: measurements.posture,
-            is_after_caffeine: measurements.context_tags?.includes('caffeine'),
-            is_after_exercise: measurements.context_tags?.includes('exercise'),
-            is_after_medication: measurements.context_tags?.includes('medication'),
-            is_stressed: measurements.context_tags?.includes('stressed'),
-            is_clinic_reading: measurements.context_tags?.includes('clinic'),
-            is_fasting: measurements.context_tags?.includes('fasting'),
-            notes: measurements.notes,
-          }),
-        });
-        if (!bpRes.ok) {
-          const errorData = await bpRes.json().catch(() => ({}));
-          throw new Error(errorData.detail || 'Failed to save BP reading');
+      // Save BP readings (either single or sequence of 3)
+      const bpReadings = measurements.useBPSequence
+        ? [measurements.bp_reading_1, measurements.bp_reading_2, measurements.bp_reading_3]
+        : measurements.systolic && measurements.diastolic
+        ? [{ systolic: measurements.systolic, diastolic: measurements.diastolic, pulse: measurements.pulse }]
+        : [];
+
+      for (let i = 0; i < bpReadings.length; i++) {
+        const reading = bpReadings[i];
+        if (reading?.systolic && reading?.diastolic) {
+          const measurementTime = measurements.useBPSequence
+            ? new Date(Date.now() + i * 60000).toISOString() // 1 minute apart
+            : new Date().toISOString();
+
+          const bpRes = await fetch('/api/health/bp/readings/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('access_token') || ''}`,
+            },
+            body: JSON.stringify({
+              profile: pid,
+              systolic: parseInt(reading.systolic),
+              diastolic: parseInt(reading.diastolic),
+              pulse: reading.pulse ? parseInt(reading.pulse) : null,
+              measured_at: measurementTime,
+              arm: measurements.arm,
+              posture: measurements.posture,
+              is_after_caffeine: measurements.context_tags?.includes('caffeine'),
+              is_after_exercise: measurements.context_tags?.includes('exercise'),
+              is_after_medication: measurements.context_tags?.includes('medication'),
+              is_stressed: measurements.context_tags?.includes('stressed'),
+              is_clinic_reading: measurements.context_tags?.includes('clinic'),
+              is_fasting: measurements.context_tags?.includes('fasting'),
+              notes: measurements.notes,
+            }),
+          });
+          if (!bpRes.ok) {
+            const errorData = await bpRes.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Failed to save BP reading');
+          }
         }
       }
 
-      // TODO: Save weight and circumferences if provided
+      // TODO: Save weight, body composition, and circumferences if provided
 
       setShowMeasurementModal(false);
       setMeasurementStep(1);
-      setMeasurements({ arm: 'left', posture: 'sitting', context_tags: [] });
+      setMeasurements({
+        arm: 'left',
+        posture: 'sitting',
+        context_tags: [],
+        useBPSequence: false,
+        bp_reading_1: { systolic: '', diastolic: '', pulse: '' },
+        bp_reading_2: { systolic: '', diastolic: '', pulse: '' },
+        bp_reading_3: { systolic: '', diastolic: '', pulse: '' },
+      });
       setError('');
       await load();
     } catch (e) {
@@ -2457,33 +2492,125 @@ export default function LifePage() {
                   <div className="space-y-4">
                     <h3 className="font-semibold text-gray-900 mb-4">🩸 {locale === 'bg' ? 'Кръвно налягане' : 'Blood Pressure'}</h3>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input
-                        label={locale === 'bg' ? 'Систолно' : 'Systolic'}
-                        type="number"
-                        value={measurements.systolic || ''}
-                        onChange={(e) => setMeasurements({ ...measurements, systolic: e.target.value })}
-                        inputMode="numeric"
-                        placeholder="120"
-                      />
-                      <Input
-                        label={locale === 'bg' ? 'Диастолно' : 'Diastolic'}
-                        type="number"
-                        value={measurements.diastolic || ''}
-                        onChange={(e) => setMeasurements({ ...measurements, diastolic: e.target.value })}
-                        inputMode="numeric"
-                        placeholder="80"
-                      />
+                    {/* Single vs Sequence Toggle */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setMeasurements({ ...measurements, useBPSequence: false })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          !measurements.useBPSequence
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {locale === 'bg' ? '1 измерване' : 'Single'}
+                      </button>
+                      <button
+                        onClick={() => setMeasurements({ ...measurements, useBPSequence: true })}
+                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          measurements.useBPSequence
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {locale === 'bg' ? '3 измервания' : '3 Readings'}
+                      </button>
                     </div>
 
-                    <Input
-                      label={locale === 'bg' ? 'Пулс' : 'Pulse (bpm)'}
-                      type="number"
-                      value={measurements.pulse || ''}
-                      onChange={(e) => setMeasurements({ ...measurements, pulse: e.target.value })}
-                      inputMode="numeric"
-                      placeholder="72"
-                    />
+                    {/* Single Reading */}
+                    {!measurements.useBPSequence && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <Input
+                            label={locale === 'bg' ? 'Систолно' : 'Systolic'}
+                            type="number"
+                            value={measurements.systolic || ''}
+                            onChange={(e) => setMeasurements({ ...measurements, systolic: e.target.value })}
+                            inputMode="numeric"
+                            placeholder="120"
+                          />
+                          <Input
+                            label={locale === 'bg' ? 'Диастолно' : 'Diastolic'}
+                            type="number"
+                            value={measurements.diastolic || ''}
+                            onChange={(e) => setMeasurements({ ...measurements, diastolic: e.target.value })}
+                            inputMode="numeric"
+                            placeholder="80"
+                          />
+                        </div>
+                        <Input
+                          label={locale === 'bg' ? 'Пулс' : 'Pulse (bpm)'}
+                          type="number"
+                          value={measurements.pulse || ''}
+                          onChange={(e) => setMeasurements({ ...measurements, pulse: e.target.value })}
+                          inputMode="numeric"
+                          placeholder="72"
+                        />
+                      </div>
+                    )}
+
+                    {/* Sequence of 3 Readings */}
+                    {measurements.useBPSequence && (
+                      <div className="space-y-4">
+                        {[1, 2, 3].map((readingNum) => {
+                          const readingKey = `bp_reading_${readingNum}` as keyof Measurements;
+                          const reading = measurements[readingKey] as { systolic: string; diastolic: string; pulse: string } | undefined;
+                          return (
+                            <div key={readingNum} className="p-3 bg-gray-50 rounded-lg space-y-3">
+                              <div className="text-xs font-medium text-gray-600">
+                                {locale === 'bg' ? `Измерване ${readingNum}` : `Reading ${readingNum}`}
+                                {readingNum > 1 && ` (${readingNum - 1} мин)`}
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input
+                                  label={locale === 'bg' ? 'Систолно' : 'Systolic'}
+                                  type="number"
+                                  value={reading?.systolic || ''}
+                                  onChange={(e) =>
+                                    setMeasurements({
+                                      ...measurements,
+                                      [readingKey]: { ...reading, systolic: e.target.value },
+                                    } as any)
+                                  }
+                                  inputMode="numeric"
+                                  placeholder="120"
+                                />
+                                <Input
+                                  label={locale === 'bg' ? 'Диастолно' : 'Diastolic'}
+                                  type="number"
+                                  value={reading?.diastolic || ''}
+                                  onChange={(e) =>
+                                    setMeasurements({
+                                      ...measurements,
+                                      [readingKey]: { ...reading, diastolic: e.target.value },
+                                    } as any)
+                                  }
+                                  inputMode="numeric"
+                                  placeholder="80"
+                                />
+                              </div>
+                              <Input
+                                label={locale === 'bg' ? 'Пулс' : 'Pulse'}
+                                type="number"
+                                value={reading?.pulse || ''}
+                                onChange={(e) =>
+                                  setMeasurements({
+                                    ...measurements,
+                                    [readingKey]: { ...reading, pulse: e.target.value },
+                                  } as any)
+                                }
+                                inputMode="numeric"
+                                placeholder="72"
+                              />
+                            </div>
+                          );
+                        })}
+                        <p className="text-xs text-gray-500">
+                          {locale === 'bg'
+                            ? '3 измервания с по 1 минута интервал (ще се запаши с точното време)'
+                            : '3 readings with 1-minute intervals (will save with exact timestamps)'}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                       <Select
@@ -2535,10 +2662,10 @@ export default function LifePage() {
                   </div>
                 )}
 
-                {/* STEP 2: WEIGHT */}
+                {/* STEP 2: WEIGHT & BODY COMPOSITION */}
                 {measurementStep === 2 && (
                   <div className="space-y-4">
-                    <h3 className="font-semibold text-gray-900 mb-4">⚖️ {locale === 'bg' ? 'Тегло' : 'Weight'}</h3>
+                    <h3 className="font-semibold text-gray-900 mb-4">⚖️ {locale === 'bg' ? 'Тегло и състав' : 'Weight & Composition'}</h3>
                     <Input
                       label={locale === 'bg' ? 'Килограми' : 'Kilograms'}
                       type="number"
@@ -2548,10 +2675,28 @@ export default function LifePage() {
                       inputMode="decimal"
                       placeholder="70.5"
                     />
+                    <Input
+                      label={locale === 'bg' ? 'Телесна мазнина (%)' : 'Body Fat (%)'}
+                      type="number"
+                      step="0.1"
+                      value={measurements.body_fat_percent || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, body_fat_percent: e.target.value })}
+                      inputMode="decimal"
+                      placeholder="20.5"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Мускулна маса (кг)' : 'Muscle Mass (kg)'}
+                      type="number"
+                      step="0.1"
+                      value={measurements.muscle_mass_kg || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, muscle_mass_kg: e.target.value })}
+                      inputMode="decimal"
+                      placeholder="50.0"
+                    />
                     <p className="text-xs text-gray-500">
                       {locale === 'bg'
-                        ? 'Можеш да пропуснеш тази стъпка, ако не си претеглена днес'
-                        : 'You can skip this step if you haven\'t weighed yourself'}
+                        ? 'Всички полета са опционални. Попълни само това, което имаш измерено.'
+                        : 'All fields are optional. Fill in what you have measured.'}
                     </p>
                   </div>
                 )}
@@ -2583,6 +2728,22 @@ export default function LifePage() {
                       onChange={(e) => setMeasurements({ ...measurements, chest_cm: e.target.value })}
                       inputMode="numeric"
                       placeholder="98"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Ръце (см)' : 'Arm (cm)'}
+                      type="number"
+                      value={measurements.arm_cm || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, arm_cm: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="30"
+                    />
+                    <Input
+                      label={locale === 'bg' ? 'Крак (см)' : 'Foot (cm)'}
+                      type="number"
+                      value={measurements.foot_cm || ''}
+                      onChange={(e) => setMeasurements({ ...measurements, foot_cm: e.target.value })}
+                      inputMode="numeric"
+                      placeholder="25"
                     />
                     <p className="text-xs text-gray-500">
                       {locale === 'bg'
