@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getMe, updateProfile, getSubAccounts, createSubAccount, updateSubAccount, deleteSubAccount } from '../lib/api';
+import { getMe, updateProfile, getSubAccounts, createSubAccount, updateSubAccount, deleteSubAccount, getProperties, getVehicles } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import { t } from '../lib/i18n';
 import NavBar from '../components/NavBar';
@@ -18,7 +18,17 @@ interface UserProfile {
 interface SubAccount {
   id: number; username: string; email: string; first_name: string;
   phone: string; role: string; allowed_modules: string[];
+  allowed_property_ids: number[]; allowed_vehicle_ids: number[];
+  allowed_tenant_ids: number[]; allowed_lease_ids: number[];
   own_health_data: boolean; avatar_color: string;
+}
+
+interface Property {
+  id: number; name: string;
+}
+
+interface Vehicle {
+  id: number; plate_number: string; make: string; model: string;
 }
 
 const ALL_MODULES = [
@@ -35,6 +45,8 @@ const AVATAR_COLORS = ['indigo', 'rose', 'blue', 'emerald', 'purple', 'amber', '
 const EMPTY_SUB = {
   first_name: '', username: '', email: '', phone: '', password: '',
   role: 'viewer', allowed_modules: [] as string[],
+  allowed_property_ids: [] as number[], allowed_vehicle_ids: [] as number[],
+  allowed_tenant_ids: [] as number[], allowed_lease_ids: [] as number[],
   own_health_data: true, avatar_color: 'blue',
 };
 
@@ -43,6 +55,8 @@ export default function SettingsPage() {
   const { locale } = useLanguage();
   const [me, setMe] = useState<UserProfile | null>(null);
   const [subs, setSubs] = useState<SubAccount[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -57,11 +71,18 @@ export default function SettingsPage() {
   const [subForm, setSubForm] = useState(EMPTY_SUB);
 
   useEffect(() => {
-    Promise.all([getMe(), getSubAccounts().catch(() => [])])
-      .then(([user, accounts]) => {
+    Promise.all([
+      getMe(),
+      getSubAccounts().catch(() => []),
+      getProperties().catch(() => []),
+      getVehicles().catch(() => []),
+    ])
+      .then(([user, accounts, props, vehis]) => {
         setMe(user);
         setProfileForm({ first_name: user.first_name, phone: user.phone || '', avatar_color: user.avatar_color || 'indigo' });
         setSubs(accounts);
+        setProperties(props);
+        setVehicles(vehis);
       })
       .catch(() => router.push('/login'))
       .finally(() => setLoading(false));
@@ -241,6 +262,66 @@ export default function SettingsPage() {
                     </div>
                   )}
 
+                  {/* Per-object permissions: Properties */}
+                  {subForm.role !== 'admin' && properties.length > 0 && (
+                    <div>
+                      <label className="text-[13px] font-medium text-gray-700 mb-2 block">🏠 {locale === 'bg' ? 'Достъп до имоти' : 'Property Access'}</label>
+                      <p className="text-xs text-gray-400 mb-2">{locale === 'bg' ? 'Изберете имоти, до които има достъп.' : 'Select which properties this user can access.'}</p>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {properties.map((prop) => (
+                          <label key={prop.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={subForm.allowed_property_ids.includes(prop.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSubForm((p) => ({ ...p, allowed_property_ids: [...p.allowed_property_ids, prop.id] }));
+                                } else {
+                                  setSubForm((p) => ({ ...p, allowed_property_ids: p.allowed_property_ids.filter(id => id !== prop.id) }));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-indigo-600"
+                            />
+                            <span className="text-sm text-gray-700">{prop.name}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {subForm.allowed_property_ids.length === 0 && (
+                        <p className="text-xs text-green-600 mt-1">{locale === 'bg' ? 'Всички имоти' : 'All properties'}</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Per-object permissions: Vehicles */}
+                  {subForm.role !== 'admin' && vehicles.length > 0 && (
+                    <div>
+                      <label className="text-[13px] font-medium text-gray-700 mb-2 block">🚗 {locale === 'bg' ? 'Достъп до коли' : 'Vehicle Access'}</label>
+                      <p className="text-xs text-gray-400 mb-2">{locale === 'bg' ? 'Изберете коли, до които има достъп.' : 'Select which vehicles this user can access.'}</p>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {vehicles.map((veh) => (
+                          <label key={veh.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={subForm.allowed_vehicle_ids.includes(veh.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSubForm((p) => ({ ...p, allowed_vehicle_ids: [...p.allowed_vehicle_ids, veh.id] }));
+                                } else {
+                                  setSubForm((p) => ({ ...p, allowed_vehicle_ids: p.allowed_vehicle_ids.filter(id => id !== veh.id) }));
+                                }
+                              }}
+                              className="rounded border-gray-300 text-indigo-600"
+                            />
+                            <span className="text-sm text-gray-700">{veh.plate_number} {veh.make} {veh.model}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {subForm.allowed_vehicle_ids.length === 0 && (
+                        <p className="text-xs text-green-600 mt-1">{locale === 'bg' ? 'Всички коли' : 'All vehicles'}</p>
+                      )}
+                    </div>
+                  )}
+
                   {/* Health data isolation */}
                   <label className="flex items-start gap-3 py-2 cursor-pointer">
                     <input
@@ -304,6 +385,16 @@ export default function SettingsPage() {
                               const mod = ALL_MODULES.find((am) => am.key === m);
                               return <span key={m} className="text-xs">{mod?.icon || m}</span>;
                             })}
+                          </div>
+                        )}
+                        {sub.role !== 'admin' && (
+                          <div className="flex gap-2 mt-1 flex-wrap">
+                            {sub.allowed_property_ids && sub.allowed_property_ids.length > 0 && (
+                              <Badge color="blue">🏠 {sub.allowed_property_ids.length}</Badge>
+                            )}
+                            {sub.allowed_vehicle_ids && sub.allowed_vehicle_ids.length > 0 && (
+                              <Badge color="blue">🚗 {sub.allowed_vehicle_ids.length}</Badge>
+                            )}
                           </div>
                         )}
                       </div>

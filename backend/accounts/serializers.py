@@ -35,11 +35,17 @@ class SubAccountSerializer(serializers.ModelSerializer):
     """Serializer for creating/updating sub-accounts under a parent user."""
     password = serializers.CharField(write_only=True, min_length=8, required=False)
     allowed_modules = serializers.JSONField(required=False)
+    allowed_property_ids = serializers.JSONField(required=False)
+    allowed_vehicle_ids = serializers.JSONField(required=False)
+    allowed_tenant_ids = serializers.JSONField(required=False)
+    allowed_lease_ids = serializers.JSONField(required=False)
 
     class Meta:
         model = User
         fields = ('id', 'email', 'username', 'first_name', 'phone', 'role',
-                  'allowed_modules', 'own_health_data', 'avatar_color', 'password')
+                  'allowed_modules', 'allowed_property_ids', 'allowed_vehicle_ids',
+                  'allowed_tenant_ids', 'allowed_lease_ids',
+                  'own_health_data', 'avatar_color', 'password')
         read_only_fields = ('id',)
 
     def create(self, validated_data):
@@ -52,6 +58,10 @@ class SubAccountSerializer(serializers.ModelSerializer):
             phone=validated_data.get('phone', ''),
             role=validated_data.get('role', 'viewer'),
             allowed_modules=validated_data.get('allowed_modules', []),
+            allowed_property_ids=validated_data.get('allowed_property_ids', []),
+            allowed_vehicle_ids=validated_data.get('allowed_vehicle_ids', []),
+            allowed_tenant_ids=validated_data.get('allowed_tenant_ids', []),
+            allowed_lease_ids=validated_data.get('allowed_lease_ids', []),
             own_health_data=validated_data.get('own_health_data', True),
             avatar_color=validated_data.get('avatar_color', 'indigo'),
             data_owner=parent,
@@ -60,3 +70,24 @@ class SubAccountSerializer(serializers.ModelSerializer):
             user.set_password(password)
         user.save()
         return user
+
+    def update(self, instance, validated_data):
+        """Update sub-account fields."""
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.email = validated_data.get('email', instance.email)
+        instance.phone = validated_data.get('phone', instance.phone)
+        instance.role = validated_data.get('role', instance.role)
+        instance.allowed_modules = validated_data.get('allowed_modules', instance.allowed_modules)
+        instance.allowed_property_ids = validated_data.get('allowed_property_ids', instance.allowed_property_ids)
+        instance.allowed_vehicle_ids = validated_data.get('allowed_vehicle_ids', instance.allowed_vehicle_ids)
+        instance.allowed_tenant_ids = validated_data.get('allowed_tenant_ids', instance.allowed_tenant_ids)
+        instance.allowed_lease_ids = validated_data.get('allowed_lease_ids', instance.allowed_lease_ids)
+        instance.own_health_data = validated_data.get('own_health_data', instance.own_health_data)
+        instance.avatar_color = validated_data.get('avatar_color', instance.avatar_color)
+
+        password = validated_data.get('password')
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance

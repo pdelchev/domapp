@@ -41,6 +41,25 @@ class User(AbstractUser):
     avatar_color = models.CharField(max_length=20, default='indigo',
         help_text='Color for avatar circle in UI')
 
+    # Per-object permissions — JSON lists of IDs
+    # Empty list = all objects (if module access granted). None = not set yet.
+    allowed_property_ids = models.JSONField(
+        default=list, blank=True,
+        help_text='List of property IDs this user can access. Empty = all properties.',
+    )
+    allowed_vehicle_ids = models.JSONField(
+        default=list, blank=True,
+        help_text='List of vehicle IDs this user can access. Empty = all vehicles.',
+    )
+    allowed_tenant_ids = models.JSONField(
+        default=list, blank=True,
+        help_text='List of tenant IDs this user can access. Empty = all tenants.',
+    )
+    allowed_lease_ids = models.JSONField(
+        default=list, blank=True,
+        help_text='List of lease IDs this user can access. Empty = all leases.',
+    )
+
     def get_data_owner(self):
         """Return the user whose data this user manages (self if no delegation)."""
         return self.data_owner or self
@@ -62,6 +81,24 @@ class User(AbstractUser):
         if self.role == 'admin' or not self.allowed_modules:
             return ALL_MODULES
         return self.allowed_modules
+
+    def has_object_access(self, object_type: str, object_id: int) -> bool:
+        """Check if user can access a specific object (property, vehicle, etc.)."""
+        if self.role == 'admin':
+            return True
+
+        # Map object types to permission fields
+        perms_map = {
+            'property': self.allowed_property_ids,
+            'vehicle': self.allowed_vehicle_ids,
+            'tenant': self.allowed_tenant_ids,
+            'lease': self.allowed_lease_ids,
+        }
+
+        allowed_ids = perms_map.get(object_type, [])
+        if not allowed_ids:  # Empty = all objects (backwards compat)
+            return True
+        return object_id in allowed_ids
 
     def __str__(self):
         return self.email or self.username
