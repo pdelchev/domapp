@@ -164,6 +164,16 @@ SKIP_PATTERNS = [
     r'Белтък\s+Опалесценция',
     # Skip Венепункция / manipulations
     r'Венепункция', r'Секрет.*епруветка',
+    # Skip footnote lines (numbering like "1.", "2.", etc.)
+    r'^\d+\.\s+', r'^[a-z]\.\s+',
+    # Skip LINA reference range explanation lines
+    r'^Препоръчителни\s+нива', r'^Достатъчност', r'^Недостатъчност', r'^Тежък\s+дефицит',
+    r'^Оптимално', r'^Гранично\s+висок', r'^Висок', r'^Много\s+висок',
+    r'^Над\s+\d', r'^През\s+\d', r'^До\s+\d',
+    # Skip single letters or very short fragments that aren't valid test names
+    r'^[a-z]$', r'^[A-Z]$', r'^[a-z]{1,2}[0-9]*$',
+    # Skip incomplete lines with colons (explanatory text, not test results)
+    r':\s*[<>]', r':\s*\d+\s*-',
 ]
 SKIP_RE = [re.compile(p, re.IGNORECASE) for p in SKIP_PATTERNS]
 

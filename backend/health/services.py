@@ -79,6 +79,7 @@ def match_all_biomarkers(parsed_results: list[dict]) -> list[dict]:
     """
     §MATCH_ALL: Match a list of parsed PDF results to canonical biomarkers.
     Returns enriched list with biomarker_id and confidence, plus unmatched warnings.
+    Only warns about unmatched items that look like legitimate test names (3+ chars or multi-word).
     """
     matched = []
     warnings = []
@@ -95,7 +96,12 @@ def match_all_biomarkers(parsed_results: list[dict]) -> list[dict]:
                 'canonical_unit': bm.unit,
             })
         else:
-            warnings.append(f"Could not match: '{item['name']}'")
+            # Only warn about unmatched items that look like valid test names
+            # Skip very short abbreviations (1-2 chars) and single words without spaces that are too short
+            name = item['name'].strip()
+            # Warn if: longer than 2 chars, or contains space, or is a known pattern like "TSH"
+            if len(name) > 2 or ' ' in name or any(known in name for known in ['TSH', 'PSA', 'CEA']):
+                warnings.append(f"Could not match: '{name}'")
 
     return matched, warnings
 
