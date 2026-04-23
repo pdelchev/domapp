@@ -23,6 +23,8 @@ const translations: Record<string, Record<Locale, string>> = {
   'nav.health_hub': { en: 'Health', bg: 'Здраве' },
   'nav.hub': { en: 'Hub', bg: 'Хъб' },
   'nav.tests': { en: 'Tests', bg: 'Тестове' },
+  'nav.compare_reports': { en: 'Compare Reports', bg: 'Сравни резултати' },
+  'nav.blood_stats': { en: 'Blood Stats', bg: 'Статистика' },
   'nav.daily_hub': { en: 'Daily Hub', bg: 'Дневен хъб' },
   'nav.daily_checkin': { en: 'Daily Check-In', bg: 'Дневна проверка' },
   'nav.daily_routine': { en: 'Daily Routine', bg: 'Дневен режим' },

@@ -48,6 +48,10 @@ export default function HealthUploadPage() {
   // Upload state
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadTotal, setUploadTotal] = useState(0);
+  const [showResultsModal, setShowResultsModal] = useState(false);
+  const [uploadResults, setUploadResults] = useState<Array<{ id: number; file_name: string; result_count: number; overall_score: number | null; parse_warnings: string[] }>>([]);
 
   // Manual entry state
   const [manualResults, setManualResults] = useState<Array<{ biomarker: string; value: string }>>([{ biomarker: '', value: '' }]);
@@ -101,6 +105,8 @@ export default function HealthUploadPage() {
 
     setError('');
     setUploading(true);
+    setUploadTotal(pending.length);
+    setUploadProgress(0);
 
     // Use bulk upload endpoint
     const formData = new FormData();
@@ -130,15 +136,10 @@ export default function HealthUploadPage() {
         });
       });
 
-      const successCount = reports.filter((r: { status: string }) => r.status === 'parsed').length;
-      if (successCount > 0) {
-        setSuccess(`${successCount} report(s) uploaded and parsed successfully!`);
-        // Navigate to first parsed report
-        const firstParsed = reports.find((r: { status: string }) => r.status === 'parsed');
-        if (firstParsed) {
-          setTimeout(() => router.push(`/health/report/${firstParsed.id}`), 1500);
-        }
-      }
+      // Show results modal instead of auto-navigating
+      setUploadResults(reports);
+      setShowResultsModal(true);
+      setUploadProgress(pending.length);
     } catch {
       setError('Upload failed');
       setFiles((prev) => prev.map((f) => f.status === 'pending' ? { ...f, status: 'error' } : f));
@@ -359,12 +360,24 @@ export default function HealthUploadPage() {
               </div>
             )}
 
-            {/* Upload button */}
+            {/* Upload button with progress */}
             {files.some((f) => f.status === 'pending') && (
-              <div className="mt-4 flex justify-end">
-                <Button onClick={handleUpload} disabled={uploading}>
-                  {uploading ? t('health.parsing', locale) : `Upload ${files.filter((f) => f.status === 'pending').length} file(s)`}
-                </Button>
+              <div className="mt-4 space-y-3">
+                {uploading && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm font-medium text-blue-900 mb-2">
+                      {locale === 'bg' ? `Обработка: отчет ${uploadProgress} от ${uploadTotal}` : `Processing: report ${uploadProgress} of ${uploadTotal}`}
+                    </p>
+                    <div className="w-full bg-blue-200 rounded-full h-2">
+                      <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${(uploadProgress / uploadTotal) * 100}%` }} />
+                    </div>
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button onClick={handleUpload} disabled={uploading}>
+                    {uploading ? t('health.parsing', locale) : `Upload ${files.filter((f) => f.status === 'pending').length} file(s)`}
+                  </Button>
+                </div>
               </div>
             )}
           </Card>
@@ -419,6 +432,93 @@ export default function HealthUploadPage() {
               </Button>
             </div>
           </Card>
+        )}
+
+        {/* Results Modal */}
+        {showResultsModal && (
+          <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50 p-4">
+            <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {locale === 'bg' ? '📤 Резултати от качване' : '📤 Upload Results'}
+              </h3>
+
+              {uploadResults.length > 0 && (
+                <div className="space-y-3 mb-6">
+                  {uploadResults.map((report) => (
+                    <div key={report.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="flex items-start gap-2 mb-1">
+                        <span className="text-lg shrink-0">✅</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {report.file_name || `Report ${report.id}`}
+                          </p>
+                          {report.overall_score !== null && (
+                            <p className="text-xs text-gray-600">
+                              {locale === 'bg' ? `Оценка: ${report.overall_score}` : `Score: ${report.overall_score}`} • {report.result_count} {locale === 'bg' ? 'резултата' : 'results'}
+                            </p>
+                          )}
+                          {report.result_count > 0 && (
+                            <div className="inline-block mt-1">
+                              <Badge color="red">
+                                {locale === 'bg' ? 'Проверка препоръчана' : 'Check recommended'}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowResultsModal(false);
+                            router.push(`/health/report/${report.id}`);
+                          }}
+                          className="text-xs"
+                        >
+                          {locale === 'bg' ? 'Виж' : 'View'}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="text-sm text-gray-600 mb-6">
+                {locale === 'bg'
+                  ? uploadResults.length === 1
+                    ? '✅ 1 отчет успешно качен'
+                    : `✅ ${uploadResults.length} отчета успешно качени`
+                  : uploadResults.length === 1
+                  ? '✅ 1 report successfully uploaded'
+                  : `✅ ${uploadResults.length} reports successfully uploaded`}
+              </p>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="secondary"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowResultsModal(false);
+                    setFiles([]);
+                    setMode('upload');
+                    setUploadResults([]);
+                  }}
+                >
+                  {locale === 'bg' ? '➕ Добавай още' : '➕ Add Another'}
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={() => {
+                    setShowResultsModal(false);
+                    router.push('/health/tests');
+                  }}
+                >
+                  {locale === 'bg' ? '📊 Виж резултати' : '📊 View Results'}
+                </Button>
+              </div>
+            </Card>
+          </div>
         )}
       </PageContent>
     </PageShell>
