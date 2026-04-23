@@ -7,9 +7,12 @@
 
 import os
 import tempfile
+import csv
+from io import StringIO
 
+from django.http import HttpResponse
 from rest_framework import viewsets, mixins, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -157,6 +160,62 @@ class BloodReportViewSet(viewsets.ModelViewSet):
         finally:
             if is_temp and file_path and os.path.exists(file_path):
                 os.unlink(file_path)
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def export(self, request, pk=None):
+        """§EXPORT: Download blood report as CSV with all biomarkers and flags."""
+        report = self.get_object()
+        fmt = request.query_params.get('format', 'csv')
+
+        if fmt == 'csv':
+            # Create CSV with columns: Biomarker, Value, Unit, Flag, Ref Range, Deviation %, Previous Value, Change %
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['Biomarker', 'Value', 'Unit', 'Flag', 'Ref Range', 'Deviation %', 'Previous Value', 'Change %'])
+
+            # Get previous report for same biomarker comparisons
+            prev_results = {}
+            try:
+                prev_report = (
+                    BloodReport.objects
+                    .filter(user=request.user, profile=report.profile, test_date__lt=report.test_date)
+                    .select_related('profile')
+                    .prefetch_related('results')
+                    .order_by('-test_date')
+                    .first()
+                )
+                if prev_report:
+                    prev_results = {r.biomarker_id: r.value for r in prev_report.results.all()}
+            except:
+                pass
+
+            # Write results grouped by category
+            for result in report.results.select_related('biomarker__category').order_by('biomarker__category__sort_order', 'biomarker__sort_order'):
+                bm = result.biomarker
+                prev_value = prev_results.get(bm.id)
+                change_pct = None
+
+                if prev_value is not None:
+                    change = result.value - prev_value
+                    change_pct = (change / prev_value * 100) if prev_value else 0
+
+                writer.writerow([
+                    bm.name,
+                    f"{result.value:.2f}",
+                    result.unit,
+                    result.flag,
+                    result.ref_range_text,
+                    f"{result.deviation_pct:.1f}" if result.deviation_pct else "",
+                    f"{prev_value:.2f}" if prev_value else "",
+                    f"{change_pct:.1f}%" if change_pct is not None else "",
+                ])
+
+            # Return as CSV file
+            response = HttpResponse(output.getvalue(), content_type='text/csv')
+            response['Content-Disposition'] = f'attachment; filename="blood_report_{report.test_date}.csv"'
+            return response
+
+        return Response({'error': 'Invalid format'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 # ── Bulk upload ──────────────────────────────────────────────────────

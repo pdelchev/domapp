@@ -128,13 +128,16 @@ class BloodReportListSerializer(serializers.ModelSerializer):
     profile_name = serializers.CharField(source='profile.full_name', read_only=True)
     result_count = serializers.SerializerMethodField()
     flag_summary = serializers.SerializerMethodField()
+    abnormal_count = serializers.SerializerMethodField()
+    score_change = serializers.SerializerMethodField()
+    trend = serializers.SerializerMethodField()
 
     class Meta:
         model = BloodReport
         fields = [
             'id', 'profile', 'profile_name', 'test_date', 'lab_name', 'lab_type',
             'file_name', 'overall_score', 'system_scores',
-            'result_count', 'flag_summary',
+            'result_count', 'flag_summary', 'abnormal_count', 'score_change', 'trend',
             'created_at',
         ]
 
@@ -157,6 +160,42 @@ class BloodReportListSerializer(serializers.ModelSerializer):
             elif r.flag in ('critical_high', 'critical_low'):
                 summary['critical'] += 1
         return summary
+
+    def get_abnormal_count(self, obj):
+        """§COUNT: Total results that are not optimal or normal."""
+        flag_summary = self.get_flag_summary(obj)
+        return flag_summary['borderline'] + flag_summary['abnormal'] + flag_summary['critical']
+
+    def get_score_change(self, obj):
+        """§CHANGE: Score delta from previous report (positive = improvement)."""
+        if not obj.overall_score or not obj.profile:
+            return None
+
+        try:
+            prev_report = (
+                BloodReport.objects
+                .filter(user=obj.user, profile=obj.profile, test_date__lt=obj.test_date)
+                .order_by('-test_date')
+                .first()
+            )
+            if prev_report and prev_report.overall_score:
+                return obj.overall_score - prev_report.overall_score
+        except:
+            pass
+
+        return None
+
+    def get_trend(self, obj):
+        """§TREND: up (improving), down (worsening), or stable."""
+        score_change = self.get_score_change(obj)
+        if score_change is None:
+            return None
+        if score_change > 1:
+            return 'up'
+        elif score_change < -1:
+            return 'down'
+        else:
+            return 'stable'
 
 
 class BloodReportDetailSerializer(serializers.ModelSerializer):
