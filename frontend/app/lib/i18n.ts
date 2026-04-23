@@ -934,6 +934,15 @@ const translations: Record<string, Record<Locale, string>> = {
   'health.borderline': { en: 'Borderline', bg: 'Гранично' },
   'health.abnormal': { en: 'Abnormal', bg: 'Извън нормата' },
   'health.critical': { en: 'Critical', bg: 'Критично' },
+  'health.upload_reports': { en: 'Upload Reports', bg: 'Качи резултати' },
+  'health.select_profile': { en: 'Select Profile', bg: 'Избери профил' },
+  'health.test_date': { en: 'Test Date', bg: 'Дата на теста' },
+  'health.lab_name': { en: 'Lab Name', bg: 'Име на лаборатория' },
+  'health.bulk_upload': { en: '📄 Bulk Upload', bg: '📄 Групово качване' },
+  'health.manual_entry': { en: '✏️ Manual Entry', bg: '✏️ Ръчно въвеждане' },
+  'health.drag_drop': { en: 'Drag & drop files here', bg: 'Превлачи и отпусни файлове тук' },
+  'health.select_file': { en: 'or select file', bg: 'или избери файл' },
+  'health.parsing': { en: 'Parsing...', bg: 'Анализиране...' },
 
   // Test Panel
   'panel.title': { en: 'Blood Test Panel', bg: 'Панел кръвни изследвания' },
